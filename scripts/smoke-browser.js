@@ -47,7 +47,18 @@ const MOCK = `
       C(107.0,108.0,106.9,107.8),C(107.8,112.7,107.7,112.5),C(112.5,113.5,109.2,113.0),C(113.0,113.1,110.8,111.0),C(111.0,111.2,109.5,109.6),C(109.6,109.7,108.8,109.0)); return c; }
   const htfBull = () => zig([100,110,105,115,108,120],8,0.3);
   function walk(len,base){ const out=[]; let p=base; for(let i=0;i<len;i++){ const o=p,c=p*(1+(rnd()-0.5)*0.02); out.push({open:o,close:c,high:Math.max(o,c)*(1+rnd()*0.006),low:Math.min(o,c)*(1-rnd()*0.006),volume:1+rnd()}); p=c; } return out; }
+  function unicornLong(){ const c = zig([100,120,112,140,126,140,108],14,0.3);
+    c.push(C(108,110,107.8,109.8),C(109.8,112,109.6,111.8),C(111.8,114.2,111.6,114),C(114,114.6,113.4,113.6),C(113.6,116.2,113.5,116),
+      C(116,116.1,113,113.2),C(113.2,113.4,110,110.2),C(110.2,110.4,106.5,106.8),C(106.8,107,104,104.6),
+      C(104.6,106,104.4,105.8),C(105.8,108.2,105.6,108),C(108,110.6,107.9,110.4),C(110.4,115.2,110.3,115),C(115.2,118,115.1,117.6),
+      C(117.6,117.8,116.4,116.6),C(116.6,116.8,115.6,115.8),C(115.8,116,114.9,115.2)); return c; }
+  function leg2(from,to,steps,wick){ return leg(from,to,steps,wick); }
+  function sweepShort(){ const c = zig([100,92,104,94],16,0.2).concat(leg2(94,100.2,12,0.8));
+    c.push(C(100.2,100.6,100.1,100.5),C(100.5,102.6,100.4,102.4),C(102.4,103,101.9,102.8),C(102.8,103.6,102.5,103.4),C(103.4,104.8,102.9,103.2),
+      C(103.2,103.3,101.6,101.8),C(101.8,101.9,100,100.2)); return c; }
   function series(sym, iv){
+    if(sym==='LINKUSDT') return iv==='1h' ? unicornLong() : htfBull();
+    if(sym==='ADAUSDT') return iv==='1h' ? sweepShort() : mirror(htfBull(),200);
     if(sym==='SOLUSDT') return iv==='1h' ? bullScenario() : htfBull();
     if(sym==='DOGEUSDT') return iv==='1h' ? mirror(bullScenario(),200) : mirror(htfBull(),200);
     return walk(200, 50 + SYMS.indexOf(sym)*7);
@@ -156,6 +167,8 @@ async function main() {
   check(/SOL/.test(intraHtml) && /LONG/.test(intraHtml), 'scan Intraday menemukan SOL sebagai LONG (skenario sweep+MSS)');
   check(/DOGE/.test(intraHtml) && /SHORT/.test(intraHtml), 'scan Intraday menemukan DOGE sebagai SHORT (skenario cermin)');
   check(/SIAP ENTRY/.test(intraHtml), 'hasil dikelompokkan: SIAP ENTRY');
+  check(/LINK/.test(intraHtml) && /Unicorn/.test(intraHtml), 'scan Intraday menemukan LINK sebagai model Unicorn');
+  check(/ADA/.test(intraHtml) && /Sweep→IFVG/.test(intraHtml), 'scan Intraday menemukan ADA sebagai model Sweep→IFVG (Inverse Blueprint)');
   await shot('03-scan-intraday', 430, 1000);
   await evaluate('document.getElementById("modeResultsClose").click()');
 
@@ -183,7 +196,7 @@ async function main() {
   check(/CHECKLIST ICT/.test(modal) && /Bias HTF searah/.test(modal), 'detail SOL: checklist ICT tampil');
   check(/RENCANA ENTRY ICT/.test(modal) && /Take Profit 1/.test(modal), 'detail SOL: rencana entry (Entry/SL/TP/RR) tampil');
   check(!/NaN|undefined|Infinity/.test(modal), 'detail SOL: tidak ada "NaN"/"undefined"/"Infinity" di layar');
-  check(!/EMA|RSI|MACD|ADX|ATR|Bollinger|VWAP|Fibonacci|StochRSI/i.test(modal.replace(/Sweep/gi,'')), 'detail SOL: tidak ada indikator klasik di layar');
+  check(!/(EMA|RSI|MACD|ADX|ATR|VWAP|StochRSI|Bollinger|Fibonacci)/.test(modal), 'detail SOL: tidak ada indikator klasik di layar');
   await shot('05-detail-sol', 430, 1400);
   // ganti timeframe
   for (const tf of ['1h', '1d', '1w', '12h']) {
@@ -192,6 +205,34 @@ async function main() {
     const t = await evaluate('document.getElementById("modalBody").innerText');
     check(!/NaN|undefined|Infinity/.test(t) && t.length > 400, `detail SOL di TF ${tf.toUpperCase()}: ter-render tanpa NaN/undefined`);
   }
+  // ---- detail model Unicorn & IFVG ----
+  await evaluate('currentDetailTf = "1h"; openDetail("LINKUSDT")');
+  await waitFor('document.getElementById("modalBody").innerText.toLowerCase().includes("detail — ict unicorn")', 'detail LINK (Unicorn)');
+  const lk = await evaluate('document.getElementById("modalBody").innerText');
+  if (process.env.SMOKE_DEBUG) console.log('--- TEKS DETAIL LINK ---\n' + lk.slice(lk.indexOf('RENCANA ENTRY ICT') > 0 ? lk.indexOf('RENCANA ENTRY ICT') : 0, lk.indexOf('RENCANA ENTRY ICT') + 5000));
+  check(/DETAIL — ICT Unicorn/i.test(lk) && /Manipulation leg/.test(lk) && /Breaker/.test(lk) && /Zona overlap/.test(lk) && /2 STDV/.test(lk), 'detail LINK: panel Unicorn (DOL, manipulation leg, breaker, overlap, 2 STDV)');
+  check(/Tidak ada — biarkan trade berjalan/.test(lk), 'detail LINK: Unicorn tanpa manajemen trade');
+  check(!/NaN|undefined|Infinity/.test(lk), 'detail LINK: tanpa NaN/undefined');
+  await shot('05b-detail-unicorn', 430, 1700);
+  await evaluate('openDetail("ADAUSDT")');
+  await waitFor('document.getElementById("modalBody").innerText.toLowerCase().includes("detail — sweep")', 'detail ADA (IFVG)');
+  const ad = await evaluate('document.getElementById("modalBody").innerText');
+  if (process.env.SMOKE_DEBUG) console.log('--- TEKS DETAIL ADA ---\n' + ad.slice(ad.indexOf('RENCANA ENTRY ICT') > 0 ? ad.indexOf('RENCANA ENTRY ICT') : 0, ad.indexOf('RENCANA ENTRY ICT') + 7000));
+  check(/CARA ENTRY/i.test(ad) && /STOP LOSS/i.test(ad) && /BREAKEVEN/i.test(ad) && /TAKE PROFIT/i.test(ad) && /MODEL FAVORIT/i.test(ad), 'detail ADA: panel IFVG lengkap (entry, SL, BE, TP, model favorit)');
+  check(/Body closure/.test(ad) && /Retrace awal IFVG/.test(ad) && /Retrace 50% IFVG/.test(ad) && /BPR/.test(ad), 'detail ADA: empat cara entry tampil (body closure, retrace awal, 50%, FVG+FVG/BPR)');
+  check(/Rule of 50/.test(ad) && /Low hanging fruit/.test(ad), 'detail ADA: dua breakeven (Rule of 50, Low hanging fruit)');
+  check(/ORDER FLOW & MARKET STRUCTURE/i.test(ad) && /TIMING — KILLZONE & MACRO/i.test(ad) && /Macro/i.test(ad), 'detail ADA: order flow + timing (killzone & macro)');
+  check(!/NaN|undefined|Infinity/.test(ad), 'detail ADA: tanpa NaN/undefined');
+  await shot('05c-detail-ifvg', 430, 2600);
+  // preferensi entry 50% IFVG -> kartu rencana ikut berubah
+  await evaluate('(()=>{ const el=document.getElementById("ictPrefEntry"); el.value="ifvg50"; el.dispatchEvent(new Event("change")); })()');
+  check((await evaluate('loadIctPrefs().entry')) === 'ifvg50', 'preferensi entry tersimpan (ifvg50)');
+  await evaluate('openDetail("ADAUSDT")');
+  await waitFor('document.getElementById("modalBody").innerText.includes("Retrace 50% IFVG")', 'detail ADA setelah ganti preferensi');
+  check(/✓ Retrace 50% IFVG/.test(await evaluate('document.getElementById("modalBody").innerText')), 'entry 50% IFVG ditandai dipilih setelah preferensi diganti');
+  await evaluate('(()=>{ const el=document.getElementById("ictPrefEntry"); el.value="ifvg"; el.dispatchEvent(new Event("change")); })()');
+  await evaluate('currentDetailTf = "1h"; openDetail("SOLUSDT")');
+  await waitFor('document.getElementById("modalBody").innerText.includes("Liquidity Sweep + MSS")', 'kembali ke detail SOL');
   // copy AI
   await evaluate('document.querySelector("#tfSwitch .tf-btn[data-tf=\\"1h\\"]").click()');
   await waitFor('document.getElementById("modalBody").innerText.includes("Liquidity Sweep + MSS")', 'detail kembali ke 1H (tempat setup SOL)');
@@ -200,12 +241,15 @@ async function main() {
   const prompts = await evaluate('["teknikal","risk","sentimen","bull","bear"].map(a => generateAgentPrompt(a))');
   check(prompts.every(p => typeof p === 'string' && p.length > 800 && !/NaN|undefined|Infinity/.test(p)), 'prompt 5 agent ter-generate tanpa NaN/undefined');
   check(!/EMA|RSI|MACD|ADX|ATR|Bollinger|VWAP|Fibonacci|StochRSI/.test(prompts[0]), 'prompt AI tidak menyebut indikator klasik');
+  await evaluate('openDetail("ADAUSDT")'); await waitFor('document.getElementById("modalBody").innerText.toLowerCase().includes("detail — sweep")', 'detail ADA untuk prompt');
+  const adPrompt = await evaluate('generateAgentPrompt("teknikal")');
+  check(/MODEL TERDETEKSI: Sweep → IFVG/.test(adPrompt) && /Entry \(\* = dipilih\)/.test(adPrompt) && /Macro|NY AM|di luar macro/i.test(adPrompt), 'prompt AI memuat model IFVG + opsi entry/SL/TP + macro');
   // simpan histori + jurnal
   await evaluate('saveSetupSnapshot()');
   check((await evaluate('loadSetupHistory().length')) === 1, 'Simpan ke Histori Setup menulis 1 entry');
   await evaluate('document.getElementById("modalCloseBtn").click()');
   await evaluate('closeOtherFullscreenPanels("historyPanel"); document.getElementById("historyPanel").classList.add("show"); renderSetupHistory()');
-  check((await evaluate('document.getElementById("historyList").innerText')).includes('SOL'), 'panel Histori Setup menampilkan entry tersimpan');
+  check(/ADA|SOL/.test(await evaluate('document.getElementById("historyList").innerText')), 'panel Histori Setup menampilkan entry tersimpan');
   await evaluate('checkSetupHistoryEntry(loadSetupHistory()[0].id)');
   check((await evaluate('loadSetupHistory()[0].checkedAt')) !== null, 'Cek Sekarang mengisi hasil validasi');
   await shot('06-histori', 430, 900);

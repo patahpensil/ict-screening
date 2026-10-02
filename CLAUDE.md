@@ -23,6 +23,7 @@ scripts/check.js               static checks (syntax, undefined functions, DOM i
 scripts/check-cache-bump.js    enforces the CACHE_NAME rule below
 scripts/selftest.js            proves check.js actually rejects defects, so it can't rot into always-green
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
+scripts/test-ict-models.js     tests for the Unicorn & Inverse Blueprint (IFVG) models against the rules in the two guide PDFs
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
 scripts/backtest-ict.js        OPTIONAL: walk-forward backtest on real Binance data (needs internet)
 scripts/analyze-features.js    OPTIONAL: feature-vs-outcome research on a backtest dump
@@ -33,7 +34,7 @@ scripts/vps-backtest.sh        OPTIONAL: one-command futures backtest for a VPS 
 ## Development workflow
 
 - Edit `index.html` directly; there's nothing to compile. Open it in a browser (or serve the folder statically) to test.
-- **Before committing, run `node scripts/check.js` and `node scripts/test-ict.js`.**
+- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js` and `node scripts/test-ict-models.js`.**
   - `check.js` catches the class of mistake this single-file app is most prone to: a function called but never defined, a `getElementById` pointing at a missing id, a duplicate id, an inline `onclick` naming a missing function, or a syntax error. It checks *calls by name* only — it does **not** catch a reference to a deleted constant/variable.
   - `test-ict.js` extracts the block between the `/* ICT-ENGINE-START */` and `/* ICT-ENGINE-END */` markers in `index.html` and runs it in Node: a known bullish sweep+MSS scenario must give LONG with exact entry/SL/TP, its price-mirror must give SHORT with mirrored levels, an opposing HTF bias must give SKIP, plus a random-walk fuzz (no crashes, consistent plans, rare signals) and a ban on classic-indicator calls inside the engine block.
 - For anything touching UI/flow, also run `node scripts/smoke-browser.js --shots=<folder>` (needs Chrome or Edge) and look at the screenshots. It mocks the Binance API with synthetic candles, so it is deterministic and offline. It fails on any exception or `console.error`.
@@ -84,6 +85,16 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - Backtest memakai candle yang SUDAH TUTUP; app live menganalisis candle yang sedang terbentuk juga (belum diukur seberapa besar bedanya). Jangan mengklaim hasil backtest berlaku persis untuk sinyal live.
 - Jangan mengubah teks UI menjadi lebih yakin daripada bukti: produk diposisikan sebagai alat bantu keputusan.
 - **Tooling riset tidak pernah memakai API key.** Backtest/riset hanya memanggil endpoint data publik Binance (ping, ticker/24hr, klines). Jangan menambah kode yang membaca `BINANCE_*`, menandatangani request, atau mengirim `X-MBX-APIKEY`. Eksekusi order otomatis sengaja di luar cakupan (hasil backtest: ekspektasi negatif setelah fee).
+
+## Unicorn & Inverse Blueprint models (from two guide PDFs)
+
+`ictSetupUnicorn` and `ictIfvgCandidates` (between the engine markers) implement the rules of the two guides the user supplied ("ICT Unicorn Model", "The Inverse Blueprint"). Their instrument/timeframe parameters (ES/XAUUSD/EURUSD, M3–M15) are intentionally NOT used — the app's own Intraday/Swing timeframes apply. Rules to keep when touching them:
+
+- **Follow the guides literally.** Killzones are exactly Asia 20:00–00:00, London 02:00–05:00, New York 07:00–10:00 (NY time) plus the macro table (`ICT_MACROS`) — do not add windows the guides do not list (an earlier "London Close" was removed for this reason). Unicorn: SL at the BODY extreme of the manipulation leg, TP = 2 STDV or DOL, min 2R, no management. IFVG: only a SINGLE FVG counts, violation = body closure, six-item checklist, four entry methods, two SLs, two breakevens, TP = LHF / major FVG / external↔internal.
+- **Anything not in the guides is an "(app)" interpretation** and is listed in README ("Tafsiran app"). Keep that list honest when you add one.
+- **Only CLOSED candles are analysed** (`fetchKlinesFull` drops the still-forming candle) because "body closure" is only valid on a closed candle. Do not reintroduce the forming candle.
+- Entry/SL/TP/breakeven choices are user preferences (`ICT_DEFAULT_PREFS`, stored in `ict_model_prefs`, passed as `opts.prefs` to `ictEvaluate`); the engine stays pure and must never read `localStorage`.
+- Both models are statistically UNTESTED. Do not claim edge for them (see "Research tooling & aturan metodologi").
 
 ## Hard rules
 

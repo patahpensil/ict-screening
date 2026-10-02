@@ -41,6 +41,10 @@ jobs:
       - name: Uji engine ICT
         run: node scripts/test-ict.js
 
+      # Uji model Unicorn & Inverse Blueprint (IFVG) terhadap aturan di kedua berkas panduan.
+      - name: Uji model Unicorn & IFVG
+        run: node scripts/test-ict-models.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

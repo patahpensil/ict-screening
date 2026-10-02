@@ -39,6 +39,32 @@ Hasil scan dipisah jadi **✅ Siap entry** (harga sedang di dalam zona entry) da
 - **Killzone**: Asia, London, New York AM, London Close — waktu New York, otomatis ikut DST
 - **Displacement**: body candle ≥ 1.3× rata-rata body 20 candle sebelumnya
 
+## Model dari dua berkas panduan (Unicorn & Inverse Blueprint)
+
+Selain Sweep+MSS dan Retest POI, app memuat **dua model dari berkas panduan** yang diterapkan apa adanya. Yang dipakai hanya aturannya; **instrumen dan timeframe berkas (ES/XAUUSD/EURUSD, M3–M15) tidak dipakai** — model berjalan di TF gaya Intraday (1H/4H/1D) dan Swing (4H/1D/1W) milik app, di crypto.
+
+**ICT Unicorn** (berkas "ICT Unicorn Model")
+1. **DOL** = *equal highs* (long) / *equal lows* (short) searah trade yang belum diambil.
+2. **Manipulation leg menjauhi DOL**: long = swing high → lower low (menyapu low sebelumnya); short = swing low → higher high.
+3. **Breaker** = candle (atau kelompok candle warna sama, maks 4) **terakhir** sebelum lower low / higher high — hijau untuk bullish, merah untuk bearish — yang kemudian ditembus close. Displacement setelahnya harus meninggalkan **FVG yang tumpang tindih** dengan breaker.
+4. **Entry** = retest zona overlap breaker ∩ FVG (limit). **SL** = *body* high/low manipulation leg (bukan wick).
+5. **TP** = 2 standard deviation (0 = ekstrem leg, 1 = awal leg, 2 = diproyeksikan sebesar leg — proyeksi sederhana, bukan alat Fibonacci) **atau** DOL. **Minimal 2R. Tanpa manajemen trade.** Jangan trading saat berita red-folder (gunakan News Guard).
+
+**The Inverse Blueprint** (IFVG)
+- **IFVG** = FVG yang dilanggar dengan **penutupan body**; hanya FVG **tunggal** yang dihitung (bukan beberapa FVG berurutan).
+- **Tipe 1 — POI → IFVG:** harga ditolak dari FVG/OB/POI; saat mendekat terbentuk satu FVG (di dalam/dekat POI), lalu FVG itu dilanggar body closure. **Tipe 2 — Sweep → IFVG:** harga menyapu likuiditas (swing high/low atau **Asian high/low**), saat menuju level terbentuk satu FVG, lalu dilanggar body closure setelah sweep.
+- **Model Favorit** = tipe 1 + **BOS** searah + **inducement** tepat di bawah/atas FVG utama (boleh di dalamnya) + **DOL / low hanging fruit** jelas.
+- **Empat cara entry** (pilihan personal, atur di Pengaturan): 1) body closure, 2) retrace ke awal IFVG, 3) retrace 50% IFVG, 4) FVG+FVG — awal/50% FVG pelanggar atau awal/50% **BPR** (overlap dua FVG).
+- **Dua stop loss:** swing high/low, atau pelanggaran IFVG (tanpa SL tetap — keluar manual saat close di luar IFVG).
+- **Dua breakeven:** Rule of 50 (di 50% RR geser SL ke BE, opsional ambil 50% profit) atau Low hanging fruit (setelah likuiditas terdekat disapu).
+- **Take profit:** low hanging fruit (high/low terdekat), FVG mayor terdekat, atau analisis **external ↔ internal** (dari ujung range ke PD array di dalam, atau sebaliknya).
+- **Timing:** killzone Asia 20:00–00:00, London 02:00–05:00, New York 07:00–10:00 (waktu NY) dan **macro** London 02:33–03:00 & 04:03–04:30, NY AM 08:50–09:10, 09:50–10:10 & 10:50–11:10, NY PM 11:50–12:10, 13:10–13:40 & 15:15–15:45. Order flow & struktur (PD array dihormati/dilanggar, sweep short-term, displacement) ditampilkan di detail pair.
+- **Checklist enam poin** berkas: harga mencapai FVG/sweep → FVG di sisi berlawanan → killzone atau macro → body closure → likuiditas target jelas → SL jelas & RR layak.
+
+**Tafsiran app** (di luar teks berkas, bisa diubah): RR "layak" untuk IFVG = RR minimum gaya (1:1.5 Intraday, 1:2 Swing); "low hanging fruit" = swing (fractal 2 candle) terdekat yang belum diambil, termasuk Asian high/low — bisa sangat dekat sehingga RR rendah; Unicorn memakai sesi New York sebagai item non-blocking; analisis memakai **candle yang sudah tutup** (body closure butuh candle tertutup); inducement = swing minor yang diambil harga sebelum pelanggaran.
+
+> Model-model ini **belum diuji secara statistik**. Hasil backtest di bawah menyangkut model lama (Sweep+MSS, Retest POI).
+
 ## Hasil backtest — baca ini sebelum memakai sinyalnya
 
 Engine ini **alat bantu keputusan, bukan sinyal yang terbukti punya edge.** Sudah diuji walk-forward di data Binance nyata (`scripts/backtest-ict.js`): engine hanya melihat candle yang sudah tutup, sinyal diikuti ke depan sampai TP atau SL.
@@ -109,6 +135,7 @@ scripts/check.js               pemeriksaan statis (syntax, fungsi hilang, id DOM
 scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js berubah
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
+scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
 scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (futures atau spot; butuh internet)
 scripts/vps-backtest.sh        OPSIONAL: satu perintah untuk menjalankan backtest + analisis di VPS (tanpa API key)
@@ -121,6 +148,7 @@ Sebelum commit, cukup pakai Node tanpa install apa pun:
 ```
 node scripts/check.js
 node scripts/test-ict.js
+node scripts/test-ict-models.js
 ```
 
 `scripts/smoke-browser.js` butuh Chrome atau Edge terpasang dan tidak dijalankan di CI: `node scripts/smoke-browser.js --shots=folder`.

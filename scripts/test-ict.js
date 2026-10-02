@@ -113,8 +113,8 @@ ok(!evPending.candidates.some(c => c.id === 'SWEEP_MSS'), 'sweep tanpa MSS -> TI
 ok(evPending.watch.some(w => /MSS/.test(w)), 'sweep tanpa MSS dicatat sebagai pantauan (menunggu MSS)');
 
 // ---------- skenario 5: killzone ----------
-ok(E.ictKillzone(new Date('2025-01-15T13:00:00Z')).name === 'New York AM', 'killzone 13:00 UTC (08:00 NY, musim dingin) = New York AM');
-ok(E.ictKillzone(new Date('2025-07-15T12:00:00Z')).name === 'New York AM', 'killzone 12:00 UTC (08:00 NY, musim panas/DST) = New York AM');
+ok(E.ictKillzone(new Date('2025-01-15T13:00:00Z')).name === 'New York', 'killzone 13:00 UTC (08:00 NY, musim dingin) = New York (jendela 07:00–10:00 sesuai berkas)');
+ok(E.ictKillzone(new Date('2025-07-15T12:00:00Z')).name === 'New York', 'killzone 12:00 UTC (08:00 NY, musim panas/DST) = New York');
 ok(!E.ictKillzone(new Date('2025-01-15T18:00:00Z')).active, '18:00 UTC (13:00 NY) di luar killzone');
 
 // ---------- skenario 6: primitif ----------

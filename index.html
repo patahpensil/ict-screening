@@ -1200,6 +1200,17 @@
         <button class="btn" id="notifPermBtn" style="margin-top:10px; width:100%;">🔔 Izinkan Notifikasi Browser</button>
         <div class="notif-status" id="notifStatus"></div>
 
+        <div class="drawer-title" style="margin-top:20px;">🧩 Preferensi Model ICT (Unicorn &amp; IFVG)</div>
+        <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Berkas <b>Inverse Blueprint</b> menyebut pilihan entry, SL, TP, dan breakeven bersifat <b>personal</b> (tiap pilihan punya pro &amp; kontra). Berlaku untuk model IFVG di scan berikutnya dan detail pair. Model <b>Unicorn</b> memakai aturan tetap berkas (SL body leg, TP 2 STDV atau DOL, tanpa manajemen).</div>
+        <div class="settings-grid">
+          <div class="setting-field"><label>Cara Entry (IFVG)</label><select id="ictPrefEntry">
+            <option value="body">1. Body closure</option><option value="ifvg">2. Retrace awal IFVG</option><option value="ifvg50">3. Retrace 50% IFVG</option>
+            <option value="fvgStart">4a. FVG+FVG — awal FVG</option><option value="fvg50">4b. FVG+FVG — 50% FVG</option><option value="bprStart">4c. BPR — awal BPR</option><option value="bpr50">4d. BPR — 50% BPR</option></select></div>
+          <div class="setting-field"><label>Stop Loss (IFVG)</label><select id="ictPrefSl"><option value="swing">1. Swing high/low</option><option value="ifvg">2. Pelanggaran IFVG (keluar manual)</option></select></div>
+          <div class="setting-field"><label>Take Profit (IFVG)</label><select id="ictPrefTp"><option value="lhf">Low hanging fruit</option><option value="fvg">FVG mayor terdekat</option><option value="range">External ↔ Internal</option></select></div>
+          <div class="setting-field"><label>Breakeven (IFVG)</label><select id="ictPrefBe"><option value="rule50">Rule of 50</option><option value="lhf">Low hanging fruit</option><option value="none">Tidak dipakai</option></select></div>
+        </div>
+
         <div class="drawer-title" style="margin-top:20px;">📨 Notifikasi Telegram</div>
         <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Kirim alarm (🚨) ke Telegram kamu juga, biar tetap kedapetan walau app lagi nggak dibuka di HP. Token &amp; Chat ID cuma disimpan lokal di browser ini (localStorage) — <b>tidak pernah</b> ikut ke-push ke GitHub atau server manapun.</div>
         <div class="settings-grid">
@@ -2389,6 +2400,10 @@ const ICT_CFG = {
   oteLo: 0.62, oteHi: 0.79,// zona OTE (Optimal Trade Entry) ICT
   maxZoneDistFrac: 0.35,   // zona entry harus dalam jarak <= 35% range leg dari harga sekarang (kalau tidak, bukan peluang saat ini)
   maxPoiAge: 60,           // OB/FVG lebih tua dari N candle dianggap basi untuk retest
+  unicornMinRR: 2,         // berkas Unicorn: "Trade must provide at least 2R"
+  unicornMaxAge: 80,       // manipulation leg lebih tua dari N candle dianggap basi (app)
+  groupMax: 4,             // breaker boleh berupa kelompok candle warna sama, maksimal N candle (app)
+  ifvgMaxAge: 8,           // pelanggaran FVG (body closure) dianggap "baru" kalau terjadi dalam N candle terakhir (app)
   tpMode: 'minrr',         // 'minrr' = TP1 = likuiditas terdekat yang memberi RR >= minRR | 'nearest' = likuiditas terdekat apa pun
   slBufferFrac: 0.05,      // buffer SL = 5% dari range leg (min 0.05% harga) di luar swing/zona invalidasi
   styles: {
@@ -2574,18 +2589,18 @@ function ictFVGs(candles){
     if(!(avg > 0) || (high - low) < 0.1 * avg) continue; // celah terlalu kecil = noise
     const size = high - low;
     const displacement = Math.abs(b.close - b.open) >= ICT_CFG.dispBodyMult * avg && (type === 'bull' ? b.close > b.open : b.close < b.open);
-    let touched = false, fill = 0, valid = true;
+    let touched = false, fill = 0, valid = true, violIdx = -1;
     for(let j = i + 1; j < n; j++){
       const k = candles[j];
       if(type === 'bull'){
         if(k.low <= high){ touched = true; fill = Math.max(fill, Math.min(1, (high - k.low) / size)); }
-        if(k.close < low){ valid = false; break; }
+        if(k.close < low){ valid = false; violIdx = j; break; }
       } else {
         if(k.high >= low){ touched = true; fill = Math.max(fill, Math.min(1, (k.high - low) / size)); }
-        if(k.close > high){ valid = false; break; }
+        if(k.close > high){ valid = false; violIdx = j; break; }
       }
     }
-    out.push({ kind: 'fvg', type, low, high, ce: (low + high) / 2, midIdx: i - 1, idx: i, barsAgo: n - 1 - i, displacement, touched, fill, valid });
+    out.push({ kind: 'fvg', type, low, high, ce: (low + high) / 2, midIdx: i - 1, idx: i, barsAgo: n - 1 - i, displacement, touched, fill, valid, violIdx });
   }
   return out;
 }
@@ -2644,8 +2659,11 @@ function ictDealingRange(candles, structure){
   };
 }
 
-// ---------- killzone (waktu New York, otomatis ikut DST) ----------
-function ictKillzone(date){
+// ---------- killzone & macro (waktu New York, otomatis ikut DST) — jendela PERSIS seperti berkas "Inverse Blueprint" ----------
+// Killzone: Asia 20:00–00:00, London 02:00–05:00, New York 07:00–10:00.
+// Macro (periode ±20–30 menit saat algoritma mencari likuiditas): London 02:33–03:00 & 04:03–04:30; NY AM 08:50–09:10,
+// 09:50–10:10 & 10:50–11:10; NY PM 11:50–12:10, 13:10–13:40 & 15:15–15:45.
+function ictNyClock(date){
   const d = date || new Date();
   let h = 0, m = 0;
   try{
@@ -2653,13 +2671,29 @@ function ictKillzone(date){
     h = parseInt(parts.find(p => p.type === 'hour').value, 10) % 24;
     m = parseInt(parts.find(p => p.type === 'minute').value, 10);
   }catch(e){ h = (d.getUTCHours() + 19) % 24; m = d.getUTCMinutes(); }
-  const t = h + m / 60;
+  return { h, m, t: h + m / 60 };
+}
+function ictKillzone(date){
+  const { h, m, t } = ictNyClock(date);
   let name = null;
   if(t >= 20) name = 'Asia';
   else if(t >= 2 && t < 5) name = 'London';
-  else if(t >= 7 && t < 10) name = 'New York AM';
-  else if(t >= 10 && t < 12) name = 'London Close';
+  else if(t >= 7 && t < 10) name = 'New York';
   return { active: !!name, name: name || 'Di luar killzone', nyTime: String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') };
+}
+const ICT_MACROS = [
+  { zone: 'London', from: 2 + 33 / 60, to: 3 }, { zone: 'London', from: 4 + 3 / 60, to: 4.5 },
+  { zone: 'NY AM', from: 8 + 50 / 60, to: 9 + 10 / 60 }, { zone: 'NY AM', from: 9 + 50 / 60, to: 10 + 10 / 60 }, { zone: 'NY AM', from: 10 + 50 / 60, to: 11 + 10 / 60 },
+  { zone: 'NY PM', from: 11 + 50 / 60, to: 12 + 10 / 60 }, { zone: 'NY PM', from: 13 + 10 / 60, to: 13 + 40 / 60 }, { zone: 'NY PM', from: 15 + 15 / 60, to: 15 + 45 / 60 },
+];
+function ictFmtHM(x){
+  const mins = Math.round(x * 60);
+  return String(Math.floor(mins / 60) % 24).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+}
+function ictMacro(date){
+  const { t } = ictNyClock(date);
+  const mc = ICT_MACROS.find(x => t >= x.from - 1e-9 && t < x.to - 1e-9);
+  return { active: !!mc, name: mc ? `${mc.zone} ${ictFmtHM(mc.from)}–${ictFmtHM(mc.to)}` : 'Di luar macro' };
 }
 
 // ---------- waktu New York, level hari/pekan, range sesi Asia ----------
@@ -2743,6 +2777,7 @@ function ictContext(candles){
     structure,
     range: ictDealingRange(candles, structure),
     liquidity: ictLiquidity(candles),
+    fvgsAll,
     fvgs: fvgsAll.filter(f => f.valid && f.fill < 1),
     obs: obsAll.filter(o => o.valid),
     breakers: obsAll.filter(o => !o.valid && o.breakerValid).map(o => ({ kind: 'breaker', type: o.type === 'bull' ? 'bear' : 'bull', low: o.low, high: o.high, ce: o.ce, brokeAgo: candles.length - 1 - o.brokeIdx })),
@@ -2983,16 +3018,386 @@ function ictFeatures(c, ltf, htf, htf2, kz){
   };
 }
 
+// =====================================================================================================
+// MODEL DARI DUA BERKAS PANDUAN: "ICT Unicorn Model" dan "The Inverse Blueprint" (IFVG).
+// Instrumen & timeframe berkas (ES/XAUUSD/EURUSD, M3–M15) TIDAK dipakai: app memakai TF gaya Intraday/Swing sendiri.
+// Semua aturan lain mengikuti berkas; tambahan/tafsiran app ditandai "(app)" di komentar.
+// =====================================================================================================
+
+// Preferensi pribadi (berkas: "pilihan entry bersifat personal"). Default dipilih app (app): entry retrace awal IFVG, SL swing,
+// TP low-hanging fruit, breakeven Rule of 50.
+//   entry: body | ifvg | ifvg50 | fvgStart | fvg50 | bprStart | bpr50      sl: swing | ifvg      tp: lhf | fvg | range      be: rule50 | lhf | none
+const ICT_DEFAULT_PREFS = { entry: 'ifvg', sl: 'swing', tp: 'lhf', be: 'rule50' };
+
+// Selesaikan daftar cek jadi grade (sama dengan ictChecklist: A >= 85% lulus, B >= 65%, selain itu C).
+function ictFinishChecks(checks){
+  const passes = checks.filter(c => c.result === 'pass').length, total = checks.length;
+  const ratio = total ? passes / total : 0;
+  const blockingFail = checks.find(c => c.blocking && c.result !== 'pass');
+  return { checks, passes, total, ratio, grade: ratio >= 0.85 ? 'A' : ratio >= 0.65 ? 'B' : 'C', blockingFail: blockingFail || null };
+}
+
+// Kelompok candle berwarna sama (satu candle atau beberapa) terakhir pada/sebelum endIdx. Berkas: "bisa grup candle warna sama".
+function ictColorGroup(candles, endIdx, color, maxLen){
+  const is = k => (color === 'green' ? k.close > k.open : k.close < k.open);
+  let j = endIdx, back = 0;
+  while(j >= 0 && !is(candles[j]) && back < 3){ j--; back++; }   // candle berwarna itu terdekat (maks 3 candle ke belakang)
+  if(j < 0 || !is(candles[j])) return null;
+  let lo = j;
+  while(lo - 1 >= 0 && is(candles[lo - 1]) && (j - lo + 1) < maxLen) lo--;
+  let low = Infinity, high = -Infinity;
+  for(let k = lo; k <= j; k++){ low = Math.min(low, candles[k].low); high = Math.max(high, candles[k].high); }
+  return { from: lo, to: j, low, high, count: j - lo + 1 };
+}
+
+// Sweep likuiditas (wick menembus, close balik) sejak fromIdx — swing biasa DAN high/low sesi Asia ("Asian Low" di contoh berkas).
+// Tidak mensyaratkan harga sekarang masih di dalam (berbeda dari ictLiquidity.sweeps): untuk IFVG harga sudah bergerak sesudah sweep.
+function ictAllSweeps(ltf, side, fromIdx){
+  const candles = ltf.candles, n = candles.length, out = [];
+  const backIn = (j, level) => { const c = candles[j], nx = candles[j + 1]; return side === 'bsl' ? (c.close < level || (nx && nx.close < level)) : (c.close > level || (nx && nx.close > level)); };
+  ltf.liquidity.pools.forEach(p => {
+    if(p.takenIdx < 0 || p.takenIdx < fromIdx) return;
+    if(side === 'bsl' ? p.type !== 'high' : p.type !== 'low') return;
+    if(backIn(p.takenIdx, p.price)) out.push({ side, level: p.price, idx: p.takenIdx, src: 'swing' });
+  });
+  const lv = ltf.levels;
+  if(lv && lv.asiaEnd >= 0){
+    const lvl = side === 'bsl' ? lv.asiaHi : lv.asiaLo;
+    if(lvl !== null && lvl !== undefined){
+      for(let j = lv.asiaEnd + 1; j < n; j++){
+        if(side === 'bsl' ? candles[j].high > lvl : candles[j].low < lvl){
+          if(j >= fromIdx && backIn(j, lvl)) out.push({ side, level: lvl, idx: j, src: 'asia' });
+          break;
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => a.idx - b.idx);
+}
+
+// Likuiditas yang belum diambil di depan harga (target "low hanging fruit" = high/low terdekat), termasuk Asian high/low.
+function ictLiquidityAhead(ltf, side, entry){
+  const long = side === 'long', candles = ltf.candles, n = candles.length, list = [];
+  (long ? ltf.liquidity.bsl : ltf.liquidity.ssl).forEach(p => { if(long ? p.price > entry : p.price < entry) list.push({ price: p.price, label: long ? 'BSL (swing high)' : 'SSL (swing low)' }); });
+  (long ? ltf.liquidity.eqh : ltf.liquidity.eql).forEach(p => { if(long ? p.price > entry : p.price < entry) list.push({ price: p.price, label: long ? 'EQH' : 'EQL' }); });
+  const lv = ltf.levels;
+  if(lv && lv.asiaEnd >= 0){
+    const lvl = long ? lv.asiaHi : lv.asiaLo;
+    if(lvl !== null && lvl !== undefined && (long ? lvl > entry : lvl < entry)){
+      let taken = false;
+      for(let j = lv.asiaEnd + 1; j < n; j++){ if(long ? candles[j].high > lvl : candles[j].low < lvl){ taken = true; break; } }
+      if(!taken) list.push({ price: lvl, label: long ? 'Asian High' : 'Asian Low' });
+    }
+  }
+  list.sort((a, b) => long ? a.price - b.price : b.price - a.price);
+  return list;
+}
+
+// ---------- MODEL 1: ICT UNICORN ----------
+// 1) DOL = equal highs (long) / equal lows (short) searah trade, belum diambil.
+// 2) Manipulation leg MENJAUHI DOL: long = swing high -> lower low (menyapu low sebelumnya); short = swing low -> higher high.
+// 3) Breaker = candle (atau kelompok candle warna sama) TERAKHIR sebelum lower low/higher high: hijau untuk bullish, merah untuk bearish.
+//    Breaker terkonfirmasi kalau ada close sesudah ekstrem yang menembus zonanya. Displacement itu harus meninggalkan FVG yang TUMPANG TINDIH dengan breaker.
+// 4) Entry = retest zona overlap (limit). (app: tepi zona yang paling dekat harga.)  SL = BODY high/low manipulation leg (bukan wick).
+// 5) TP = 2 standard deviation (fib: 0 = ekstrem leg, 1 = awal leg, 2 = diproyeksikan sebesar leg) ATAU DOL.  Minimal 2R. Tanpa manajemen trade.
+function ictSetupUnicorn(ltf, htf, side, cfg, kz){
+  const candles = ltf.candles, n = candles.length, long = side === 'long';
+  const dols = [];
+  [[ltf, cfg.ltf], [htf, cfg.htf]].forEach(([c, tag]) => {
+    if(!c) return;
+    (long ? c.liquidity.eqh : c.liquidity.eql).forEach(p => { if(long ? p.price > ltf.last : p.price < ltf.last) dols.push({ price: p.price, count: p.count, tag: String(tag || '').toUpperCase() }); });
+  });
+  dols.sort((a, b) => long ? a.price - b.price : b.price - a.price);
+  if(!dols.length) return null;
+  const dol = dols[0];
+
+  const zz = ltf.structure.swings;
+  let leg = null;
+  for(let i = zz.length - 1; i >= 2 && !leg; i--){
+    const e = zz[i], s = zz[i - 1], p = zz[i - 2];
+    if(n - 1 - e.index > ICT_CFG.unicornMaxAge) break;
+    if(long ? (e.type === 'low' && s.type === 'high' && p.type === 'low' && e.price < p.price) : (e.type === 'high' && s.type === 'low' && p.type === 'high' && e.price > p.price)) leg = { start: s, ext: e, prev: p };
+  }
+  if(!leg) return null;
+
+  const grp = ictColorGroup(candles, leg.start.index, long ? 'green' : 'red', ICT_CFG.groupMax);
+  if(!grp) return null;
+  let brkIdx = -1;
+  for(let j = leg.ext.index + 1; j < n; j++){ if(long ? candles[j].close > grp.high : candles[j].close < grp.low){ brkIdx = j; break; } }
+  if(brkIdx < 0) return null;
+
+  const typ = long ? 'bull' : 'bear';
+  const fv = ltf.fvgsAll.filter(f => f.type === typ && f.valid && f.displacement && f.midIdx > leg.ext.index && f.low <= grp.high && f.high >= grp.low);
+  if(!fv.length) return null;
+  const f = fv[fv.length - 1];
+  const oLo = Math.max(f.low, grp.low), oHi = Math.min(f.high, grp.high);
+  const entry = long ? oHi : oLo;
+
+  let slBody = long ? Infinity : -Infinity;
+  for(let j = leg.start.index; j <= leg.ext.index; j++){
+    const b = long ? Math.min(candles[j].open, candles[j].close) : Math.max(candles[j].open, candles[j].close);
+    slBody = long ? Math.min(slBody, b) : Math.max(slBody, b);
+  }
+
+  const last = ltf.last, lastC = candles[n - 1];
+  let touchedBefore = false;
+  for(let j = f.idx + 1; j < n - 1; j++){ if(long ? candles[j].low <= entry : candles[j].high >= entry){ touchedBefore = true; break; } }
+  const touchNow = f.idx < n - 1 && (long ? lastC.low <= entry : lastC.high >= entry);
+  const slHit = long ? last < slBody : last > slBody;
+  const status = (touchedBefore || slHit) ? 'invalid' : touchNow ? 'in_zone' : 'waiting';
+  const invalidWhy = touchedBefore ? 'Retest sudah terjadi — entry limit sudah lewat' : slHit ? 'Harga sudah menembus SL (body manipulation leg)' : null;
+
+  const legSize = Math.abs(leg.start.price - leg.ext.price);
+  const stdv2 = long ? leg.start.price + legSize : leg.start.price - legSize;
+  const risk = Math.abs(entry - slBody);
+  const rrOf = px => (risk > 0 ? Math.abs(px - entry) / risk : 0);
+  const ahead = px => (long ? px > entry : px < entry);
+  let tp = null, tpLabel = null, tp2 = null, tp2Label = null;
+  const dolLabel = `DOL ${long ? 'EQH' : 'EQL'} ${fmtPriceSafe(dol.price)}${dol.count > 1 ? ' ×' + dol.count : ''}`;
+  if(ahead(stdv2) && rrOf(stdv2) >= ICT_CFG.unicornMinRR){
+    tp = stdv2; tpLabel = '2 STDV (fib manipulation leg)';
+    if(ahead(dol.price) && Math.abs(dol.price - entry) > Math.abs(stdv2 - entry)){ tp2 = dol.price; tp2Label = dolLabel; }
+  } else if(ahead(dol.price) && rrOf(dol.price) >= ICT_CFG.unicornMinRR){
+    tp = dol.price; tpLabel = dolLabel;
+  } else if(ahead(stdv2)){ tp = stdv2; tpLabel = '2 STDV (fib manipulation leg)'; }
+  else if(ahead(dol.price)){ tp = dol.price; tpLabel = dolLabel; }
+  const rr = tp !== null ? rrOf(tp) : 0;
+
+  const plan = {
+    side, entry, entryLabel: 'Retest overlap Breaker + FVG', sl: slBody, slLabel: `Body ${long ? 'low' : 'high'} manipulation leg`,
+    tp, tpLabel: tpLabel || 'Tidak ada target', tp2, tp2Label, rr, rr2: tp2 !== null ? rrOf(tp2) : null, minRR: ICT_CFG.unicornMinRR, risk, managed: false,
+  };
+  const checks = [
+    { name: 'DOL searah trade + manipulation leg menjauhi DOL', result: 'pass', blocking: true,
+      note: `${dolLabel} (${dol.tag}); leg ${fmtPriceSafe(leg.start.price)} → ${fmtPriceSafe(leg.ext.price)} (${long ? 'lower low' : 'higher high'})` },
+    { name: 'Breaker dan FVG overlap', result: 'pass', blocking: true,
+      note: `Breaker ${fmtPriceSafe(grp.low)}–${fmtPriceSafe(grp.high)}${grp.count > 1 ? ` (${grp.count} candle)` : ''} ∩ FVG ${fmtPriceSafe(f.low)}–${fmtPriceSafe(f.high)} = ${fmtPriceSafe(oLo)}–${fmtPriceSafe(oHi)}` },
+    { name: 'Retest FVG/Breaker (entry) & target 2 STDV atau DOL', result: status === 'invalid' || tp === null ? 'fail' : 'pass', blocking: true,
+      note: status === 'invalid' ? invalidWhy : (tp === null ? 'Tidak ada target di depan entry' : `Entry ${fmtPriceSafe(entry)} · TP ${tpLabel}`) },
+    { name: 'Minimal 2R', result: rr >= ICT_CFG.unicornMinRR ? 'pass' : 'fail', blocking: true, note: tp !== null ? `RR 1:${rr.toFixed(2)} ke ${tpLabel}` : 'Tidak ada target' },
+    { name: 'Sesi New York', result: kz.name === 'New York' ? 'pass' : 'neutral', blocking: false, note: `${kz.name} (NY ${kz.nyTime})` },
+  ];
+  return {
+    id: 'UNICORN', title: 'ICT Unicorn (Breaker + FVG)', side, status, invalidWhy, plan, model: 'UNICORN',
+    poi: { kind: 'unicorn', low: oLo, high: oHi, ce: (oLo + oHi) / 2, label: 'Breaker + FVG', age: n - 1 - f.idx, touched: false },
+    displacement: f.displacement, mss: null,
+    check: ictFinishChecks(checks),
+    notes: ['Tidak ada trade management: biarkan trade berjalan (aturan berkas).', 'Jangan trading saat berita red-folder — aktifkan News Guard bila ada.'],
+    reasons: [
+      `${dolLabel} sebagai draw on liquidity; manipulation leg menjauhinya (${long ? 'turun ke lower low' : 'naik ke higher high'})`,
+      `Breaker ${fmtPriceSafe(grp.low)}–${fmtPriceSafe(grp.high)} dikonfirmasi lalu overlap dengan FVG ${fmtPriceSafe(f.low)}–${fmtPriceSafe(f.high)}`,
+      `SL di body ${long ? 'low' : 'high'} leg ${fmtPriceSafe(slBody)}; TP ${tpLabel}`,
+    ],
+    unicorn: { leg, breaker: grp, fvg: f, overlap: [oLo, oHi], dol, stdv2 },
+  };
+}
+
+// ---------- MODEL 2: INVERSE BLUEPRINT (IFVG) ----------
+// IFVG = FVG yang dilanggar dengan penutupan body. Hanya FVG TUNGGAL (bukan beberapa FVG berurutan) yang dihitung.
+// Tipe 1 (POI -> IFVG): harga ditolak dari FVG/OB/POI; saat mendekat terbentuk satu FVG (di dalam/dekat POI), lalu FVG itu dilanggar body closure.
+// Tipe 2 (Sweep -> IFVG): harga menyapu likuiditas; saat menuju level terbentuk satu FVG, lalu dilanggar body closure SETELAH sweep.
+// Model favorit = tipe 1 + BOS searah + inducement dekat/di dalam FVG utama + DOL (low hanging fruit) jelas.
+// Short memakai FVG bullish yang dilanggar ke bawah; long adalah cerminannya.
+function ictIfvgCandidates(ltf, htf, side, cfg, kz, mc, prefs){
+  const candles = ltf.candles, n = candles.length, short = side === 'short';
+  const fType = short ? 'bull' : 'bear';      // FVG yang dilanggar
+  const tType = short ? 'bear' : 'bull';      // zona searah arah trade
+  const all = ltf.fvgsAll;
+  const out = [];
+  const closeBeyond = (c, F) => (short ? c.close < F.low : c.close > F.high);
+  all.filter(F => F.type === fType && F.violIdx >= 0 && (n - 1 - F.violIdx) <= ICT_CFG.ifvgMaxAge).forEach(F => {
+    const v = F.violIdx, vc = candles[v];
+    // FVG tunggal: tidak ada FVG sejenis lain di sekitar (±6 candle sebelum F sampai pelanggaran)
+    if(all.some(g => g !== F && g.type === fType && g.midIdx >= F.midIdx - 6 && g.midIdx <= v)) return;
+    const H = F.high - F.low;
+    const edgeNear = short ? F.low : F.high, edgeFar = short ? F.high : F.low;
+
+    // ----- tipe 1: POI -----
+    let poi = null;
+    const pois = [...ltf.fvgs, ...ltf.obs].filter(z => z.type === tType && z.barsAgo <= ICT_CFG.maxPoiAge && (z.kind === 'fvg' ? z.idx : z.idx) < F.midIdx);
+    for(const z of pois){
+      const Hz = z.high - z.low;
+      const inside = F.low <= z.high + (short ? 0 : 0.5 * Hz) && F.high >= z.low - (short ? 0.5 * Hz : 0);
+      if(!inside) continue;
+      let reached = false;
+      for(let j = Math.max(0, F.midIdx - 3); j <= v; j++){ if(short ? candles[j].high >= z.low : candles[j].low <= z.high){ reached = true; break; } }
+      if(reached){ poi = z; break; }
+    }
+    // ----- tipe 2: sweep -----
+    const sw = ictAllSweeps(ltf, short ? 'bsl' : 'ssl', Math.max(0, v - 12)).filter(s => s.idx < v && v - s.idx <= 10 && F.midIdx >= s.idx - 10 && F.midIdx <= s.idx + 2);
+    const sweep = sw.length ? sw[sw.length - 1] : null;
+    if(!poi && !sweep) return;
+
+    // ----- model favorit -----
+    let favorite = false, fav = null;
+    if(poi){
+      const bos = ltf.structure.events.filter(e => e.type === 'BOS' && e.direction === (short ? 'bearish' : 'bullish') && e.idx <= F.midIdx && n - 1 - e.idx <= 120).pop() || null;
+      const Hz = poi.high - poi.low;
+      const zLo = poi.low - (short ? Hz : 0), zHi = poi.high + (short ? 0 : Hz);
+      const ind = ltf.liquidity.raw.filter(p => p.type === (short ? 'high' : 'low') && p.price >= zLo && p.price <= zHi && p.index < v && p.index >= (poi.idx || 0) - 2 && (() => {
+        for(let j = p.index + 1; j < v; j++){ if(short ? candles[j].high > p.price : candles[j].low < p.price) return true; }
+        return false;
+      })()).pop() || null;
+      const dolAheadAny = ictLiquidityAhead(ltf, side, edgeNear).length > 0;
+      fav = { bos, inducement: ind, dol: dolAheadAny };
+      favorite = !!(bos && ind && dolAheadAny);
+    }
+
+    // ----- entry (4 cara) -----
+    let G = null;
+    for(const g of all){ if(g.type === tType && g.midIdx >= v - 1 && g.midIdx >= F.midIdx && g.low <= F.high && g.high >= F.low){ G = g; break; } }
+    let bpr = null;
+    if(G){ const lo = Math.max(F.low, G.low), hi = Math.min(F.high, G.high); if(hi > lo) bpr = { low: lo, high: hi }; else G = null; }
+    const bodyFresh = v === n - 1;
+    const entries = {
+      body: { price: vc.close, label: 'Body closure', ok: bodyFresh, why: bodyFresh ? null : 'body closure sudah lewat' },
+      ifvg: { price: edgeNear, label: 'Retrace awal IFVG', ok: true },
+      ifvg50: { price: F.ce, label: 'Retrace 50% IFVG', ok: true },
+      fvgStart: G ? { price: short ? G.low : G.high, label: 'Awal FVG pelanggar', ok: true } : { price: null, label: 'Awal FVG pelanggar', ok: false, why: 'tidak ada FVG pelanggar' },
+      fvg50: G ? { price: G.ce, label: '50% FVG pelanggar', ok: true } : { price: null, label: '50% FVG pelanggar', ok: false, why: 'tidak ada FVG pelanggar' },
+      bprStart: bpr ? { price: short ? bpr.low : bpr.high, label: 'Awal BPR', ok: true } : { price: null, label: 'Awal BPR', ok: false, why: 'tidak ada BPR (dua FVG overlap)' },
+      bpr50: bpr ? { price: (bpr.low + bpr.high) / 2, label: '50% BPR', ok: true } : { price: null, label: '50% BPR', ok: false, why: 'tidak ada BPR (dua FVG overlap)' },
+    };
+    let entryKey = prefs.entry, entryNote = null;
+    if(!entries[entryKey] || !entries[entryKey].ok){ entryNote = `${entries[entryKey] ? entries[entryKey].label : entryKey} tidak tersedia (${entries[entryKey] ? entries[entryKey].why : '?'}) — memakai Retrace awal IFVG`; entryKey = 'ifvg'; }
+    const entry = entries[entryKey].price;
+
+    // ----- status -----
+    let reviol = false;
+    for(let j = v + 1; j < n; j++){ if(short ? candles[j].close > edgeFar : candles[j].close < edgeFar){ reviol = true; break; } }
+    let touchedBefore = false;
+    if(entryKey !== 'body') for(let j = v + 1; j < n - 1; j++){ if(short ? candles[j].high >= entry : candles[j].low <= entry){ touchedBefore = true; break; } }
+    const lastC = candles[n - 1];
+    const touchNow = entryKey === 'body' ? true : (v < n - 1 && (short ? lastC.high >= entry : lastC.low <= entry));
+    const status = reviol || touchedBefore ? 'invalid' : touchNow ? 'in_zone' : 'waiting';
+    const invalidWhy = reviol ? 'IFVG dilanggar balik (close melewati sisi jauh IFVG) — keluar/batal' : touchedBefore ? 'Retest ke level entry sudah terjadi' : null;
+
+    // ----- stop loss -----
+    // "Swing high/low terakhir": dari dasar leg pendekatan (swing berlawanan terakhir sebelum FVG) sampai candle pelanggaran.
+    const baseSw = ltf.liquidity.raw.filter(p => p.type === (short ? 'low' : 'high') && p.index < F.midIdx).pop();
+    const s0 = baseSw ? baseSw.index : Math.max(0, F.midIdx - 8);
+    let swing = short ? -Infinity : Infinity;
+    for(let j = s0; j <= v; j++) swing = short ? Math.max(swing, candles[j].high) : Math.min(swing, candles[j].low);
+    const slOpts = {
+      swing: { price: swing, label: `${short ? 'Di atas' : 'Di bawah'} swing ${short ? 'high' : 'low'} terakhir`, closeBased: false },
+      ifvg: { price: edgeFar, label: 'Pelanggaran IFVG (keluar manual bila ada close di luar sisi jauh IFVG)', closeBased: true },
+    };
+    const slKey = slOpts[prefs.sl] ? prefs.sl : 'swing';
+    const sl = slOpts[slKey].price;
+
+    // ----- take profit -----
+    const risk = Math.abs(entry - sl);
+    const ahead = px => (short ? px < entry : px > entry);
+    const rrOf = px => (risk > 0 ? Math.abs(px - entry) / risk : 0);
+    const liq = ictLiquidityAhead(ltf, side, entry);
+    const tpOpts = {};
+    if(liq.length) tpOpts.lhf = { price: liq[0].price, label: `Low hanging fruit — ${liq[0].label}` };
+    // FVG mayor terdekat: FVG HTF (utama) searah target; kalau tidak ada, FVG LTF berukuran >= 1,5x rata-rata
+    const tgtType = short ? 'bull' : 'bear';
+    const htfF = htf ? htf.fvgs.filter(g => g.type === tgtType && (short ? g.high < entry : g.low > entry)) : [];
+    let majors = htfF.map(g => ({ price: short ? g.high : g.low, label: 'FVG mayor HTF' }));
+    if(!majors.length){
+      const sizes = ltf.fvgs.map(g => g.high - g.low); const avg = sizes.length ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0;
+      majors = ltf.fvgs.filter(g => g.type === tgtType && (g.high - g.low) >= 1.5 * avg && (short ? g.high < entry : g.low > entry)).map(g => ({ price: short ? g.high : g.low, label: 'FVG mayor LTF' }));
+    }
+    majors.sort((a, b) => short ? b.price - a.price : a.price - b.price);
+    if(majors.length) tpOpts.fvg = { price: majors[0].price, label: `FVG mayor terdekat — ${majors[0].label}` };
+    // external <-> internal (dealing range): dari external ke internal = target PD array/EQ di dalam range; dari internal ke external = ujung range
+    const rg = ltf.range;
+    let rangeInfo = null;
+    if(rg){
+      const pos = (entry - rg.lo) / rg.R;
+      const fromExternal = short ? pos >= 0.5 : pos <= 0.5;
+      if(fromExternal){
+        const internals = [...ltf.fvgs, ...ltf.obs].filter(z => z.type === tgtType && (short ? (z.high < entry && z.low >= rg.lo) : (z.low > entry && z.high <= rg.hi))).map(z => ({ price: short ? z.high : z.low }));
+        internals.push({ price: rg.eq });
+        const cand = internals.filter(z => ahead(z.price)).sort((a, b) => short ? b.price - a.price : a.price - b.price);
+        if(cand.length){ tpOpts.range = { price: cand[0].price, label: 'External → Internal (PD array / EQ di dalam range)' }; rangeInfo = 'external→internal'; }
+      } else {
+        const ext = short ? rg.lo : rg.hi;
+        if(ahead(ext)){ tpOpts.range = { price: ext, label: `Internal → External (${short ? 'low' : 'high'} range)` }; rangeInfo = 'internal→external'; }
+      }
+    }
+    let tpKey = tpOpts[prefs.tp] ? prefs.tp : (tpOpts.lhf ? 'lhf' : tpOpts.fvg ? 'fvg' : tpOpts.range ? 'range' : null);
+    const tpSel = tpKey ? tpOpts[tpKey] : null;
+    const tp = tpSel ? tpSel.price : null;
+    const rest = Object.keys(tpOpts).filter(k => k !== tpKey).map(k => tpOpts[k]).filter(o => Math.abs(o.price - entry) > Math.abs((tp === null ? entry : tp) - entry)).sort((a, b) => Math.abs(a.price - entry) - Math.abs(b.price - entry));
+    const tp2 = rest.length ? rest[0] : null;
+    const rr = tp !== null ? rrOf(tp) : 0;
+    const be = {
+      rule50: tp !== null ? { price: entry + 0.5 * (tp - entry), label: 'Rule of 50: geser SL ke breakeven di 50% jarak ke TP (opsional ambil 50% profit)' } : null,
+      lhf: tpOpts.lhf ? { price: tpOpts.lhf.price, label: 'Low hanging fruit: geser SL ke breakeven setelah likuiditas terdekat disapu' } : null,
+    };
+    const plan = {
+      side, entry, entryLabel: entries[entryKey].label + (entryNote ? ' (fallback)' : ''), sl, slLabel: slOpts[slKey].label, slCloseBased: slOpts[slKey].closeBased,
+      tp, tpLabel: tpSel ? tpSel.label : 'Tidak ada target likuiditas/FVG di depan', tp2: tp2 ? tp2.price : null, tp2Label: tp2 ? tp2.label : null,
+      rr, rr2: tp2 ? rrOf(tp2.price) : null, minRR: cfg.minRR, risk, managed: prefs.be !== 'none',
+      be: prefs.be === 'none' ? null : (be[prefs.be] || be.rule50), beKey: prefs.be,
+    };
+
+    const sweepTxt = sweep ? `${short ? 'BSL' : 'SSL'} ${sweep.src === 'asia' ? (short ? 'Asian High' : 'Asian Low') : 'swing'} ${fmtPriceSafe(sweep.level)} disapu (${n - 1 - sweep.idx} candle lalu)` : null;
+    const poiTxt = poi ? `${poi.kind === 'fvg' ? 'FVG' : 'Order Block'} ${poi.type === 'bear' ? 'bearish' : 'bullish'} ${fmtPriceSafe(poi.low)}–${fmtPriceSafe(poi.high)}` : null;
+    const checks = [
+      { name: 'Harga mencapai FVG atau menyapu likuiditas', result: 'pass', blocking: true, note: [poiTxt && `Harga mencapai POI: ${poiTxt}`, sweepTxt].filter(Boolean).join(' · ') },
+      { name: 'Saat menuju FVG/sweep, terbentuk FVG di sisi berlawanan (tunggal)', result: 'pass', blocking: true, note: `${F.type === 'bull' ? 'FVG bullish' : 'FVG bearish'} tunggal ${fmtPriceSafe(F.low)}–${fmtPriceSafe(F.high)}` },
+      { name: 'Killzone atau macro', result: kz.active || mc.active ? 'pass' : 'fail', blocking: false, note: `${kz.name} (NY ${kz.nyTime}) · ${mc.name}` },
+      { name: 'Harga bereaksi & FVG dilanggar dengan body closure (entry)', result: reviol ? 'fail' : 'pass', blocking: true, note: reviol ? invalidWhy : `Close ${fmtPriceSafe(vc.close)} ${short ? 'di bawah' : 'di atas'} FVG, ${n - 1 - v} candle lalu` },
+      { name: 'Low hanging fruit / low resistance liquidity / DOL jelas', result: tp !== null ? 'pass' : 'fail', blocking: false, note: tp !== null ? tpSel.label + ' @ ' + fmtPriceSafe(tp) : 'Tidak ada likuiditas atau FVG target di depan entry' },
+      { name: 'SL jelas & reward to risk layak', result: tp !== null && rr >= cfg.minRR ? 'pass' : 'fail', blocking: true, note: tp !== null ? `SL ${fmtPriceSafe(sl)} (${slKey === 'swing' ? 'swing' : 'pelanggaran IFVG'}) · RR 1:${rr.toFixed(2)} (min 1:${cfg.minRR})` : 'Tidak ada target untuk menghitung RR' },
+    ];
+    const id = favorite ? 'IFVG_FAV' : (sweep ? 'IFVG_SWEEP' : 'IFVG_POI');
+    const title = favorite ? 'Model Favorit (IFVG + BOS + Inducement)' : sweep ? 'Sweep → IFVG' : 'POI → IFVG';
+    const notes = [];
+    if(entryNote) notes.push(entryNote);
+    if(poi && !favorite){
+      const miss = []; if(!fav.bos) miss.push('BOS searah'); if(!fav.inducement) miss.push('inducement dekat/di dalam FVG'); if(!fav.dol) miss.push('DOL/low hanging fruit jelas');
+      notes.push(`Belum memenuhi Model Favorit — kurang: ${miss.join(', ')}`);
+    }
+    if(htf) notes.push(`HTF ${cfg.htf.toUpperCase()}: ${htf.structure.bias === (short ? 'bearish' : 'bullish') ? 'selaras dengan arah trade (FVG lebih sering dihormati)' : 'belum selaras dengan arah trade'}`);
+    if(sweep && poi) notes.push('Sweep dan POI sama-sama terpenuhi untuk FVG ini.');
+    out.push({
+      id, title, side, status, invalidWhy, plan, model: 'IFVG', favorite,
+      poi: { kind: 'ifvg', low: F.low, high: F.high, ce: F.ce, label: 'IFVG', age: n - 1 - v, touched: false },
+      displacement: null, mss: null,
+      check: ictFinishChecks(checks),
+      ifvg: { fvg: F, violIdx: v, barsSince: n - 1 - v, edgeNear, edgeFar, poi, sweep, fav, entries, entryKey, G, bpr, slOpts, slKey, tpOpts, tpKey, rangeInfo, be },
+      notes,
+      reasons: [
+        sweep ? sweepTxt : `Harga ditolak dari ${poiTxt}`,
+        `FVG ${F.type === 'bull' ? 'bullish' : 'bearish'} tunggal ${fmtPriceSafe(F.low)}–${fmtPriceSafe(F.high)} dilanggar body closure → IFVG ${short ? 'bearish' : 'bullish'}`,
+        `Entry ${entries[entryKey].label} ${fmtPriceSafe(entry)}; SL ${slOpts[slKey].label.toLowerCase()} ${fmtPriceSafe(sl)}; TP ${tpSel ? tpSel.label : '-'}`,
+      ],
+    });
+  });
+  return out;
+}
+
+// Order flow & market structure (berkas Inverse Blueprint: pantau bagaimana PD array dihormati / dilanggar, sweep high/low jangka pendek,
+// dan bagaimana harga mengganggu struktur dengan displacement). Murni ringkasan dari data yang sudah dihitung.
+function ictOrderFlow(ltf){
+  const n = ltf.n, ev = ltf.structure.events.filter(e => e.barsAgo <= 60);
+  const fv = ltf.fvgsAll;
+  const respected = fv.filter(f => f.valid && f.touched).length;      // disentuh tapi belum dilanggar body closure
+  const violated = fv.filter(f => !f.valid).length;                   // dilanggar body closure = IFVG
+  const intact = fv.filter(f => f.valid && !f.touched).length;
+  const sweeps = [...ictAllSweeps(ltf, 'bsl', Math.max(0, n - 31)), ...ictAllSweeps(ltf, 'ssl', Math.max(0, n - 31))].sort((a, b) => b.idx - a.idx).slice(0, 4).map(s => ({ side: s.side, level: s.level, barsAgo: n - 1 - s.idx, src: s.src }));
+  let lastDisp = null;
+  for(let i = n - 1; i >= Math.max(1, n - 40); i--){ if(ictIsDisplacement(ltf.candles, i, 'up')){ lastDisp = { dir: 'naik', barsAgo: n - 1 - i }; break; } if(ictIsDisplacement(ltf.candles, i, 'down')){ lastDisp = { dir: 'turun', barsAgo: n - 1 - i }; break; } }
+  return { trend: ltf.structure.bias, bos: ev.filter(e => e.type === 'BOS').length, choch: ev.filter(e => e.type === 'CHoCH').length, respected, violated, intact, sweeps, lastDisp };
+}
+
 // ---------- evaluasi akhir: LONG / SHORT / SKIP ----------
 // tfNames (opsional) = {ltf, htf, htf2} untuk label saat timeframe yang dianalisis berbeda dari default style
 // (mis. detail pair dibuka di 2H atau 12H). Aturan (minRR, killzone) tetap mengikuti style.
-function ictEvaluate(style, ltfCandles, htfCandles, htf2Candles, now, tfNames){
+function ictEvaluate(style, ltfCandles, htfCandles, htf2Candles, now, tfNames, opts){
   const cfg = Object.assign({}, ICT_CFG.styles[style], tfNames || {});
   const ltf = ictContext(ltfCandles);
-  if(!ltf) return { style, cfg, decision: 'SKIP', skipReason: 'Data candle belum cukup', best: null, candidates: [], watch: [], ltf: null, htf: null, htf2: null, killzone: ictKillzone(now) };
+  if(!ltf) return { style, cfg, decision: 'SKIP', skipReason: 'Data candle belum cukup', best: null, candidates: [], watch: [], ltf: null, htf: null, htf2: null, killzone: ictKillzone(now), macro: ictMacro(now) };
   const htf = htfCandles && htfCandles.length >= 20 ? ictContext(htfCandles) : null;
   const htf2 = htf2Candles && htf2Candles.length >= 20 ? ictContext(htf2Candles) : null;
   const kz = ictKillzone(now);
+  const mc = ictMacro(now);
+  const prefs = Object.assign({}, ICT_DEFAULT_PREFS, (opts && opts.prefs) || {});
   const tagOf = n => String(n || '').toUpperCase();
   const ctxs = [{ ctx: ltf, tag: tagOf(cfg.ltf) }, { ctx: htf, tag: tagOf(cfg.htf) }, { ctx: htf2, tag: tagOf(cfg.htf2) }];
 
@@ -3007,9 +3412,12 @@ function ictEvaluate(style, ltfCandles, htfCandles, htf2Candles, now, tfNames){
     // (di luar ekstrem sweep) lebih konservatif daripada SL tepat di luar zona POI.
     const sameZone = b && a && !a.pending && b.poi.low <= a.poi.high && b.poi.high >= a.poi.low;
     if(b && !sameZone) candidates.push(b);
+    const u = ictSetupUnicorn(ltf, htf, side, cfg, kz);
+    if(u) candidates.push(u);
+    ictIfvgCandidates(ltf, htf, side, cfg, kz, mc, prefs).forEach(c => candidates.push(c));
   });
   candidates.forEach(c => {
-    c.check = ictChecklist(c, ltf, htf, htf2, cfg, kz);
+    c.check = c.check || ictChecklist(c, ltf, htf, htf2, cfg, kz);
     c.grade = c.check.grade;
     c.valid = c.status !== 'invalid' && !c.check.blockingFail && c.check.grade !== 'C';
     c.features = ictFeatures(c, ltf, htf, htf2, kz);
@@ -3018,12 +3426,12 @@ function ictEvaluate(style, ltfCandles, htfCandles, htf2Candles, now, tfNames){
   candidates.sort((a, b) => rank(b) - rank(a));
   const best = candidates[0] || null;
   let decision = 'SKIP', skipReason = null;
-  if(!best) skipReason = 'Belum ada setup ICT (sweep + MSS atau retest OB/FVG searah bias HTF)';
+  if(!best) skipReason = 'Belum ada setup ICT (Sweep+MSS, Retest POI, Unicorn, atau IFVG)';
   else if(best.valid) decision = best.side === 'long' ? 'LONG' : 'SHORT';
   else if(best.status === 'invalid') skipReason = `${best.title}: harga sudah menembus zona entry — setup batal`;
   else if(best.check.blockingFail) skipReason = `${best.title}: ${best.check.blockingFail.name} — ${best.check.blockingFail.note}`;
   else skipReason = `${best.title}: konfluensi kurang (${best.check.passes}/${best.check.total} lulus)`;
-  return { style, cfg, decision, skipReason, best, candidates, watch, ltf, htf, htf2, killzone: kz };
+  return { style, cfg, decision, skipReason, best, candidates, watch, ltf, htf, htf2, killzone: kz, macro: mc, prefs, orderFlow: ictOrderFlow(ltf) };
 }
 
 // Bias cepat 1 timeframe (dipakai badge baris di Scanner Market): struktur + posisi premium/discount.
@@ -3078,8 +3486,8 @@ async function fetchKlinesFull(symbol, interval, limit){
     const raw = await res.json();
     return raw.map(k => ({
       open:parseFloat(k[1]), high:parseFloat(k[2]), low:parseFloat(k[3]),
-      close:parseFloat(k[4]), volume:parseFloat(k[5]), t:k[0],
-    }));
+      close:parseFloat(k[4]), volume:parseFloat(k[5]), t:k[0], ct:k[6],
+    })).filter(c => !(c.ct > Date.now())); // buang candle yang MASIH BERJALAN: "body closure" (IFVG/breaker) hanya sah di candle yang sudah tutup
   });
 }
 
@@ -3097,7 +3505,8 @@ const ICT_MIN_QUOTE_VOL = 20e6;
 const ICT_FEE_ROUNDTRIP = 0.0009;
 const ICT_CANDLES = 200; // jumlah candle yang ditarik per timeframe — sama di semua tempat biar cache request terpakai ulang
 
-function ictShortTitle(id){ return id === 'SWEEP_MSS' ? 'Sweep+MSS' : id === 'POI_RETEST' ? 'Retest POI' : String(id); }
+const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit' };
+function ictShortTitle(id){ return ICT_SHORT_TITLES[id] || String(id); }
 function ictStatusLabel(status){ return status === 'in_zone' ? 'di zona entry' : status === 'waiting' ? 'tunggu retrace' : 'batal'; }
 
 // ===== LAZY ROW SCAN — bias struktur 4H per pair, dipicu pas baris discroll masuk layar =====
@@ -3174,7 +3583,7 @@ async function scanPairIct(symbol, style){
     fetchKlinesFull(symbol, cfg.htf, ICT_CANDLES),
     fetchKlinesFull(symbol, cfg.htf2, ICT_CANDLES).catch(()=>null), // konteks TF terbesar opsional — kalau gagal, jangan batalkan scan
   ]);
-  return ictEvaluate(style, ltf, htf, htf2, new Date());
+  return ictEvaluate(style, ltf, htf, htf2, new Date(), null, { prefs: loadIctPrefs() });
 }
 
 function ictHitBadgeHtml(h){
@@ -3798,7 +4207,7 @@ async function loadDetail(symbol, tf){
     }
 
     const lastPrice = candles[candles.length-1].close;
-    const ev = ictEvaluate(map.style, candles, map.htf ? byTf[map.htf] : null, map.htf2 ? byTf[map.htf2] : null, new Date(), { ltf: tf, htf: map.htf, htf2: map.htf2 });
+    const ev = ictEvaluate(map.style, candles, map.htf ? byTf[map.htf] : null, map.htf2 ? byTf[map.htf2] : null, new Date(), { ltf: tf, htf: map.htf, htf2: map.htf2 }, { prefs: loadIctPrefs() });
     const mtf = MTF_TIMEFRAMES.map(t => ({ tf: t, ctx: byTf[t] && byTf[t].length >= 30 ? ictContext(byTf[t]) : null }));
     const fundingRow = tickerData.find(x=>x.symbol===symbol);
     const fundingRate = fundingRow && fundingRow.fundingRate!==undefined && fundingRow.fundingRate!==null ? fundingRow.fundingRate : (fundingData[symbol]!==undefined?fundingData[symbol]:null);
@@ -3831,6 +4240,165 @@ function setNewsGuard(active){ localStorage.setItem(LS_NEWSGUARD, active ? "1" :
 function ictBiasLabel(b){ return b==='bullish'?'BULLISH':b==='bearish'?'BEARISH':b==='transition'?'TRANSISI':'NETRAL'; }
 function ictBiasCls(b){ return b==='bullish'?'cf-bullish':b==='bearish'?'cf-bearish':b==='transition'?'cf-mixed':'cf-neutral'; }
 function ictZoneText(z){ return z==='discount'?'Discount':z==='premium'?'Premium':z==='equilibrium'?'Equilibrium':'-'; }
+
+// ===== Preferensi model ICT (pilihan pribadi menurut berkas Inverse Blueprint) — tersimpan di localStorage =====
+const LS_ICTPREFS = "ict_model_prefs";
+function loadIctPrefs(){
+  try{ return Object.assign({}, ICT_DEFAULT_PREFS, JSON.parse(localStorage.getItem(LS_ICTPREFS) || "{}")); }
+  catch(e){ return Object.assign({}, ICT_DEFAULT_PREFS); }
+}
+function saveIctPrefs(p){ localStorage.setItem(LS_ICTPREFS, JSON.stringify(p)); }
+function refreshIctPrefsUI(){
+  const p = loadIctPrefs();
+  [['Entry','entry'],['Sl','sl'],['Tp','tp'],['Be','be']].forEach(([id,k])=>{
+    const el = document.getElementById('ictPref'+id);
+    if(el) el.value = p[k];
+  });
+}
+[['Entry','entry'],['Sl','sl'],['Tp','tp'],['Be','be']].forEach(([id,k])=>{
+  const el = document.getElementById('ictPref'+id);
+  if(!el) return;
+  el.addEventListener('change', ()=>{
+    const p = loadIctPrefs(); p[k] = el.value; saveIctPrefs(p);
+    setStatus('✓ Preferensi model ICT disimpan — berlaku di scan berikutnya & detail pair', 'ok');
+    if(currentDetailSymbol && currentWorkspace === 'wsTrading') selectWorkspaceSymbol(currentDetailSymbol);
+  });
+});
+refreshIctPrefsUI();
+
+// ===== Detail model dari berkas "ICT Unicorn" & "The Inverse Blueprint" =====
+// Pro & kontra tiap cara entry/SL persis dari berkas Inverse Blueprint.
+const ICT_ENTRY_INFO = {
+  body:     { pros: 'Tidak ketinggalan trade', cons: 'Harga kurang baik, RR lebih rendah, kadang fakeout (bukan closure di HTF)' },
+  ifvg:     { pros: 'Harga & RR lebih baik', cons: 'Bisa ketinggalan trade bila harga tidak retrace' },
+  ifvg50:   { pros: 'Harga & RR lebih baik', cons: 'Bisa ketinggalan trade bila harga tidak retrace sampai 50%' },
+  fvgStart: { pros: 'Probabilitas sangat tinggi, harga & RR lebih baik', cons: 'Bisa ketinggalan trade' },
+  fvg50:    { pros: 'Probabilitas sangat tinggi, harga & RR lebih baik', cons: 'Bisa ketinggalan trade' },
+  bprStart: { pros: 'Probabilitas sangat tinggi, harga & RR lebih baik', cons: 'Bisa ketinggalan trade' },
+  bpr50:    { pros: 'Probabilitas sangat tinggi, harga & RR lebih baik', cons: 'Bisa ketinggalan trade' },
+};
+const ICT_ENTRY_ORDER = ['body','ifvg','ifvg50','fvgStart','fvg50','bprStart','bpr50'];
+
+function ictDetailRow(factor, reason, num, color){
+  return `<div class="bd-row2"><span class="bd-factor2">${factor}</span><span class="bd-reason2">${reason}</span><span class="bd-num2" style="width:auto; ${color?'color:'+color+';':''}">${num}</span></div>`;
+}
+
+function ictModelDetailHtml(c){
+  if(!c) return '';
+  const long = c.side === 'long';
+  if(c.model === 'UNICORN'){
+    const u = c.unicorn, p = c.plan;
+    return `
+      <div class="ws-card">
+        <div class="ws-card-title">🦄 DETAIL — ${escapeHtml(c.title)} (${c.side.toUpperCase()}) · ${escapeHtml(ictStatusLabel(c.status))}</div>
+        ${ictDetailRow('DOL (draw on liquidity)', `${long ? 'Equal highs' : 'Equal lows'} belum diambil, searah trade`, fmtPrice(u.dol.price) + (u.dol.count > 1 ? ' ×' + u.dol.count : ''))}
+        ${ictDetailRow('Manipulation leg', `${long ? 'Swing high → lower low' : 'Swing low → higher high'} (menjauhi DOL)`, fmtPrice(u.leg.start.price) + ' → ' + fmtPrice(u.leg.ext.price))}
+        ${ictDetailRow('Breaker', `${long ? 'Kelompok candle hijau terakhir' : 'Kelompok candle merah terakhir'} sebelum ${long ? 'lower low' : 'higher high'}${u.breaker.count > 1 ? ' (' + u.breaker.count + ' candle)' : ''}`, fmtPrice(u.breaker.low) + ' – ' + fmtPrice(u.breaker.high))}
+        ${ictDetailRow('FVG hasil displacement', 'Meninggalkan celah yang tumpang tindih dengan breaker', fmtPrice(u.fvg.low) + ' – ' + fmtPrice(u.fvg.high))}
+        ${ictDetailRow('Zona overlap (entry)', 'Retest breaker ∩ FVG = zona limit order', fmtPrice(u.overlap[0]) + ' – ' + fmtPrice(u.overlap[1]), 'var(--amber)')}
+        ${ictDetailRow('Entry', 'Limit di tepi zona overlap yang paling dekat harga (app)', fmtPrice(p.entry))}
+        ${ictDetailRow('Stop loss', `BODY ${long ? 'low' : 'high'} dari manipulation leg (bukan wick)`, fmtPrice(p.sl), 'var(--crimson)')}
+        ${ictDetailRow('Take profit — 2 STDV', 'Fib: 0 = ekstrem leg, 1 = awal leg, 2 = diproyeksikan sebesar leg', fmtPrice(u.stdv2) + ' (RR 1:' + (Math.abs(u.stdv2 - p.entry) / p.risk).toFixed(2) + ')')}
+        ${ictDetailRow('Take profit — DOL', 'Tahan lebih lama sampai draw on liquidity', fmtPrice(u.dol.price) + ' (RR 1:' + (Math.abs(u.dol.price - p.entry) / p.risk).toFixed(2) + ')')}
+        <div class="ws-note">${c.notes.map(n => '• ' + escapeHtml(n)).join('<br>')}<br>• Minimal 2R: target yang dipilih = ${escapeHtml(p.tpLabel)} (RR 1:${p.rr.toFixed(2)}).</div>
+      </div>`;
+  }
+  if(c.model === 'IFVG'){
+    const f = c.ifvg, p = c.plan;
+    const entryRows = ICT_ENTRY_ORDER.map(k => {
+      const e = f.entries[k], info = ICT_ENTRY_INFO[k], chosen = k === f.entryKey;
+      const price = e.price !== null && e.price !== undefined ? fmtPrice(e.price) : '—';
+      const why = e.ok ? `Pro: ${info.pros}. Kontra: ${info.cons}.` : `Tidak tersedia — ${e.why || ''}`;
+      return ictDetailRow(`${chosen ? '✓ ' : ''}${escapeHtml(e.label)}`, escapeHtml(why), price, chosen ? 'var(--mint)' : (e.ok ? '' : 'var(--text-3)'));
+    }).join('');
+    const slRows = ['swing','ifvg'].map(k => {
+      const o = f.slOpts[k], chosen = k === f.slKey;
+      const why = k === 'swing' ? 'Pro: level paling aman. Kontra: reward-to-risk lebih rendah.' : 'Pro: reward-to-risk lebih tinggi. Kontra: harga bisa close di luar lalu berbalik. Tanpa SL tetap — keluar manual saat IFVG ditutup melewati.';
+      return ictDetailRow(`${chosen ? '✓ ' : ''}${k === 'swing' ? 'Swing high/low' : 'Pelanggaran IFVG'}`, escapeHtml(why), fmtPrice(o.price) + (o.closeBased ? ' (close)' : ''), chosen ? 'var(--crimson)' : '');
+    }).join('');
+    const tpNames = { lhf: 'Low hanging fruit (high/low terdekat)', fvg: 'FVG mayor terdekat', range: 'External ↔ Internal (range)' };
+    const tpRows = ['lhf','fvg','range'].map(k => {
+      const o = f.tpOpts[k], chosen = k === f.tpKey;
+      if(!o) return ictDetailRow(escapeHtml(tpNames[k]), 'Tidak ada target jenis ini di depan entry', '—', 'var(--text-3)');
+      return ictDetailRow(`${chosen ? '✓ ' : ''}${escapeHtml(tpNames[k])}`, escapeHtml(o.label), fmtPrice(o.price) + ' (RR 1:' + (Math.abs(o.price - p.entry) / p.risk).toFixed(2) + ')', chosen ? 'var(--mint)' : '');
+    }).join('');
+    const beRows = [
+      ictDetailRow(`${f.be.rule50 && p.beKey === 'rule50' ? '✓ ' : ''}Rule of 50`, 'Setelah harga mencapai 50% dari RR awal: geser SL ke breakeven dan pertimbangkan ambil 50% profit (opsional)', f.be.rule50 ? fmtPrice(f.be.rule50.price) : '—'),
+      ictDetailRow(`${f.be.lhf && p.beKey === 'lhf' ? '✓ ' : ''}Low hanging fruit`, 'Setelah harga menyapu likuiditas dari high/low terdekat: geser SL ke breakeven', f.be.lhf ? fmtPrice(f.be.lhf.price) : '—'),
+    ].join('');
+    const fav = f.fav;
+    const favHtml = fav ? `
+      ${ictDetailRow(`${fav.bos ? '✓' : '✕'} BOS searah`, 'Break of Structure sebelum pullback ke FVG utama', fav.bos ? fmtPrice(fav.bos.level) + ' (' + fav.bos.barsAgo + ' candle lalu)' : '—', fav.bos ? 'var(--mint)' : 'var(--text-3)')}
+      ${ictDetailRow(`${fav.inducement ? '✓' : '✕'} Inducement`, 'Likuiditas minor tepat di bawah/atas FVG utama (boleh di dalamnya), diambil saat harga masuk', fav.inducement ? fmtPrice(fav.inducement.price) : '—', fav.inducement ? 'var(--mint)' : 'var(--text-3)')}
+      ${ictDetailRow(`${fav.dol ? '✓' : '✕'} DOL / low hanging fruit jelas`, 'Likuiditas target yang jelas setelah BOS', fav.dol ? 'ada' : '—', fav.dol ? 'var(--mint)' : 'var(--text-3)')}` : '';
+    return `
+      <div class="ws-card">
+        <div class="ws-card-title">🔁 DETAIL — ${escapeHtml(c.title)} (${c.side.toUpperCase()}) · ${escapeHtml(ictStatusLabel(c.status))}</div>
+        ${ictDetailRow('IFVG', `FVG ${f.fvg.type === 'bull' ? 'bullish' : 'bearish'} tunggal dilanggar body closure ${f.barsSince} candle lalu`, fmtPrice(f.fvg.low) + ' – ' + fmtPrice(f.fvg.high), 'var(--amber)')}
+        ${f.poi ? ictDetailRow('POI (FVG/OB utama)', `Harga ditolak dari ${f.poi.kind === 'fvg' ? 'FVG' : 'Order Block'} ${f.poi.type === 'bear' ? 'bearish' : 'bullish'}`, fmtPrice(f.poi.low) + ' – ' + fmtPrice(f.poi.high)) : ''}
+        ${f.sweep ? ictDetailRow('Sweep likuiditas', `${f.sweep.src === 'asia' ? 'Asian ' + (f.sweep.side === 'bsl' ? 'High' : 'Low') : 'Swing ' + (f.sweep.side === 'bsl' ? 'high' : 'low')} disapu, lalu harga kembali ke range (Power of 3)`, fmtPrice(f.sweep.level)) : ''}
+        ${f.bpr ? ictDetailRow('BPR (Balanced Price Range)', 'Overlap dua FVG: IFVG + FVG pelanggar', fmtPrice(f.bpr.low) + ' – ' + fmtPrice(f.bpr.high)) : ''}
+        <div class="ind-section-title" style="margin-top:14px;">MODEL FAVORIT (BOS + INDUCEMENT + DOL)</div>
+        ${favHtml || '<div class="sop-note">Model favorit hanya berlaku untuk tipe POI → IFVG.</div>'}
+        <div class="ind-section-title" style="margin-top:14px;">CARA ENTRY (pilihan personal)</div>${entryRows}
+        <div class="ind-section-title" style="margin-top:14px;">STOP LOSS</div>${slRows}
+        <div class="ind-section-title" style="margin-top:14px;">BREAKEVEN</div>${beRows}
+        <div class="ind-section-title" style="margin-top:14px;">TAKE PROFIT${f.rangeInfo ? ' — arah ' + escapeHtml(f.rangeInfo) : ''}</div>${tpRows}
+        ${c.notes.length ? `<div class="ws-note">${c.notes.map(n => '• ' + escapeHtml(n)).join('<br>')}</div>` : ''}
+      </div>`;
+  }
+  return '';
+}
+
+// Teks model untuk prompt "Copy Ringkasan buat AI"
+function ictModelText(c){
+  if(!c || !c.model) return '';
+  const p = c.plan;
+  const fp = fmtPrice;
+  if(c.model === 'UNICORN'){
+    const u = c.unicorn;
+    return `=== MODEL TERDETEKSI: ${c.title} (${c.side.toUpperCase()}, ${ictStatusLabel(c.status)}) ===
+DOL: ${fp(u.dol.price)}${u.dol.count > 1 ? ' ×' + u.dol.count : ''} | Manipulation leg: ${fp(u.leg.start.price)} → ${fp(u.leg.ext.price)}
+Breaker: ${fp(u.breaker.low)}–${fp(u.breaker.high)} | FVG: ${fp(u.fvg.low)}–${fp(u.fvg.high)} | Overlap (entry): ${fp(u.overlap[0])}–${fp(u.overlap[1])}
+Entry ${fp(p.entry)} | SL (body leg) ${fp(p.sl)} | TP ${p.tp !== null ? fp(p.tp) + ' (' + p.tpLabel + ')' : '-'} | RR 1:${p.rr.toFixed(2)} | 2 STDV ${fp(u.stdv2)} | Tanpa manajemen trade`;
+  }
+  const f = c.ifvg;
+  const ent = ICT_ENTRY_ORDER.map(k => `${f.entries[k].label}=${f.entries[k].price !== null ? fp(f.entries[k].price) : 'n/a'}${k === f.entryKey ? '*' : ''}`).join(' | ');
+  const tps = Object.keys(f.tpOpts).map(k => `${k}=${fp(f.tpOpts[k].price)}${k === f.tpKey ? '*' : ''}`).join(' | ');
+  return `=== MODEL TERDETEKSI: ${c.title} (${c.side.toUpperCase()}, ${ictStatusLabel(c.status)}) ===
+IFVG: FVG ${f.fvg.type === 'bull' ? 'bullish' : 'bearish'} tunggal ${fp(f.fvg.low)}–${fp(f.fvg.high)} dilanggar body closure ${f.barsSince} candle lalu${f.poi ? ' | POI: ' + fp(f.poi.low) + '–' + fp(f.poi.high) : ''}${f.sweep ? ' | Sweep: ' + fp(f.sweep.level) + (f.sweep.src === 'asia' ? ' (Asian)' : '') : ''}${f.bpr ? ' | BPR: ' + fp(f.bpr.low) + '–' + fp(f.bpr.high) : ''}
+Model favorit: BOS ${f.fav && f.fav.bos ? 'ya' : 'tidak'}, inducement ${f.fav && f.fav.inducement ? 'ya' : 'tidak'}, DOL jelas ${f.fav && f.fav.dol ? 'ya' : 'tidak'}
+Entry (* = dipilih): ${ent}
+SL: swing ${fp(f.slOpts.swing.price)} | pelanggaran IFVG ${fp(f.slOpts.ifvg.price)} (close) — dipilih: ${f.slKey}
+TP (* = dipilih): ${tps || 'n/a'} | Breakeven: ${p.be ? fp(p.be.price) + ' (' + p.beKey + ')' : 'tidak dipakai'}`;
+}
+
+// Timing: killzone + macro persis seperti tabel berkas
+function ictTimingHtml(ev){
+  const kz = ev.killzone, mc = ev.macro;
+  return `
+    <div class="ind-grid">
+      <div class="ind-cell"><div class="il">Killzone (waktu New York)</div><div class="iv ${kz.active?'pos-above':''}" style="font-size:13px;">${escapeHtml(kz.name)}</div><div class="ib">NY ${kz.nyTime} · Asia 20:00–00:00, London 02:00–05:00, New York 07:00–10:00</div></div>
+      <div class="ind-cell"><div class="il">Macro</div><div class="iv ${mc.active?'pos-above':''}" style="font-size:13px;">${escapeHtml(mc.name)}</div><div class="ib">jendela algoritma mencari likuiditas</div></div>
+    </div>
+    <div class="sop-note" style="margin-top:8px;">Macro: London 02:33–03:00 &amp; 04:03–04:30 · NY AM 08:50–09:10, 09:50–10:10 &amp; 10:50–11:10 · NY PM 11:50–12:10, 13:10–13:40 &amp; 15:15–15:45. Fase: akumulasi (membuat likuiditas) → manipulasi (<b>liquidity sweep</b> — yang diperdagangkan) → distribusi (ekspansi). Checklist model IFVG meminta killzone <i>atau</i> macro; Unicorn memakai sesi New York.${ev.cfg.useKillzone ? '' : ' Pada gaya Swing waktu tidak menjadi syarat wajib.'}</div>`;
+}
+
+// Order flow & market structure (berkas Inverse Blueprint)
+function ictOrderFlowHtml(ev){
+  const o = ev.orderFlow;
+  if(!o) return '';
+  const trend = o.trend === 'bullish' ? 'Bullish' : o.trend === 'bearish' ? 'Bearish' : 'Transisi/netral';
+  const sw = o.sweeps.length ? o.sweeps.map(s => `${s.side === 'bsl' ? 'high' : 'low'} ${fmtPrice(s.level)}${s.src === 'asia' ? ' (Asian)' : ''} · ${s.barsAgo} candle lalu`).join('<br>') : 'tidak ada dalam 30 candle terakhir';
+  return `
+    <div class="ind-grid">
+      <div class="ind-cell"><div class="il">Order flow</div><div class="iv ${o.trend==='bullish'?'pos-above':o.trend==='bearish'?'pos-below':''}" style="font-size:13px;">${trend}</div><div class="ib">${o.bos} BOS · ${o.choch} CHoCH (60 candle)</div></div>
+      <div class="ind-cell"><div class="il">PD array dihormati</div><div class="iv">${o.respected}</div><div class="ib">FVG disentuh, belum dilanggar body closure</div></div>
+      <div class="ind-cell"><div class="il">PD array dilanggar</div><div class="iv">${o.violated}</div><div class="ib">FVG yang berubah jadi IFVG</div></div>
+      <div class="ind-cell"><div class="il">Displacement terakhir</div><div class="iv" style="font-size:13px;">${o.lastDisp ? o.lastDisp.dir + ' · ' + o.lastDisp.barsAgo + ' candle lalu' : '—'}</div><div class="ib">mengganggu struktur?</div></div>
+    </div>
+    <div class="sop-note" style="margin-top:8px;"><b>Sweep short-term high/low:</b><br>${sw}</div>`;
+}
 
 function renderDetail(d){
   const ev = d.ev, ltf = ev.ltf, htf = ev.htf, b = ev.best;
@@ -3914,15 +4482,15 @@ function renderDetail(d){
     return `<div class="bd-row2"><span class="bd-factor2">${name}</span><span class="bd-reason2">${fmtPrice(z.low)} – ${fmtPrice(z.high)} · ${state} · ${z.barsAgo} candle lalu</span><span class="bd-num2" style="width:auto; color:${inside?'var(--amber)':z.type==='bull'?'var(--mint)':'var(--crimson)'};">${inside?'DI DALAM':(z.dist*100).toFixed(2)+'%'}</span></div>`;
   }).join('') : `<div class="sop-note">Tidak ada FVG atau Order Block yang belum termitigasi di ${d.tf.toUpperCase()}.</div>`;
 
-  const kz = ev.killzone;
-  const kzHtml = `<div class="sop-note" style="margin-top:8px;"><b>Killzone:</b> ${escapeHtml(kz.name)} (waktu New York ${kz.nyTime}) — ${kz.active ? 'jendela likuiditas aktif, setup intraday lebih relevan.' : 'di luar jendela killzone; setup intraday cenderung kurang bertenaga.'}${ev.cfg.useKillzone ? '' : ' Tidak dipakai di gaya Swing.'}</div>`;
+  const kzHtml = ictTimingHtml(ev);
+  const ofHtml = ictOrderFlowHtml(ev);
 
   const analysisPart = `
     <div class="trend-banner ${bannerCls}">
       <div class="tb-title">${escapeHtml(bannerTitle)}</div>
       ${bannerSub ? `<div class="tb-sub">${escapeHtml(bannerSub)}</div>` : ''}
     </div>
-    <div class="sop-note" style="margin-top:10px;"><b>ℹ️ Alat bantu keputusan, bukan sinyal yang terbukti.</b> Engine ini mendeteksi pola ICT secara mekanis. Backtest walk-forward di data nyata (20 pair, ±5.900 trade) <b>belum menemukan keunggulan statistik</b>: ekspektasi ≈ 0R sebelum fee dan negatif setelah fee. Pakai sebagai peta struktur &amp; likuiditas — keputusan akhir ada di kamu. Detail di README.</div>
+    <div class="sop-note" style="margin-top:10px;"><b>ℹ️ Alat bantu keputusan, bukan sinyal yang terbukti.</b> Engine ini mendeteksi pola ICT secara mekanis. Backtest walk-forward di data nyata (20 pair, ±5.900 trade) <b>belum menemukan keunggulan statistik</b>: ekspektasi ≈ 0R sebelum fee dan negatif setelah fee. Pakai sebagai peta struktur &amp; likuiditas — keputusan akhir ada di kamu. Analisis memakai candle yang sudah <b>tutup</b> (body closure butuh candle tertutup), jadi sinyal baru muncul setelah candle penutupnya selesai. Detail di README.</div>
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>
@@ -3931,6 +4499,9 @@ function renderDetail(d){
     ${liqHtml}
     <div class="ind-section-title">POINT OF INTEREST — FVG &amp; ORDER BLOCK (${d.tf.toUpperCase()})</div>
     ${poiHtml}
+    <div class="ind-section-title">ORDER FLOW &amp; MARKET STRUCTURE (${d.tf.toUpperCase()})</div>
+    ${ofHtml}
+    <div class="ind-section-title">TIMING — KILLZONE &amp; MACRO</div>
     ${kzHtml}
     ${d.fundingRate!==null ? `<div class="sop-note" style="margin-top:8px;"><b>Funding rate (data pasar, tidak dipakai dalam keputusan):</b> ${(d.fundingRate*100).toFixed(4)}%</div>` : ''}
   `;
@@ -3945,7 +4516,7 @@ function renderDetail(d){
         <div class="ws-card-title">✅ CHECKLIST ICT — ${escapeHtml(b.title)} (${b.side.toUpperCase()}) · ${b.check.passes}/${b.check.total} lulus · Grade ${b.grade}</div>
         ${b.check.checks.map(c=>`
           <div class="checklist-row"><span class="cl-name">${escapeHtml(c.name)}${c.blocking?' <span class="sim-tag">WAJIB</span>':''}<span style="display:block; font-size:10.5px; color:var(--text-3); font-weight:400; margin-top:2px;">${escapeHtml(c.note)}</span></span><span class="cl-result ${c.result}">${resTxt(c.result)}</span></div>`).join('')}
-        <div class="ws-note">Ini checklist lulus/gagal, <b>bukan skor berbobot</b>. Syarat bertanda <span class="sim-tag">WAJIB</span> harus lulus (bias HTF searah &amp; target likuiditas memenuhi RR minimum), dan grade harus A atau B. Grade A ≥ 85% lulus, B ≥ 65%, di bawahnya C = SKIP.</div>
+        <div class="ws-note">Ini checklist lulus/gagal, <b>bukan skor berbobot</b>. Syarat bertanda <span class="sim-tag">WAJIB</span> harus lulus (mis. bias HTF searah, FVG tunggal dilanggar body closure, RR memenuhi minimum), dan grade harus A atau B. Grade A ≥ 85% lulus, B ≥ 65%, di bawahnya C = SKIP.</div>
       </div>
       ${otherCands.length ? `<div class="ws-card"><div class="ws-card-title">🔎 KANDIDAT LAIN</div>${otherCands.map(c=>`<div class="checklist-row"><span class="cl-name">${escapeHtml(c.title)} (${c.side.toUpperCase()}) — ${escapeHtml(ictStatusLabel(c.status))}</span><span class="cl-result ${c.valid?'pass':'fail'}">Grade ${c.grade} · ${c.valid?'layak':'tidak layak'}</span></div>`).join('')}</div>` : ''}`;
   } else {
@@ -3977,12 +4548,12 @@ function renderDetail(d){
   const planCard = (side) => {
     const c = ev.candidates.find(x=>x.side===side);
     const SIDE = side.toUpperCase();
-    if(!c) return `<div class="entry-card ${side}"><div class="entry-card-head"><span>${SIDE}</span><span>– Tidak ada setup</span></div><div class="entry-caveat">Tidak ada setup ICT ${SIDE} (sweep+MSS atau retest POI) di ${d.tf.toUpperCase()} saat ini.</div></div>`;
+    if(!c) return `<div class="entry-card ${side}"><div class="entry-card-head"><span>${SIDE}</span><span>– Tidak ada setup</span></div><div class="entry-caveat">Tidak ada setup ICT ${SIDE} (Sweep+MSS, Retest POI, Unicorn, atau IFVG) di ${d.tf.toUpperCase()} saat ini.</div></div>`;
     const p = c.plan;
     const riskPct = Math.abs(p.entry - p.sl) / p.entry;
     const feeR = ICT_FEE_ROUNDTRIP / riskPct; // fee + slippage SL, dalam satuan R — stop rapat membuat fee memakan banyak R
     let caveat;
-    if(c.status === 'invalid') caveat = 'Harga sudah menembus zona entry — setup batal.';
+    if(c.status === 'invalid') caveat = c.invalidWhy || 'Harga sudah menembus zona entry — setup batal.';
     else if(c.check.blockingFail) caveat = `Tidak layak: ${c.check.blockingFail.name} — ${c.check.blockingFail.note}`;
     else if(c.grade === 'C') caveat = `Konfluensi kurang (${c.check.passes}/${c.check.total} lulus) — tidak layak.`;
     else caveat = c.status === 'in_zone' ? 'Harga di zona. Tunggu candle konfirmasi (displacement searah) sebelum eksekusi, jangan market order langsung.' : 'Harga belum di zona — tunggu retrace, jangan kejar.';
@@ -3995,18 +4566,23 @@ function renderDetail(d){
         ${p.tp2!==null ? `<div class="entry-row"><span class="el">Take Profit 2</span><span class="ev">${fmtPrice(p.tp2)}<span class="ez">${escapeHtml(p.tp2Label)}</span></span></div>` : ''}
         <div class="entry-row"><span class="el">Risk : Reward</span><span class="ev" style="color:${p.rr>=p.minRR?'var(--mint)':'var(--amber)'}">1 : ${p.rr.toFixed(2)}${p.rr2!==null?' <span class="ez">TP2 1 : '+p.rr2.toFixed(2)+'</span>':''}</span></div>
         <div class="entry-row"><span class="el">Estimasi biaya</span><span class="ev" style="color:${feeR>0.15?'var(--amber)':'var(--text-2)'}">≈ ${feeR.toFixed(2)}R<span class="ez">fee+slippage ≈ ${(ICT_FEE_ROUNDTRIP*100).toFixed(2)}% harga ÷ jarak SL ${(riskPct*100).toFixed(2)}%${feeR>0.15?' — stop rapat, fee memakan banyak R':''}</span></span></div>
+        ${p.slCloseBased ? `<div class="entry-row"><span class="el">Cara keluar</span><span class="ev" style="font-size:12px;">Keluar manual bila ada candle CLOSE di luar IFVG (${fmtPrice(p.sl)})<span class="ez">bukan stop order tetap — risiko: close lalu berbalik</span></span></div>` : ''}
+        ${p.be ? `<div class="entry-row"><span class="el">Breakeven</span><span class="ev">${fmtPrice(p.be.price)}<span class="ez">${escapeHtml(p.be.label)}</span></span></div>` : ''}
+        ${p.managed === false ? `<div class="entry-row"><span class="el">Manajemen</span><span class="ev" style="font-size:12px;">Tidak ada — biarkan trade berjalan<span class="ez">aturan model Unicorn</span></span></div>` : ''}
         <div class="entry-caveat">${escapeHtml(caveat)}</div>
       </div>`;
   };
+  const modelDetails = ['long', 'short'].map(sd => ev.candidates.find(x => x.side === sd && x.model)).filter(Boolean).map(ictModelDetailHtml).join('');
   const tradingPart = `
     <div class="ind-section-title">RENCANA ENTRY ICT — ${d.tf.toUpperCase()}</div>
     <div class="entry-cols">${planCard('long')}${planCard('short')}</div>
+    ${modelDetails}
     <div style="display:flex; gap:8px; margin-top:10px;">
       <button class="btn" id="saveSetupHistoryBtn" onclick="saveSetupSnapshot()" style="flex:1;">📌 Simpan ke Histori Setup</button>
       <button class="btn" onclick="journalFromCurrentDetail()" style="flex:1;">📓 Buat Entry Jurnal</button>
     </div>
     <div class="sop-note" style="margin-top:8px;">
-      <b>Dasar SOP ICT:</b> Entry di POI (FVG/Order Block, atau OTE 62–79%) setelah likuiditas diambil dan struktur bergeser (MSS/CHoCH) dengan displacement. SL wajib di luar titik invalidasi (low/high hasil sweep atau tepi zona), bukan jarak tetap. TP diarahkan ke likuiditas di depan (BSL/SSL, EQH/EQL) yang memberi RR minimum ${ev.cfg.minRR}. Ukuran posisi ditentukan dari jarak SL (risk % modal), bukan sebaliknya. Ini bukan sinyal otomatis — tetap tunggu konfirmasi price action sebelum eksekusi.
+      <b>Dasar SOP ICT:</b> Model Sweep+MSS &amp; Retest POI: entry di POI setelah likuiditas diambil dan struktur bergeser dengan displacement. <b>Unicorn</b> (berkas ICT Unicorn): entry retest overlap Breaker+FVG, SL di body manipulation leg, TP 2 STDV atau DOL, min 2R, tanpa manajemen. <b>IFVG</b> (berkas Inverse Blueprint): FVG tunggal dilanggar body closure, entry/SL/TP/breakeven sesuai preferensi di Pengaturan. Semua TP diarahkan ke likuiditas di depan; RR minimum gaya ini ${ev.cfg.minRR}. Ukuran posisi ditentukan dari jarak SL (risk % modal), bukan sebaliknya. Ini bukan sinyal otomatis — tetap tunggu konfirmasi price action sebelum eksekusi.
     </div>`;
 
   const htmlFull = analysisPart + validationPart + decisionPart + tradingPart;
@@ -4209,6 +4785,7 @@ Keputusan: ${f.finalDecision}${f.newsGuardActive?' (dikunci News Guard manual)':
 ${b && f.finalDecision!=='SKIP' ? 'Alasan:\n' + b.reasons.map(r=>'- '+r).join('\n') : 'Alasan SKIP: ' + (ev.skipReason || '-')}
 ${ev.watch && ev.watch.length ? 'Pantauan: ' + ev.watch.join(' | ') : ''}
 
+${b ? ictModelText(b) + '\n' : ''}
 === KONTEKS MULTI-TIMEFRAME (1H → 4H → 1D → 1W, sumber: Binance Futures live, murni price action) ===
 ${tfBlocks}
 
@@ -4228,7 +4805,7 @@ ${planLine('long')}
 ${planLine('short')}
 
 === DATA PASAR ===
-- Killzone sekarang: ${ev.killzone.name} (waktu New York ${ev.killzone.nyTime})
+- Killzone sekarang: ${ev.killzone.name} (waktu New York ${ev.killzone.nyTime}) · ${ev.macro.name}
 - Funding rate: ${d.fundingRate!=null ? (d.fundingRate*100).toFixed(4)+'%' : '-'} (data pasar saja, tidak dipakai dalam keputusan engine)` };
 }
 
