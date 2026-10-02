@@ -64,6 +64,27 @@ Keterbatasan backtest: spot sebagai pengganti futures (futures sering diblokir I
 
 Jadi pakai app ini sebagai **peta struktur, likuiditas, dan zona** (bahan untuk analisis sendiri), bukan sebagai pemberi sinyal beli/jual. Kalau ingin mengujinya sendiri: `node scripts/backtest-ict.js` (opsi ada di komentar kepala berkas) dan `node scripts/analyze-features.js berkas.jsonl` untuk riset fitur.
 
+## Menjalankan backtest di VPS (data futures asli)
+
+Backtest di atas memakai data **spot** karena futures sering diblokir ISP. Kalau VPS Anda tidak memblokir Binance, jalankan di sana dengan **data futures USDT-M asli** — ini menutup keterbatasan terbesar hasil di atas.
+
+**Tidak butuh API key.** Data pasar futures bersifat publik: skrip hanya memanggil `ping`, `ticker/24hr`, dan `klines`. Jangan menaruh API key di VPS ini untuk keperluan backtest, dan jangan pernah mengirim key ke siapa pun — termasuk ke Claude.
+
+```bash
+# Prasyarat: Node >= 18, git, curl
+git clone https://github.com/patahpensil/ict-screening.git && cd ict-screening
+curl -s https://fapi.binance.com/fapi/v1/ping        # harus membalas {}  (kalau gagal, VPS ini memblokir Binance)
+bash scripts/vps-backtest.sh                         # opsi: PAIRS=30 HISTORY=4000 bash scripts/vps-backtest.sh
+```
+
+- Lama: puluhan menit (dominan komputasi). Pakai `tmux`/`screen`, atau `nohup bash scripts/vps-backtest.sh &`.
+- Hasil: `results/<waktu>/RINGKASAN.txt` (backtest Intraday + Swing + analisis fitur latih/uji). Isinya tidak memuat data pribadi — tempel ke Claude untuk dianalisis.
+- Skrip melakukan preflight kecil dulu (2 pair) supaya salah konfigurasi ketahuan sebelum run panjang, dan otomatis berhenti dengan pesan jelas kalau Binance tidak terjangkau.
+- Binance membatasi request (weight/menit). Skrip memberi jeda 120 ms per request dan mundur otomatis saat kena 429/418. Jangan menjalankan beberapa instance sekaligus dari IP yang sama.
+- Keamanan umum VPS: jangan jalankan sebagai root, aktifkan firewall dan login SSH dengan key (bukan password).
+
+Opsi `--source=auto|futures|spot` pada `scripts/backtest-ict.js`: `auto` (default) mencoba futures lalu jatuh ke spot dengan peringatan, `futures` gagal tegas bila tidak terjangkau.
+
 ## Alat Bantu
 
 - Rencana entry otomatis (Entry/SL/TP1/TP2/RR) berbasis POI, invalidasi struktural, dan target likuiditas, lengkap dengan **estimasi biaya (fee+slippage) dalam satuan R** supaya terlihat kapan stop terlalu rapat
@@ -89,7 +110,8 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
-scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (butuh internet)
+scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (futures atau spot; butuh internet)
+scripts/vps-backtest.sh        OPSIONAL: satu perintah untuk menjalankan backtest + analisis di VPS (tanpa API key)
 scripts/analyze-features.js    OPSIONAL: riset fitur sinyal vs hasil trade (latih/uji + koreksi multiple-comparison)
 .github/workflows/checks.yml   menjalankan pemeriksaan otomatis di GitHub
 ```

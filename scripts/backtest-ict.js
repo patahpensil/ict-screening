@@ -7,11 +7,15 @@
  * berdasarkan waktu tutup). Sinyalnya lalu diikuti ke depan: entry di harga rencana (limit), exit di SL atau TP1
  * mana yang kena duluan. Kalau SL dan TP kena di candle yang sama, dihitung SL (konservatif).
  *
- * Sumber data: https://data-api.binance.vision (mirror data publik Binance, pasar SPOT — futures sering diblokir ISP).
- * Candle spot ≈ futures untuk pair yang sama, tapi ini tetap pendekatan. Tidak memodelkan fee, slippage, funding.
+ * Sumber data (--source=auto|futures|spot, default auto):
+ *   futures = fapi.binance.com USDT-M (data PUBLIK, tanpa API key) — pilihan terbaik; sering diblokir ISP, biasanya jalan di VPS.
+ *   spot    = data-api.binance.vision (mirror data publik, pasar SPOT) — pendekatan; candle spot ≈ futures untuk pair yang sama.
+ *   auto    = coba futures, kalau tidak terjangkau jatuh ke spot dan mencetak peringatan.
+ * SKRIP INI TIDAK PERNAH MEMBUTUHKAN ATAU MEMBACA API KEY. Tidak memodelkan fee, slippage, funding.
  *
  * Jalankan: node scripts/backtest-ict.js [--pairs=20] [--style=intraday|swing|both] [--history=3000] [--split=0.6]
  *             [--hold=48] [--wait=12] [--set=slBufferFrac=0.15,tpMode=nearest] [--exit=tp|oneR|partial] [--symbols=BTCUSDT,ETHUSDT]
+ *             [--source=auto|futures|spot] [--delay=ms jeda antar request, default 120 untuk futures]
  * Data diunduh sekali per jam lalu di-cache di folder temp. --set menimpa parameter ICT_CFG HANYA untuk run ini.
  */
 'use strict';
@@ -22,7 +26,23 @@ const vm = require('vm');
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.split('=')[1] : d; };
 const NPAIRS = parseInt(arg('pairs', '20'), 10);
 const STYLE = arg('style', 'both');
-const HOST = 'https://data-api.binance.vision';
+const SOURCE_ARG = arg('source', 'auto');
+const SPOT = { tag: 'spot', name: 'SPOT (mirror data-api.binance.vision)', base: 'https://data-api.binance.vision', klines: '/api/v3/klines', ticker: '/api/v3/ticker/24hr', ping: '/api/v3/ping' };
+const FUT = { tag: 'fut', name: 'FUTURES USDT-M (fapi.binance.com)', base: arg('futures-base', 'https://fapi.binance.com'), klines: '/fapi/v1/klines', ticker: '/fapi/v1/ticker/24hr', ping: '/fapi/v1/ping' };
+let SRC = SPOT;   // diisi pickSource() sebelum dipakai
+let DELAY = parseInt(arg('delay', '-1'), 10); // ms antar request; -1 = otomatis (120 untuk futures, 0 untuk spot)
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function reachable(src) {
+  try { const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 7000); const r = await fetch(src.base + src.ping, { signal: ctl.signal }); clearTimeout(tm); return r.ok; } catch (e) { return false; }
+}
+async function pickSource() {
+  if (SOURCE_ARG === 'spot') return SPOT;
+  const ok = await reachable(FUT);
+  if (SOURCE_ARG === 'futures') { if (!ok) { console.error('Futures (' + FUT.base + ') tidak terjangkau dari jaringan ini. Coba dari VPS, atau pakai --source=spot.'); process.exit(3); } return FUT; }
+  if (ok) return FUT;
+  console.warn('⚠️  Futures tidak terjangkau — memakai SPOT sebagai pendekatan. Untuk data futures asli, jalankan dari jaringan yang tidak memblokir Binance (mis. VPS).');
+  return SPOT;
+}
 const HISTORY = parseInt(arg('history', '3000'), 10); // jumlah candle LTF per pair (paginasi 1000/request)
 const SPLIT = parseFloat(arg('split', '0.6'));          // porsi awal = periode LATIH, sisanya = UJI (tidak disentuh saat tuning)
 const NO_INTRABAR_GUARD = process.argv.includes('--no-intrabar-guard'); // HANYA untuk membuktikan bias: mematikan aturan candle-fill konservatif
@@ -50,19 +70,24 @@ const HOLD = { intraday: parseInt(arg('hold', '48'), 10), swing: parseInt(arg('h
 const WAIT = parseInt(arg('wait', '12'), 10); // candle menunggu harga menyentuh entry limit
 
 async function get(url) {
-  for (let i = 0; i < 3; i++) {
-    try { const r = await fetch(url); if (r.ok) return await r.json(); } catch (e) { /* ulang */ }
-    await new Promise(r => setTimeout(r, 800));
+  for (let i = 0; i < 5; i++) {
+    try {
+      if (DELAY > 0) await sleep(DELAY);
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+      if (r.status === 429 || r.status === 418) { console.warn(`rate limit Binance (${r.status}) — jeda ${5 * (i + 1)} dtk`); await sleep(5000 * (i + 1)); continue; }
+    } catch (e) { /* ulang */ }
+    await sleep(800);
   }
   throw new Error('gagal: ' + url);
 }
 async function klines(symbol, interval, total) {
-  const f = path.join(CACHE_DIR, `${symbol}_${interval}_${total}_${new Date().toISOString().slice(0, 13)}.json`); // cache per jam
+  const f = path.join(CACHE_DIR, `${SRC.tag}_${symbol}_${interval}_${total}_${new Date().toISOString().slice(0, 13)}.json`); // cache per jam & per sumber
   if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8'));
   let out = [], end = null;
   while (out.length < total) {
     const lim = Math.min(1000, total - out.length);
-    const raw = await get(`${HOST}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${lim}` + (end ? `&endTime=${end}` : ''));
+    const raw = await get(`${SRC.base}${SRC.klines}?symbol=${symbol}&interval=${interval}&limit=${lim}` + (end ? `&endTime=${end}` : ''));
     if (!raw.length) break;
     out = raw.map(k => ({ open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5], t: k[0], ct: k[6] })).concat(out);
     end = raw[0][0] - 1;
@@ -74,8 +99,9 @@ async function klines(symbol, interval, total) {
 
 const STABLE = new Set(['USDC', 'FDUSD', 'TUSD', 'BUSD', 'USDP', 'DAI', 'EUR', 'AEUR', 'USDE', 'XUSD', 'PAXG', 'WBTC', 'WBETH', 'BFUSD']);
 async function topPairs(n) {
-  const t = await get(`${HOST}/api/v3/ticker/24hr`);
-  return t.filter(x => x.symbol.endsWith('USDT') && !/(UP|DOWN|BULL|BEAR)USDT$/.test(x.symbol) && !STABLE.has(x.symbol.slice(0, -4)))
+  const t = await get(`${SRC.base}${SRC.ticker}`);
+  // futures: buang kontrak delivery bertanggal (mis. BTCUSDT_250627) — hanya perpetual
+  return t.filter(x => x.symbol.endsWith('USDT') && !x.symbol.includes('_') && !/(UP|DOWN|BULL|BEAR)USDT$/.test(x.symbol) && !STABLE.has(x.symbol.slice(0, -4)))
     .sort((p, q) => +q.quoteVolume - +p.quoteVolume).slice(0, n).map(x => x.symbol);
 }
 
@@ -184,8 +210,10 @@ function summarize(label, trades) {
 }
 
 (async () => {
+  SRC = await pickSource();
+  if (DELAY < 0) DELAY = SRC === FUT ? 120 : 0;
   const pairs = SYMBOLS ? SYMBOLS.split(',') : await topPairs(NPAIRS);
-  console.log(`Backtest walk-forward ICT — ${pairs.length} pair (volume 24H terbesar, spot USDT)\nSumber: ${HOST} · tanpa fee/slippage/funding · SL menang kalau SL & TP di candle yang sama\n`);
+  console.log(`Backtest walk-forward ICT — ${pairs.length} pair (USDT)\nSumber data: ${SRC.name} · tanpa fee/slippage/funding · fill candle konservatif (SL menang kalau SL & TP di candle yang sama)\n`);
   const styles = STYLE === 'both' ? ['intraday', 'swing'] : [STYLE];
   for (const style of styles) {
     let all = [];

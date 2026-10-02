@@ -26,6 +26,7 @@ scripts/test-ict.js            behaviour tests for the ICT engine (synthetic can
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
 scripts/backtest-ict.js        OPTIONAL: walk-forward backtest on real Binance data (needs internet)
 scripts/analyze-features.js    OPTIONAL: feature-vs-outcome research on a backtest dump
+scripts/vps-backtest.sh        OPTIONAL: one-command futures backtest for a VPS (public data only — NO API key, ever)
 .github/workflows/checks.yml   runs selftest + check + test-ict + cache-bump on push + PR
 ```
 
@@ -82,6 +83,7 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - Hitung selalu **setelah fee** (`ICT_FEE_ROUNDTRIP`): stop rapat membuat fee memakan separuh R.
 - Backtest memakai candle yang SUDAH TUTUP; app live menganalisis candle yang sedang terbentuk juga (belum diukur seberapa besar bedanya). Jangan mengklaim hasil backtest berlaku persis untuk sinyal live.
 - Jangan mengubah teks UI menjadi lebih yakin daripada bukti: produk diposisikan sebagai alat bantu keputusan.
+- **Tooling riset tidak pernah memakai API key.** Backtest/riset hanya memanggil endpoint data publik Binance (ping, ticker/24hr, klines). Jangan menambah kode yang membaca `BINANCE_*`, menandatangani request, atau mengirim `X-MBX-APIKEY`. Eksekusi order otomatis sengaja di luar cakupan (hasil backtest: ekspektasi negatif setelah fee).
 
 ## Hard rules
 

@@ -14,3 +14,6 @@ Thumbs.db
 .claude/
 shots/
 *.local.json
+
+# Output backtest (bisa besar, dihasilkan scripts/vps-backtest.sh)
+results/
