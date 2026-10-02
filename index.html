@@ -1145,7 +1145,7 @@
       <div class="fsp-body-inner">
         <div class="hero-mode-status" id="heroModeStatus"></div>
         <div class="coin-list" id="modeResultsList"></div>
-        <div class="sop-note" style="margin-top:12px;">ℹ️ <b>Siap entry</b> = harga sedang di dalam zona entry (FVG/Order Block/OTE) dan seluruh syarat WAJIB lulus. <b>Pantau</b> = setup valid tapi harga belum retrace ke zona. Hasil scan adalah titik awal — buka detail pair untuk checklist lengkap sebelum mengambil keputusan, dan tunggu candle konfirmasi di zona.</div>
+        <div class="sop-note" style="margin-top:12px;">ℹ️ <b>Siap entry</b> = harga sedang di dalam zona entry (FVG/Order Block/OTE) dan seluruh syarat WAJIB lulus. <b>Pantau</b> = setup valid tapi harga belum retrace ke zona. Hasil scan adalah titik awal — buka detail pair untuk checklist lengkap sebelum mengambil keputusan, dan tunggu candle konfirmasi di zona. <b>Perlu diketahui:</b> backtest walk-forward belum menemukan keunggulan statistik dari setup ini (lihat README) — ini peta konteks, bukan jaminan arah.</div>
       </div>
     </div>
   </div>
@@ -2389,6 +2389,7 @@ const ICT_CFG = {
   oteLo: 0.62, oteHi: 0.79,// zona OTE (Optimal Trade Entry) ICT
   maxZoneDistFrac: 0.35,   // zona entry harus dalam jarak <= 35% range leg dari harga sekarang (kalau tidak, bukan peluang saat ini)
   maxPoiAge: 60,           // OB/FVG lebih tua dari N candle dianggap basi untuk retest
+  tpMode: 'minrr',         // 'minrr' = TP1 = likuiditas terdekat yang memberi RR >= minRR | 'nearest' = likuiditas terdekat apa pun
   slBufferFrac: 0.05,      // buffer SL = 5% dari range leg (min 0.05% harga) di luar swing/zona invalidasi
   styles: {
     intraday: { label: 'Intraday', ltf: '1h', htf: '4h', htf2: '1d', minRR: 1.5, useKillzone: true,  sub: '1H entry · 4H bias · 1D konteks' },
@@ -2604,13 +2605,23 @@ function ictOrderBlocks(candles, fvgsAll){
     seen.add(k);
     const c = candles[k];
     const type = f.type;
-    let tested = false, valid = true;
+    let tested = false, valid = true, brokeIdx = -1;
     for(let j = f.midIdx; j < n; j++){
       const x = candles[j];
       if(j > f.idx && (type === 'bull' ? x.low <= c.high : x.high >= c.low)) tested = true;
-      if(type === 'bull' ? x.close < c.low : x.close > c.high){ valid = false; break; }
+      if(type === 'bull' ? x.close < c.low : x.close > c.high){ valid = false; brokeIdx = j; break; }
     }
-    out.push({ kind: 'ob', type, low: c.low, high: c.high, ce: (c.open + c.close) / 2, idx: k, barsAgo: n - 1 - k, tested, valid });
+    // Breaker: OB yang patah lalu berbalik fungsi (bull OB patah ke bawah -> resistance; bear OB patah ke atas -> support).
+    // Masih berlaku selama belum ada close kembali menembus sisi sebaliknya.
+    let breakerValid = false;
+    if(brokeIdx >= 0){
+      breakerValid = true;
+      for(let j = brokeIdx + 1; j < n; j++){
+        const x = candles[j];
+        if(type === 'bull' ? x.close > c.high : x.close < c.low){ breakerValid = false; break; }
+      }
+    }
+    out.push({ kind: 'ob', type, low: c.low, high: c.high, ce: (c.open + c.close) / 2, idx: k, barsAgo: n - 1 - k, tested, valid, brokeIdx, breakerValid });
   });
   return out;
 }
@@ -2651,6 +2662,76 @@ function ictKillzone(date){
   return { active: !!name, name: name || 'Di luar killzone', nyTime: String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') };
 }
 
+// ---------- waktu New York, level hari/pekan, range sesi Asia ----------
+// Butuh candle.t (waktu buka, ms). Tanpa itu semua fungsi di bawah mengembalikan null (engine tetap jalan).
+let _ictNyFmt = null;
+const _ictNyCache = new Map();
+function ictNy(t){
+  let v = _ictNyCache.get(t);
+  if(v !== undefined) return v;
+  try{
+    if(!_ictNyFmt) _ictNyFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' });
+    const p = {};
+    _ictNyFmt.formatToParts(new Date(t)).forEach(x => { p[x.type] = x.value; });
+    const dow = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[p.weekday];
+    const monday = new Date(Date.UTC(+p.year, +p.month - 1, +p.day) - dow * 86400000).toISOString().slice(0, 10);
+    v = { day: p.year + '-' + p.month + '-' + p.day, week: monday, hour: (+p.hour) % 24 + (+p.minute) / 60 };
+  }catch(e){ v = null; }
+  if(_ictNyCache.size > 30000) _ictNyCache.clear();
+  _ictNyCache.set(t, v);
+  return v;
+}
+// PDH/PDL (hari NY sebelumnya), PWH/PWL (pekan NY sebelumnya, mulai Senin), open hari & pekan berjalan,
+// dan range Asia (20:00–24:00 NY) terakhir yang sudah/sedang terbentuk.
+function ictSessionLevels(candles){
+  const n = candles.length, last = candles[n - 1];
+  if(last.t === undefined) return null;
+  const cur = ictNy(last.t);
+  if(!cur) return null;
+  let dayOpen = null, weekOpen = null, pdh = -Infinity, pdl = Infinity, pwh = -Infinity, pwl = Infinity, prevDay = null, prevWeek = null;
+  for(let i = n - 1; i >= 0; i--){
+    const c = candles[i], ny = ictNy(c.t);
+    if(!ny) continue;
+    if(ny.day === cur.day) dayOpen = c.open;      // iterasi mundur: nilai terakhir yang tertulis = candle pertama hari ini
+    if(ny.week === cur.week) weekOpen = c.open;
+    if(ny.day !== cur.day){
+      if(prevDay === null) prevDay = ny.day;
+      if(ny.day === prevDay){ pdh = Math.max(pdh, c.high); pdl = Math.min(pdl, c.low); }
+    }
+    if(ny.week !== cur.week){
+      if(prevWeek === null) prevWeek = ny.week;
+      if(ny.week === prevWeek){ pwh = Math.max(pwh, c.high); pwl = Math.min(pwl, c.low); }
+    }
+  }
+  // range Asia: grup candle berurutan dengan jam NY >= 20 pada hari yang sama, paling akhir
+  let asiaHi = -Infinity, asiaLo = Infinity, asiaEnd = -1, asiaDay = null, started = false;
+  for(let i = n - 1; i >= 0; i--){
+    const ny = ictNy(candles[i].t);
+    if(!ny) continue;
+    const inAsia = ny.hour >= 20;
+    if(!started){ if(inAsia){ started = true; asiaDay = ny.day; asiaEnd = i; } else continue; }
+    if(inAsia && ny.day === asiaDay){ asiaHi = Math.max(asiaHi, candles[i].high); asiaLo = Math.min(asiaLo, candles[i].low); }
+    else break;
+  }
+  const f = v => (isFinite(v) ? v : null);
+  return { pdh: f(pdh), pdl: f(pdl), pwh: f(pwh), pwl: f(pwl), dayOpen, weekOpen, asiaHi: f(asiaHi), asiaLo: f(asiaLo), asiaEnd };
+}
+// Sweep sebuah level: wick menembus tapi close balik (di candle itu atau sesudahnya) dalam sweepLookback candle terakhir,
+// dan harga sekarang masih di sisi dalam. Mengembalikan barsAgo atau null. afterIdx = sweep harus terjadi SETELAH indeks ini.
+function ictLevelSweep(candles, level, type, afterIdx){
+  if(level === null || level === undefined) return null;
+  const n = candles.length, last = candles[n - 1].close;
+  const from = Math.max(afterIdx === undefined || afterIdx < 0 ? 0 : afterIdx + 1, n - 1 - ICT_CFG.sweepLookback);
+  for(let i = n - 1; i >= from; i--){
+    const c = candles[i], nx = candles[i + 1];
+    if(type === 'high' ? c.high > level : c.low < level){
+      const back = type === 'high' ? (c.close < level || (nx && nx.close < level)) : (c.close > level || (nx && nx.close > level));
+      if(back && (type === 'high' ? last < level : last > level)) return n - 1 - i;
+    }
+  }
+  return null;
+}
+
 // ---------- konteks 1 timeframe ----------
 function ictContext(candles){
   const structure = ictStructure(candles);
@@ -2664,6 +2745,8 @@ function ictContext(candles){
     liquidity: ictLiquidity(candles),
     fvgs: fvgsAll.filter(f => f.valid && f.fill < 1),
     obs: obsAll.filter(o => o.valid),
+    breakers: obsAll.filter(o => !o.valid && o.breakerValid).map(o => ({ kind: 'breaker', type: o.type === 'bull' ? 'bear' : 'bull', low: o.low, high: o.high, ce: o.ce, brokeAgo: candles.length - 1 - o.brokeIdx })),
+    levels: ictSessionLevels(candles),
   };
 }
 
@@ -2691,7 +2774,7 @@ function ictBuildPlan(side, entry, slBase, slLabel, entryLabel, buffer, minRR, c
   const risk = Math.abs(entry - sl);
   const targets = ictTargets(side, entry, ctxs);
   const rrOf = t => risk > 0 ? Math.abs(t.price - entry) / risk : 0;
-  const idx = targets.findIndex(t => rrOf(t) >= minRR);
+  const idx = ICT_CFG.tpMode === 'nearest' ? (targets.length ? 0 : -1) : targets.findIndex(t => rrOf(t) >= minRR);
   const tp1 = idx >= 0 ? targets[idx] : (targets[0] || null);
   const tp2 = idx >= 0 ? (targets[idx + 1] || null) : (targets[1] || null);
   return {
@@ -2738,10 +2821,10 @@ function ictSetupSweepMss(ltf, side, minRR, ctxs){
   let poi;
   if(poolPoi.length){
     const z = poolPoi[0];
-    poi = { kind: z.kind, low: z.low, high: z.high, ce: z.ce, label: z.kind === 'fvg' ? 'FVG' : 'Order Block' };
+    poi = { kind: z.kind, low: z.low, high: z.high, ce: z.ce, label: z.kind === 'fvg' ? 'FVG' : 'Order Block', age: z.barsAgo, touched: z.kind === 'fvg' ? z.touched : z.tested };
   } else {
     const o = side === 'long' ? { lo: farExt - ICT_CFG.oteHi * R, hi: farExt - ICT_CFG.oteLo * R } : { lo: farExt + ICT_CFG.oteLo * R, hi: farExt + ICT_CFG.oteHi * R };
-    poi = { kind: 'ote', low: o.lo, high: o.hi, ce: (o.lo + o.hi) / 2, label: 'OTE 62–79%' };
+    poi = { kind: 'ote', low: o.lo, high: o.hi, ce: (o.lo + o.hi) / 2, label: 'OTE 62–79%', age: 0, touched: false };
   }
   const inZone = last >= poi.low && last <= poi.high;
   const beyond = side === 'long' ? last < poi.low : last > poi.high; // sudah tembus zona ke arah merugikan (tapi belum tembus legExt)
@@ -2789,7 +2872,7 @@ function ictSetupPoiRetest(ltf, htf, side, minRR, ctxs){
   const status = inside(z) ? 'in_zone' : 'waiting';
   return {
     id: 'POI_RETEST', title: 'Retest POI searah bias HTF', side, status, plan,
-    poi: { kind: z.kind, low: z.low, high: z.high, ce: z.ce, label },
+    poi: { kind: z.kind, low: z.low, high: z.high, ce: z.ce, label, age: z.barsAgo, touched: z.kind === 'fvg' ? z.touched : z.tested },
     reasons: [
       `Bias HTF ${want} — cari ${side === 'long' ? 'beli di discount' : 'jual di premium'}`,
       `${label} ${side === 'long' ? 'bullish' : 'bearish'} belum termitigasi di ${fmtPriceSafe(z.low)}–${fmtPriceSafe(z.high)}${z.kind === 'ob' && z.tested ? ' (sudah pernah disentuh)' : ''}`,
@@ -2857,6 +2940,49 @@ function ictChecklist(cand, ltf, htf, htf2, cfg, kz){
   return { checks, passes, total, ratio, grade, blockingFail: blockingFail || null };
 }
 
+// ---------- fitur per kandidat (untuk riset/backtest — TIDAK dipakai dalam keputusan) ----------
+// Flat & numerik supaya bisa dianalisis di scripts/analyze-features.js. Semua murni turunan price action.
+function ictFeatures(c, ltf, htf, htf2, kz){
+  const side = c.side, want = side === 'long' ? 'bullish' : 'bearish';
+  const rg = ltf.range, p = c.plan;
+  const risk = Math.abs(p.entry - p.sl);
+  const depth = rg ? (side === 'long' ? (rg.hi - p.entry) / rg.R : (p.entry - rg.lo) / rg.R) : null; // kedalaman retrace entry di dealing range (0 = di ujung, 1 = di dasar)
+  const near = ltf.liquidity.sweeps.filter(s => s.side === (side === 'long' ? 'ssl' : 'bsl')).sort((a, b) => a.barsAgo - b.barsAgo)[0];
+  const ev = ltf.structure.event, hev = htf ? htf.structure.event : null;
+  const lv = ltf.levels;
+  return {
+    setup: c.id, side, status: c.status, grade: c.grade,
+    passRatio: c.check.passes / c.check.total,
+    rr: p.rr, riskPct: p.entry ? risk / p.entry : null,
+    depth, inOte: depth !== null && depth >= ICT_CFG.oteLo && depth <= ICT_CFG.oteHi ? 1 : 0,
+    htfAligned: htf ? (htf.structure.bias === want ? 1 : 0) : null,
+    htf2Aligned: htf2 ? (htf2.structure.bias === want ? 1 : htf2.structure.bias === (side === 'long' ? 'bearish' : 'bullish') ? -1 : 0) : null,
+    htfRangeDepth: htf && htf.range ? (side === 'long' ? (htf.range.hi - p.entry) / htf.range.R : (p.entry - htf.range.lo) / htf.range.R) : null,
+    sweepBarsAgo: near ? near.barsAgo : null,
+    displacement: c.displacement === undefined ? null : (c.displacement ? 1 : 0),
+    mssBarsAgo: c.mss ? c.mss.barsAgo : null,
+    poiKind: c.poi.kind, poiAge: c.poi.age, poiTouched: c.poi.touched ? 1 : 0,
+    poiHeightRel: rg ? (c.poi.high - c.poi.low) / rg.R : null,
+    ltfEvent: ev ? ev.type + ':' + (ev.direction === want ? 'with' : 'against') : null,
+    ltfEventAge: ev ? ev.barsAgo : null,
+    htfEvent: hev ? hev.type + ':' + (hev.direction === want ? 'with' : 'against') : null,
+    htfEventAge: hev ? hev.barsAgo : null,
+    killzone: kz.active ? kz.name : null,
+    // --- konsep tambahan dari kerangka ICT-crypto (riset, belum dipakai untuk keputusan) ---
+    pdSwept: lv ? (ictLevelSweep(ltf.candles, side === 'long' ? lv.pdl : lv.pdh, side === 'long' ? 'low' : 'high') !== null ? 1 : 0) : null,
+    pwSwept: lv ? (ictLevelSweep(ltf.candles, side === 'long' ? lv.pwl : lv.pwh, side === 'long' ? 'low' : 'high') !== null ? 1 : 0) : null,
+    asiaSwept: lv && lv.asiaHi !== null ? (ictLevelSweep(ltf.candles, side === 'long' ? lv.asiaLo : lv.asiaHi, side === 'long' ? 'low' : 'high', lv.asiaEnd) !== null ? 1 : 0) : null,
+    dayOpenPos: lv && lv.dayOpen != null && rg ? (side === 'long' ? lv.dayOpen - p.entry : p.entry - lv.dayOpen) / rg.R : null,   // >0 = entry di sisi "murah" terhadap open hari
+    weekOpenPos: lv && lv.weekOpen != null && rg ? (side === 'long' ? lv.weekOpen - p.entry : p.entry - lv.weekOpen) / rg.R : null,
+    breakerAligned: ltf.breakers.some(b => b.type === (side === 'long' ? 'bull' : 'bear') && ltf.last >= b.low && ltf.last <= b.high) ? 1 : 0,
+    obFvgOverlap: [...ltf.obs, ...ltf.fvgs].some(z => z.type === (side === 'long' ? 'bull' : 'bear') && z.kind !== c.poi.kind && z.low <= c.poi.high && z.high >= c.poi.low) ? 1 : 0,
+    usOpen: (() => { const h = parseInt(kz.nyTime.slice(0, 2), 10) + parseInt(kz.nyTime.slice(3), 10) / 60; return h >= 9.5 && h < 12 ? 1 : 0; })(),
+    chop40: ltf.structure.events.filter(e => e.barsAgo <= 40).length,                                   // banyak event struktur dalam 40 candle = pasar choppy
+    chochCount40: ltf.structure.events.filter(e => e.barsAgo <= 40 && e.type === 'CHoCH').length,
+    sweepCount: ltf.liquidity.sweeps.filter(s => s.side === (side === 'long' ? 'ssl' : 'bsl')).length,
+  };
+}
+
 // ---------- evaluasi akhir: LONG / SHORT / SKIP ----------
 // tfNames (opsional) = {ltf, htf, htf2} untuk label saat timeframe yang dianalisis berbeda dari default style
 // (mis. detail pair dibuka di 2H atau 12H). Aturan (minRR, killzone) tetap mengikuti style.
@@ -2886,6 +3012,7 @@ function ictEvaluate(style, ltfCandles, htfCandles, htf2Candles, now, tfNames){
     c.check = ictChecklist(c, ltf, htf, htf2, cfg, kz);
     c.grade = c.check.grade;
     c.valid = c.status !== 'invalid' && !c.check.blockingFail && c.check.grade !== 'C';
+    c.features = ictFeatures(c, ltf, htf, htf2, kz);
   });
   const rank = c => (c.valid ? 100 : 0) + (c.grade === 'A' ? 20 : c.grade === 'B' ? 10 : 0) + c.check.passes + Math.min(c.plan.rr || 0, 5) / 10;
   candidates.sort((a, b) => rank(b) - rank(a));
@@ -2951,7 +3078,7 @@ async function fetchKlinesFull(symbol, interval, limit){
     const raw = await res.json();
     return raw.map(k => ({
       open:parseFloat(k[1]), high:parseFloat(k[2]), low:parseFloat(k[3]),
-      close:parseFloat(k[4]), volume:parseFloat(k[5]),
+      close:parseFloat(k[4]), volume:parseFloat(k[5]), t:k[0],
     }));
   });
 }
@@ -2965,6 +3092,9 @@ async function fetchKlinesFull(symbol, interval, limit){
 // Tahap 1 pipeline — filter likuiditas: pair di bawah volume 24H ini tidak ikut di-scan sama sekali.
 // (Spread bid/ask tidak dipakai: butuh stream order book per pair, di luar cakupan app tanpa backend ini.)
 const ICT_MIN_QUOTE_VOL = 20e6;
+// Estimasi biaya satu trade: entry limit (maker 0,02%) + exit (taker 0,05%) + slippage SL (0,02%) ≈ 0,09% dari harga.
+// Tier fee standar Binance USDT-M; tier Anda bisa berbeda. Hanya untuk transparansi — tidak memengaruhi keputusan.
+const ICT_FEE_ROUNDTRIP = 0.0009;
 const ICT_CANDLES = 200; // jumlah candle yang ditarik per timeframe — sama di semua tempat biar cache request terpakai ulang
 
 function ictShortTitle(id){ return id === 'SWEEP_MSS' ? 'Sweep+MSS' : id === 'POI_RETEST' ? 'Retest POI' : String(id); }
@@ -3146,8 +3276,8 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
         const b = h.ev.best;
         return `• <b>${escapeHtml(h.symbol.replace('USDT',''))}</b> ${b.side==='long'?'LONG 📈':'SHORT 📉'} — ${escapeHtml(ictShortTitle(b.id))} ${escapeHtml(h.ev.cfg.label)}, grade ${escapeHtml(b.grade)}, RR 1:${b.plan.rr.toFixed(1)}`;
       }).join('\n');
-      const tgMsg = `🎯 <b>Scan ICT — ${freshHits.length} setup siap entry baru</b>\n\n${listText}`;
-      const localMsg = `Scan ICT: ${freshHits.length} setup siap entry baru — ${freshHits.map(h=>h.symbol.replace('USDT','')).join(', ')}`;
+      const tgMsg = `🎯 <b>Scan ICT — ${freshHits.length} setup terdeteksi di zona entry</b>\n<i>Alat bantu, bukan jaminan arah (belum terbukti punya edge).</i>\n\n${listText}`;
+      const localMsg = `Scan ICT: ${freshHits.length} setup terdeteksi di zona entry — ${freshHits.map(h=>h.symbol.replace('USDT','')).join(', ')}`;
       pushAlert(localMsg, null, true, tgMsg);
     }
   }
@@ -3792,6 +3922,7 @@ function renderDetail(d){
       <div class="tb-title">${escapeHtml(bannerTitle)}</div>
       ${bannerSub ? `<div class="tb-sub">${escapeHtml(bannerSub)}</div>` : ''}
     </div>
+    <div class="sop-note" style="margin-top:10px;"><b>ℹ️ Alat bantu keputusan, bukan sinyal yang terbukti.</b> Engine ini mendeteksi pola ICT secara mekanis. Backtest walk-forward di data nyata (20 pair, ±5.900 trade) <b>belum menemukan keunggulan statistik</b>: ekspektasi ≈ 0R sebelum fee dan negatif setelah fee. Pakai sebagai peta struktur &amp; likuiditas — keputusan akhir ada di kamu. Detail di README.</div>
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>
@@ -3848,6 +3979,8 @@ function renderDetail(d){
     const SIDE = side.toUpperCase();
     if(!c) return `<div class="entry-card ${side}"><div class="entry-card-head"><span>${SIDE}</span><span>– Tidak ada setup</span></div><div class="entry-caveat">Tidak ada setup ICT ${SIDE} (sweep+MSS atau retest POI) di ${d.tf.toUpperCase()} saat ini.</div></div>`;
     const p = c.plan;
+    const riskPct = Math.abs(p.entry - p.sl) / p.entry;
+    const feeR = ICT_FEE_ROUNDTRIP / riskPct; // fee + slippage SL, dalam satuan R — stop rapat membuat fee memakan banyak R
     let caveat;
     if(c.status === 'invalid') caveat = 'Harga sudah menembus zona entry — setup batal.';
     else if(c.check.blockingFail) caveat = `Tidak layak: ${c.check.blockingFail.name} — ${c.check.blockingFail.note}`;
@@ -3861,6 +3994,7 @@ function renderDetail(d){
         <div class="entry-row"><span class="el">Take Profit 1</span><span class="ev">${p.tp!==null?fmtPrice(p.tp):'-'}<span class="ez">${escapeHtml(p.tpLabel)}</span></span></div>
         ${p.tp2!==null ? `<div class="entry-row"><span class="el">Take Profit 2</span><span class="ev">${fmtPrice(p.tp2)}<span class="ez">${escapeHtml(p.tp2Label)}</span></span></div>` : ''}
         <div class="entry-row"><span class="el">Risk : Reward</span><span class="ev" style="color:${p.rr>=p.minRR?'var(--mint)':'var(--amber)'}">1 : ${p.rr.toFixed(2)}${p.rr2!==null?' <span class="ez">TP2 1 : '+p.rr2.toFixed(2)+'</span>':''}</span></div>
+        <div class="entry-row"><span class="el">Estimasi biaya</span><span class="ev" style="color:${feeR>0.15?'var(--amber)':'var(--text-2)'}">≈ ${feeR.toFixed(2)}R<span class="ez">fee+slippage ≈ ${(ICT_FEE_ROUNDTRIP*100).toFixed(2)}% harga ÷ jarak SL ${(riskPct*100).toFixed(2)}%${feeR>0.15?' — stop rapat, fee memakan banyak R':''}</span></span></div>
         <div class="entry-caveat">${escapeHtml(caveat)}</div>
       </div>`;
   };

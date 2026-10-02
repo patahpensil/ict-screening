@@ -24,6 +24,8 @@ scripts/check-cache-bump.js    enforces the CACHE_NAME rule below
 scripts/selftest.js            proves check.js actually rejects defects, so it can't rot into always-green
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
+scripts/backtest-ict.js        OPTIONAL: walk-forward backtest on real Binance data (needs internet)
+scripts/analyze-features.js    OPTIONAL: feature-vs-outcome research on a backtest dump
 .github/workflows/checks.yml   runs selftest + check + test-ict + cache-bump on push + PR
 ```
 
@@ -35,7 +37,7 @@ scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Ed
   - `test-ict.js` extracts the block between the `/* ICT-ENGINE-START */` and `/* ICT-ENGINE-END */` markers in `index.html` and runs it in Node: a known bullish sweep+MSS scenario must give LONG with exact entry/SL/TP, its price-mirror must give SHORT with mirrored levels, an opposing HTF bias must give SKIP, plus a random-walk fuzz (no crashes, consistent plans, rare signals) and a ban on classic-indicator calls inside the engine block.
 - For anything touching UI/flow, also run `node scripts/smoke-browser.js --shots=<folder>` (needs Chrome or Edge) and look at the screenshots. It mocks the Binance API with synthetic candles, so it is deterministic and offline. It fails on any exception or `console.error`.
 - `node scripts/selftest.js` verifies the checker itself. Run it after changing `scripts/check.js`.
-- These checks say nothing about whether the ICT *interpretation* is right for real markets — there is no backtest. That needs a human reading real charts.
+- These checks say nothing about whether the ICT *interpretation* is right for real markets. `backtest-ict.js` measures it on real data (result so far: no edge — see README and "Research tooling" below); what it cannot judge is a human trader's discretion.
 - Deploy = push to the `main` branch. GitHub Pages is configured in "deploy from a branch" mode and rebuilds automatically (roughly 30–45 seconds). There is no deploy workflow, and none is needed.
 
 ### ⚠️ MANDATORY: bump the cache version on every change
@@ -66,7 +68,20 @@ There is **no 0–100 score anywhere**. The output is an explicit decision (`LON
 
 Style config lives in `ICT_CFG.styles` (the single place defining LTF/HTF/HTF2 and `minRR`): `intraday` = 1H entry / 4H bias / 1D context, `swing` = 4H / 1D / 1W. Scalping was removed on purpose.
 
+Candidates also carry `features` (`ictFeatures`) for research only — never read them in decision logic.
+
 `ictEvaluate` returns `best.status`: `in_zone` (price inside the entry zone = "siap entry") or `waiting` (valid but price hasn't retraced = "pantau"). UI and notifications must keep these two apart — Telegram/alarm notifications fire only for `in_zone`.
+
+## Research tooling & aturan metodologi (PENTING)
+
+`scripts/backtest-ict.js` (walk-forward di data nyata, `--dump=` menyimpan SEMUA kandidat + fitur) dan `scripts/analyze-features.js` (bucket fitur → ekspektasi R, latih vs uji, ambang ★ ketat) adalah cara resmi menilai perubahan engine. Hasil terakhir: **tidak ada edge** (lihat README). Aturannya:
+
+- **Jangan menjadikan sebuah fitur/aturan sebagai syarat keputusan tanpa bukti.** Syaratnya: positif di periode latih DAN uji, t-stat ≥ ambang Bonferroni, n besar. Puluhan bucket diuji sekaligus, jadi bucket yang "kelihatan bagus" hampir pasti kebetulan. Fitur riset di `ictFeatures` sengaja TIDAK dipakai dalam keputusan.
+- **Jangan melonggarkan simulasi.** Di candle tempat limit order terisi, urutan high/low tidak diketahui, jadi hanya SL yang dihitung di candle itu (TP/1R baru dari candle berikutnya). Tanpa aturan ini exit 1R tampak punya edge +0,12R/+0,17R — itu murni artefak (turun jadi −0,12R setelah dikoreksi). `--no-intrabar-guard` hanya untuk membuktikan bias itu.
+- **Curigai hasil bagus.** Dalam permainan adil, mengubah titik exit/entry tidak menciptakan edge. Kalau sebuah varian tiba-tiba positif, cari bias simulasinya dulu (look-ahead, ambiguitas intrabar, fill optimistis) sebelum merayakan.
+- Hitung selalu **setelah fee** (`ICT_FEE_ROUNDTRIP`): stop rapat membuat fee memakan separuh R.
+- Backtest memakai candle yang SUDAH TUTUP; app live menganalisis candle yang sedang terbentuk juga (belum diukur seberapa besar bedanya). Jangan mengklaim hasil backtest berlaku persis untuk sinyal live.
+- Jangan mengubah teks UI menjadi lebih yakin daripada bukti: produk diposisikan sebagai alat bantu keputusan.
 
 ## Hard rules
 

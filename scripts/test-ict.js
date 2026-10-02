@@ -25,7 +25,7 @@ const engineSrc = text.slice(a, b);
 
 const ctx = vm.createContext({ Intl, Date, Math, Number, parseInt, parseFloat, isFinite, Set, Object, Array, String });
 vm.runInContext(engineSrc + `
-;this.E = { ICT_CFG, ictEvaluate, ictContext, ictStructure, ictLiquidity, ictFVGs, ictOrderBlocks, ictDealingRange, ictKillzone, ictQuickBias };`, ctx);
+;this.E = { ICT_CFG, ictEvaluate, ictContext, ictStructure, ictLiquidity, ictFVGs, ictOrderBlocks, ictDealingRange, ictKillzone, ictQuickBias, ictSessionLevels, ictLevelSweep };`, ctx);
 const E = ctx.E;
 
 let failed = 0;
@@ -124,6 +124,56 @@ const obs = E.ictOrderBlocks(ltfBull, fvgs);
 ok(obs.some(o => o.type === 'bull' && o.valid), 'Order Block bullish terdeteksi dari displacement');
 const rg = E.ictDealingRange(ltfBull, E.ictStructure(ltfBull));
 ok(rg && rg.eq > rg.lo && rg.eq < rg.hi, 'dealing range & equilibrium konsisten');
+
+// ---------- primitif tambahan: level hari/pekan, sweep level, range Asia, breaker ----------
+function hourly(startIso, n, fn){
+  const t0 = Date.parse(startIso);
+  return Array.from({ length: n }, (_, i) => Object.assign({ t: t0 + i * 3600e3, volume: 1 }, fn(i)));
+}
+// 3 hari NY (Jan = UTC-5): 13, 14, 15 Jan 2025, mulai 00:00 NY = 05:00Z. Harga dasar 100 dengan ekstrem yang diketahui.
+const base = hourly('2025-01-13T05:00:00Z', 72, i => {
+  let o = 100, h = 100.5, l = 99.5, c = 100;
+  if(i === 5)  { h = 110; }                 // 13 Jan 05:00 NY: high hari-1 = 110 (BUKAN PDH, bukan hari sebelumnya)
+  if(i === 10) { l = 95; }                  // 13 Jan: low hari-1 = 95
+  if(i === 30) { h = 108; }                 // 14 Jan 06:00 NY: PDH = 108
+  if(i === 36) { l = 98; }                  // 14 Jan 12:00 NY: PDL = 98
+  return { open: o, high: h, low: l, close: c };
+});
+const lvA = E.ictSessionLevels(base);
+ok(lvA && near(lvA.pdh, 108, 1e-9) && near(lvA.pdl, 98, 1e-9), `PDH/PDL = hari NY sebelumnya (108/98), bukan 2 hari lalu (dapat ${lvA && lvA.pdh}/${lvA && lvA.pdl})`);
+ok(lvA && near(lvA.pwh, 0 + lvA.pwh) && lvA.dayOpen === 100, 'open hari berjalan terbaca dari candle pertama hari itu');
+// sweep PDL: candle terakhir-2 menembus 98 dengan wick lalu close balik
+const sw = base.slice(0, 70).concat([
+  Object.assign({}, base[70], { open: 100, high: 100.4, low: 97.2, close: 99.8 }),   // wick di bawah PDL (98), close di atas
+  Object.assign({}, base[71], { open: 99.8, high: 100.3, low: 99.6, close: 100.1 }),
+]);
+const swLv = E.ictSessionLevels(sw);
+ok(E.ictLevelSweep(sw, swLv.pdl, 'low') === 1, 'sweep PDL (wick di bawah, close balik) terdeteksi 1 candle lalu');
+ok(E.ictLevelSweep(sw, swLv.pdh, 'high') === null, 'tidak ada sweep PDH palsu');
+const brk = base.slice(0, 70).concat([
+  Object.assign({}, base[70], { open: 100, high: 100.4, low: 97.2, close: 97.5 }),   // close TETAP di bawah level = breakout, bukan sweep
+  Object.assign({}, base[71], { open: 97.5, high: 98.0, low: 97.0, close: 97.4 }),
+]);
+ok(E.ictLevelSweep(brk, E.ictSessionLevels(brk).pdl, 'low') === null, 'close bertahan di bawah PDL = breakout, BUKAN sweep');
+ok(E.ictSessionLevels(base.map(k => ({ open: k.open, high: k.high, low: k.low, close: k.close }))) === null, 'tanpa candle.t -> level sesi null (engine tidak crash)');
+
+// breaker: bull OB yang patah ke bawah lalu tidak direbut kembali = breaker bearish (resistance)
+const quiet = Array.from({ length: 25 }, (_, i) => ({ open: 104 + (i % 2 ? 0.15 : -0.15), close: 104 + (i % 2 ? -0.15 : 0.15), high: 104.4, low: 103.6, volume: 1 }));
+const obSeq = quiet.concat([
+  C(105, 105.2, 102.8, 103),      // candle turun terakhir = calon bull OB [102.8, 105.2]
+  C(103, 104, 102.9, 103.8),      // candle-1 FVG
+  C(103.8, 108.2, 103.7, 108),    // displacement naik
+  C(108, 109, 104.5, 108.5),      // candle-3: low 104.5 > high candle-1 (104) -> FVG bullish
+  C(108.5, 108.6, 104.0, 104.2),
+  C(104.2, 104.3, 101.0, 101.5),  // close di bawah low OB (102.8): OB patah
+  C(101.5, 102.0, 100.8, 101.2),
+]);
+const obCtx = E.ictContext(obSeq);
+const bz = obCtx.breakers.find(b => near(b.low, 102.8, 1e-9) && near(b.high, 105.2, 1e-9));
+ok(!!bz && bz.type === 'bear', 'bull OB yang patah ke bawah menjadi breaker BEARISH (resistance)');
+ok(!obCtx.obs.some(o => near(o.low, 102.8, 1e-9)), 'OB yang patah tidak lagi dihitung sebagai OB valid');
+const obReclaim = obSeq.concat([C(101.2, 106.5, 101.0, 106.0)]); // close kembali di atas high OB (105.2): breaker gagal
+ok(!E.ictContext(obReclaim).breakers.some(b => near(b.low, 102.8, 1e-9)), 'breaker yang direbut kembali (close di atas high OB) dibatalkan');
 
 // ---------- fuzz: random walk ----------
 let seed = 12345;

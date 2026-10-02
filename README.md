@@ -2,6 +2,8 @@
 
 Progressive Web App (PWA) untuk screening Binance USDT-M Futures secara real-time dengan konsep **ICT (Inner Circle Trader / Smart Money Concepts)** — langsung dari browser HP atau PC, tanpa API key, tanpa backend, tanpa biaya server.
 
+> ⚠️ **Alat bantu keputusan, bukan sinyal terbukti.** Backtest walk-forward di data nyata belum menemukan keunggulan statistik dari setup yang dideteksi. Lihat bagian [Hasil backtest](#hasil-backtest--baca-ini-sebelum-memakai-sinyalnya).
+
 > Versi ini adalah rombakan konsep screening dari Patah Pensill (aplikasi sebelumnya). **Semua indikator klasik (EMA, RSI, MACD, ADX, ATR, Bollinger, VWAP, Fibonacci, StochRSI) dibuang.** AI Confluence Score, Momentum Quick Score, dan Markov Screener diganti total dengan pipeline setup ICT di bawah. Gaya trading: **Intraday** dan **Swing** (Scalping dihapus).
 
 ## Navigasi
@@ -37,9 +39,34 @@ Hasil scan dipisah jadi **✅ Siap entry** (harga sedang di dalam zona entry) da
 - **Killzone**: Asia, London, New York AM, London Close — waktu New York, otomatis ikut DST
 - **Displacement**: body candle ≥ 1.3× rata-rata body 20 candle sebelumnya
 
+## Hasil backtest — baca ini sebelum memakai sinyalnya
+
+Engine ini **alat bantu keputusan, bukan sinyal yang terbukti punya edge.** Sudah diuji walk-forward di data Binance nyata (`scripts/backtest-ict.js`): engine hanya melihat candle yang sudah tutup, sinyal diikuti ke depan sampai TP atau SL.
+
+| | Intraday (1H) | Swing (4H) |
+|---|---|---|
+| Sampel | 1.982 trade terisi, ±117 hari × 20 pair | 1.878 trade terisi, ±467 hari × 20 pair |
+| Ekspektasi sebelum fee | **−0,03R** (t = −0,8) | **−0,01R** (t = −0,2) |
+| Ekspektasi setelah fee* | **−0,24R** (t = −5,4) | **−0,11R** (t = −2,3) |
+| Periode latih → uji (sebelum fee) | +0,03R → −0,14R | −0,02R → +0,01R |
+| Hanya BTC+ETH | −0,22R (n = 204) | +0,01R (n = 206) |
+
+\*Fee ≈ 0,09% harga per trade (maker 0,02% + taker 0,05% + slippage SL 0,02%). Stop yang rapat (< 0,4%) paling terpukul: fee memakan separuh R.
+
+Yang lebih penting dari angka di atas:
+
+- **Tidak ada fitur yang memprediksi hasil.** Dari 217 bucket fitur yang diuji (kedalaman discount, sweep, displacement, umur zona, bias HTF, PDH/PDL, sweep range Asia, breaker, OB+FVG overlap, killzone/US open, rezim choppy, open hari/pekan, ukuran risiko, dst.), **0** yang positif di periode latih *dan* uji dengan t-stat melewati ambang. Penyaring engine (bias HTF, RR, grade) tidak menambah nilai: sinyal yang lolos −0,02R vs yang ditolak −0,02R.
+- **Grade A tidak lebih baik dari B**, dan "siap entry" tidak lebih baik dari "pantau".
+- **Model exit tidak mengubahnya.** TP likuiditas, keluar semua di 1R, dan partial + breakeven semuanya berada di sekitar nol atau negatif.
+- Kerangka ICT-crypto yang menjadi acuan proyek ini sendiri menyebut: *"tidak ada bukti statistik independen yang membuktikan edge-nya secara konsisten"* dan bahwa ICT *"sangat diskresioner"*. Hasil di atas sejalan dengan itu.
+
+Keterbatasan backtest: spot sebagai pengganti futures (futures sering diblokir ISP), 20 pair terbesar, rezim pasar terbatas, tanpa funding, trade berdekatan saling berkorelasi (t-stat cenderung optimis, bukan pesimis), dan yang diuji hanya definisi ICT versi proyek ini — definisi lain bisa berbeda. Backtest juga **tidak** menilai kemampuan diskresioner trader yang menafsirkan konteks di luar aturan mekanis.
+
+Jadi pakai app ini sebagai **peta struktur, likuiditas, dan zona** (bahan untuk analisis sendiri), bukan sebagai pemberi sinyal beli/jual. Kalau ingin mengujinya sendiri: `node scripts/backtest-ict.js` (opsi ada di komentar kepala berkas) dan `node scripts/analyze-features.js berkas.jsonl` untuk riset fitur.
+
 ## Alat Bantu
 
-- Rencana entry otomatis (Entry/SL/TP1/TP2/RR) berbasis POI, invalidasi struktural, dan target likuiditas
+- Rencana entry otomatis (Entry/SL/TP1/TP2/RR) berbasis POI, invalidasi struktural, dan target likuiditas, lengkap dengan **estimasi biaya (fee+slippage) dalam satuan R** supaya terlihat kapan stop terlalu rapat
 - Watchlist (⭐) dengan alert otomatis: funding rate ekstrem, sweep likuiditas baru di 1H, CHoCH baru di 4H, harga masuk/dekat FVG atau Order Block 4H
 - **News Guard** manual — kunci semua keputusan ke SKIP kalau kamu tahu ada berita besar (app tidak punya feed berita)
 - **Histori Setup** — simpan setup, cek belakangan apakah harga ke TP/SL (membandingkan harga sekarang, bukan menelusuri jalur candle)
@@ -62,6 +89,8 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
+scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (butuh internet)
+scripts/analyze-features.js    OPSIONAL: riset fitur sinyal vs hasil trade (latih/uji + koreksi multiple-comparison)
 .github/workflows/checks.yml   menjalankan pemeriksaan otomatis di GitHub
 ```
 
