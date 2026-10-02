@@ -37,6 +37,10 @@ jobs:
       - name: Pemeriksaan statis
         run: node scripts/check.js
 
+      # Uji perilaku engine ICT (candle sintetis: skenario sweep+MSS, cerminnya, gate bias HTF, fuzz).
+      - name: Uji engine ICT
+        run: node scripts/test-ict.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
