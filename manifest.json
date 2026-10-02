@@ -1,0 +1,32 @@
+{
+  "name": "ICT Screening",
+  "short_name": "ICT Screening",
+  "description": "Screener futures Binance real-time berbasis ICT — struktur, likuiditas, FVG, Order Block, premium/discount. Setup Intraday & Swing dengan validasi multi-timeframe.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0A0B07",
+  "theme_color": "#0A0B07",
+  "lang": "id-ID",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
