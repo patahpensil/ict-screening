@@ -96,6 +96,13 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - Entry/SL/TP/breakeven choices are user preferences (`ICT_DEFAULT_PREFS`, stored in `ict_model_prefs`, passed as `opts.prefs` to `ictEvaluate`); the engine stays pure and must never read `localStorage`.
 - Both models are statistically UNTESTED. Do not claim edge for them (see "Research tooling & aturan metodologi").
 
+## Navigasi & konsistensi scan (jangan dirusak)
+
+- **Tombol back/tutup harus punya handler.** `← Aksi Cepat` (`#modeResultsClose`) pernah tanpa listener = tombol mati, dan `check.js` tidak menangkapnya (ia hanya memeriksa id/fungsi, bukan listener). Tombol baru → pasang handler dan tambah klik-nya ke `scripts/smoke-browser.js`.
+- **Back peramban/HP** ditangani `closeTopLayer()` + `popstate` + entri riwayat "penjaga" (`BACK_GUARD`): back menutup lapisan teratas (modal → sidebar → panel → workspace non-Home) lalu memasang penjaga lagi; tanpa lapisan terbuka, back dibiarkan keluar. Lapisan UI baru (modal/panel) harus didaftarkan di `closeTopLayer()`. Tombol tutup di layar tidak menyentuh riwayat.
+- **Hasil scan = keputusan Decision.** Baris/kartu hasil scan memanggil `openDetail(symbol, tf)` dengan TF entry gayanya (`ICT_CFG.styles[style].ltf`: Intraday 1h, Swing 4h). Jangan buka detail tanpa `tf` dari hasil scan — itu pernah membuat pair hasil Intraday terbuka di 4H (Swing) dan tampil SKIP. Smoke test membandingkan keduanya.
+- **Deep Scan:** satu baris per pair (setup terbaik antar gaya), maksimal 20, urut siap-entry → `ictQuality()` (grade + rasio syarat lulus) → syarat lulus → likuiditas. **RR bukan kunci urut.** `ictQuality` adalah kualitas setup, BUKAN probabilitas menang — jangan menampilkan "% peluang" selama edge belum terbukti.
+
 ## Hard rules
 
 - **No classic indicators, anywhere.** No EMA/SMA, RSI/StochRSI, MACD, ADX, ATR, Bollinger, VWAP, Fibonacci, momentum/quick scores, OI/long-short-ratio derived signals. `test-ict.js` bans their function names inside the engine block; keep the rest of the file clean too. The only market-data extras that remain are funding rate (display, filter, watchlist alert) and the 24h range position — neither may feed a setup decision.

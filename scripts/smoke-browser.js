@@ -170,7 +170,13 @@ async function main() {
   check(/LINK/.test(intraHtml) && /Unicorn/.test(intraHtml), 'scan Intraday menemukan LINK sebagai model Unicorn');
   check(/ADA/.test(intraHtml) && /Sweep→IFVG/.test(intraHtml), 'scan Intraday menemukan ADA sebagai model Sweep→IFVG (Inverse Blueprint)');
   await shot('03-scan-intraday', 430, 1000);
+  // tombol "← Aksi Cepat" harus benar-benar menutup panel & kembali ke Home (dulu tanpa handler = tombol mati)
+  check(await evaluate('document.getElementById("modeResultsSection").classList.contains("show")') === true, 'panel hasil scan terbuka sebelum ditutup');
   await evaluate('document.getElementById("modeResultsClose").click()');
+  check(await evaluate('!document.getElementById("modeResultsSection").classList.contains("show") && document.getElementById("wsHome").classList.contains("active")') === true, 'tombol "← Aksi Cepat" menutup panel hasil & kembali ke Home');
+  // klik pair hasil scan Intraday harus membuka Decision di gaya yang sama (1H), bukan 4H/Swing yang bisa SKIP
+  check(await evaluate('document.querySelector("#modeResultsList .coin-row[data-symbol=\\"SOLUSDT\\"]").getAttribute("onclick")') === "openDetail('SOLUSDT','1h')", 'baris hasil scan Intraday membuka detail di 1H (gaya yang sama)');
+  check((await evaluate('document.querySelector("#topSignalGrid .signal-card").getAttribute("onclick")')).includes("'1h'") || (await evaluate('document.querySelector("#topSignalGrid .signal-card").getAttribute("onclick")')).includes("'4h'"), 'kartu "Setup ICT Terbaru" membawa timeframe gayanya');
 
   // 4. scan swing + deep scan
   await evaluate('runModeScan("swing")');
@@ -182,6 +188,14 @@ async function main() {
   console.log('        ' + await evaluate('document.getElementById("heroModeStatus").textContent'));
   check(/Intraday|Swing/.test(await evaluate('document.getElementById("modeResultsList").innerText')) || /belum ada setup/i.test(await evaluate('document.getElementById("modeResultsList").innerText')), 'Deep Scan merender hasil (atau pesan kosong yang jujur)');
   check(await evaluate('document.getElementById("scanTopBtn").disabled') === false, 'tombol Deep Scan aktif lagi setelah selesai');
+  // Deep Scan: satu baris per pair, maksimal 20, urut siap-entry lalu kualitas, tanpa mengurutkan menurut RR
+  const deep = await evaluate('lastScanResults.hits.map(h=>({s:h.symbol, st:h.style, inz:h.ev.best.status==="in_zone", q:ictQuality(h.ev.best)}))');
+  check(deep.length > 0 && deep.length <= 20, `Deep Scan menampilkan 1-20 pair (${deep.length})`);
+  check(new Set(deep.map(h => h.s)).size === deep.length, 'Deep Scan: tiap pair hanya muncul sekali (TRX tidak dobel Swing+Intraday)');
+  check(deep.every((h, i) => i === 0 || (deep[i-1].inz ? 1 : 0) > (h.inz ? 1 : 0) || ((deep[i-1].inz ? 1 : 0) === (h.inz ? 1 : 0) && deep[i-1].q >= h.q)), 'Deep Scan: urut siap-entry dulu, lalu kualitas setup menurun');
+  // konsistensi: tiap hasil scan harus sama dengan keputusan halaman Decision di gaya/timeframe yang membawanya
+  const mismatch = await evaluate(`(async()=>{ const bad=[]; for(const h of lastScanResults.hits){ const tf=ICT_CFG.styles[h.style].ltf; await loadDetail(h.symbol, tf); const f=lastDetailFull; const want=h.ev.best.side==='long'?'LONG':'SHORT'; if(!f||f.ev.decision!==want||f.ev.best.id!==h.ev.best.id) bad.push(h.symbol+'@'+tf+' scan='+want+'/'+h.ev.best.id+' decision='+(f?f.ev.decision+'/'+(f.ev.best&&f.ev.best.id):'null')); } return bad; })()`);
+  check(mismatch.length === 0, 'hasil scan = keputusan Decision di gaya yang sama untuk semua pair' + (mismatch.length ? ' — beda: ' + mismatch.join('; ') : ''));
   await evaluate('document.getElementById("modeResultsClose").click()');
   await evaluate('showWorkspace("wsHome")');
   check((await evaluate('document.getElementById("topSignalGrid").innerText')).includes('SOL'), 'Home "Setup ICT Terbaru" menampilkan hasil scan terakhir');
@@ -287,6 +301,22 @@ async function main() {
   check(!(await evaluate('document.getElementById("alertLog").innerText')).includes('undefined'), 'riwayat alert ter-render tanpa "undefined"');
   await shot('08-alert', 430, 900);
 
+  // 7. tombol back peramban/HP: harus menutup lapisan teratas (bukan keluar app), lapis demi lapis
+  await evaluate('showWorkspace("wsHome")');
+  await evaluate('closeOtherFullscreenPanels("alertDrawer"); document.getElementById("alertDrawer").classList.add("show")');
+  check(await evaluate('history.state && history.state.pp === "ict-screening-guard"') === true, 'riwayat: penjaga back terpasang di atas');
+  await evaluate('history.back()');
+  await waitFor('!document.getElementById("alertDrawer").classList.contains("show")', 'back menutup panel Alert', 3000);
+  check(await evaluate('!document.getElementById("alertDrawer").classList.contains("show")') === true, 'back peramban menutup panel Alert yang terbuka');
+  await sleep(300);
+  check(await evaluate('history.state && history.state.pp === "ict-screening-guard"') === true, 'penjaga back dipasang ulang setelah menutup panel (back berikutnya tetap tertangkap)');
+  await evaluate('showWorkspace("wsTrading"); openDetail("SOLUSDT","1h")');
+  await waitFor('document.getElementById("modalBackdrop").classList.contains("show")', 'modal detail terbuka', 3000);
+  await evaluate('history.back()'); await sleep(500);
+  check(await evaluate('!document.getElementById("modalBackdrop").classList.contains("show") && document.getElementById("wsTrading").classList.contains("active")') === true, 'back #1 menutup modal detail, workspace Decision tetap');
+  await evaluate('history.back()'); await sleep(500);
+  check(await evaluate('document.getElementById("wsHome").classList.contains("active")') === true, 'back #2 kembali dari Decision ke Home');
+
   // 8. hasil akhir
   await sleep(500);
   const mockCalls = await evaluate('window.__mockCalls.filter(u=>u.includes("openInterest")||u.includes("LongShort")||u.includes("longShort")).length');
@@ -296,7 +326,9 @@ async function main() {
 
   ws.close(); proc.kill();
   try { fs.rmSync(userDir, { recursive: true, force: true }); } catch (e) { /* abaikan */ }
+
   console.log(`\n${passed} lulus, ${failures.length} gagal.`);
   process.exit(failures.length ? 1 : 0);
 }
 main().catch(e => { console.error('Harness error:', e); process.exit(2); });
+

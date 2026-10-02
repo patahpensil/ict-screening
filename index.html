@@ -2305,7 +2305,7 @@ function renderTopSignals(){
     const up = chg >= 0;
     const statusTxt = b.status === 'in_zone' ? 'Harga di zona entry' : 'Menunggu retrace ke zona';
     return `
-    <div class="signal-card" onclick="openDetail('${h.symbol}')">
+    <div class="signal-card" onclick="openDetail('${h.symbol}','${ICT_CFG.styles[h.style].ltf}')">
       <div class="sc-top">
         <div class="crow-avatar sm" style="background:${symbolColor(h.symbol)}">${symbolInitials(h.symbol)}</div>
         <div class="sc-name"><span class="sc-symtext">${h.symbol.replace('USDT','')}</span><span class="ai-score-pill ${b.side==='long'?'hi':'lo'}">${b.side==='long'?'LONG':'SHORT'} ${escapeHtml(b.grade)}</span></div>
@@ -2318,14 +2318,15 @@ function renderTopSignals(){
   }).join('');
 }
 
-function coinRowHtml(d, wl, badgeHtmlStr){
+function coinRowHtml(d, wl, badgeHtmlStr, detailTf){
   const up = parseFloat(d.priceChangePercent) >= 0;
+  const openArgs = detailTf ? `'${d.symbol}','${detailTf}'` : `'${d.symbol}'`;
   const starred = wl.has(d.symbol);
   // Bias baris cuma dimasukkan kalau nggak ada badge custom yang sudah nyebut arahnya sendiri.
   const showBias = !badgeHtmlStr;
   const statusPill = `<span class="row-status-slot" data-symbol="${d.symbol}" data-show-bias="${showBias?1:0}">${rowStatusBadgeHtml(d.symbol, showBias)}</span>`;
   return `
-    <div class="coin-row" data-symbol="${d.symbol}" onclick="openDetail('${d.symbol}')">
+    <div class="coin-row" data-symbol="${d.symbol}" onclick="openDetail(${openArgs})">
       <button class="crow-star ${starred?'active':''}" onclick="event.stopPropagation(); onStarClick('${d.symbol}')">${starred?'★':'☆'}</button>
       <div class="crow-avatar" style="background:${symbolColor(d.symbol)}">${symbolInitials(d.symbol)}</div>
       <div class="crow-info">
@@ -3507,6 +3508,14 @@ const ICT_CANDLES = 200; // jumlah candle yang ditarik per timeframe — sama di
 
 const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit' };
 function ictShortTitle(id){ return ICT_SHORT_TITLES[id] || String(id); }
+// Kualitas setup = seberapa lengkap checklist ICT lolos (grade, lalu rasio syarat lulus). BUKAN probabilitas menang:
+// backtest belum membuktikan edge, jadi tidak ada angka peluang. RR sengaja tidak dipakai untuk mengurutkan — RR besar
+// berarti target jauh, bukan setup lebih bagus.
+function ictQuality(best){
+  const g = best.grade === 'A' ? 2 : best.grade === 'B' ? 1 : 0;
+  const ratio = best.check && best.check.total ? best.check.passes / best.check.total : 0;
+  return g * 100 + Math.round(ratio * 100);
+}
 function ictStatusLabel(status){ return status === 'in_zone' ? 'di zona entry' : status === 'waiting' ? 'tunggu retrace' : 'batal'; }
 
 // ===== LAZY ROW SCAN — bias struktur 4H per pair, dipicu pas baris discroll masuk layar =====
@@ -3590,7 +3599,7 @@ function ictHitBadgeHtml(h){
   const b = h.ev.best;
   const cls = b.side === 'long' ? 'score-hi' : 'score-lo';
   const tip = escapeHtml((b.reasons || []).join(' • '));
-  return `<span class="badge-pill ${cls}" title="${tip}">${b.side==='long'?'LONG':'SHORT'} · ${escapeHtml(ictShortTitle(b.id))} · ${escapeHtml(b.grade)} · RR 1:${b.plan.rr.toFixed(1)}${h.showStyle ? ' · ' + escapeHtml(h.ev.cfg.label) : ''}</span>`;
+  return `<span class="badge-pill ${cls}" title="${tip}">${b.side==='long'?'LONG':'SHORT'} · ${escapeHtml(ictShortTitle(b.id))} · ${escapeHtml(b.grade)} · ${b.check.passes}/${b.check.total} syarat · RR 1:${b.plan.rr.toFixed(1)}${h.showStyle ? ' · ' + escapeHtml(h.ev.cfg.label) : ''}</span>`;
 }
 
 // Satu mesin scan dipakai bersama oleh tombol Mode Trading (Intraday/Swing) dan Deep Scan Top 20.
@@ -3642,19 +3651,24 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   if(btn) btn.disabled = false;
   if(myToken !== modeScanToken) return; // scan ini sudah usang pas semua worker kelar — jangan render ke layar
 
-  const gradeRank = g => g === 'A' ? 2 : g === 'B' ? 1 : 0;
-  hits.sort((x, y) => {
+  // Urutan: siap entry (harga di zona) dulu, lalu kualitas setup, lalu jumlah syarat lulus, lalu likuiditas pair.
+  const volOf = new Map(candidates.map(c => [c.symbol, c.quoteVolume]));
+  const better = (x, y) => {
     const bx = x.ev.best, by = y.ev.best;
-    return ((by.status==='in_zone') - (bx.status==='in_zone')) || (gradeRank(by.grade) - gradeRank(bx.grade)) || (by.plan.rr - bx.plan.rr);
-  });
-  const ready = hits.filter(h => h.ev.best.status === 'in_zone');
-  const waiting = hits.filter(h => h.ev.best.status !== 'in_zone');
-  const shown = hits.slice(0, 20);
+    return ((by.status==='in_zone') - (bx.status==='in_zone')) || (ictQuality(by) - ictQuality(bx)) || (by.check.passes - bx.check.passes) || ((volOf.get(y.symbol) || 0) - (volOf.get(x.symbol) || 0));
+  };
+  // Satu baris per pair: kalau lolos di dua gaya (Deep Scan), cukup setup terbaiknya — jangan memakan slot dua kali.
+  const bestPerSymbol = new Map();
+  hits.forEach(h => { const cur = bestPerSymbol.get(h.symbol); if(!cur || better(h, cur) < 0) bestPerSymbol.set(h.symbol, h); });
+  const unique = [...bestPerSymbol.values()].sort(better);
+  const shown = unique.slice(0, 20);
+  const ready = unique.filter(h => h.ev.best.status === 'in_zone');
+  const waiting = unique.filter(h => h.ev.best.status !== 'in_zone');
   lastScanResults = { at: Date.now(), label, hits: shown };
   renderTopSignals();
 
-  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid`;
-  if(hits.length === 0){
+  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid — diurutkan menurut kualitas setup (bukan peluang menang)`;
+  if(unique.length === 0){
     listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang. Coba scan ulang nanti.</div>`;
     return;
   }
@@ -3664,7 +3678,7 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
     `<div class="ws-card-title" style="margin:14px 2px 8px;">${heading} (${arr.length})</div>` +
     arr.map(h=>{
       const row = tickerData.find(x=>x.symbol===h.symbol);
-      return row ? coinRowHtml(row, wl, ictHitBadgeHtml(h)) : '';
+      return row ? coinRowHtml(row, wl, ictHitBadgeHtml(h), ICT_CFG.styles[h.style].ltf) : '';
     }).join('');
   listEl.innerHTML = group(shown.filter(h=>h.ev.best.status==='in_zone'), '✅ SIAP ENTRY — harga sudah di zona')
     + group(shown.filter(h=>h.ev.best.status!=='in_zone'), '👀 PANTAU — setup valid, tunggu retrace ke zona');
@@ -4049,6 +4063,36 @@ function backToAksiCepat(){
 function goHome(){
   showWorkspace('wsHome');
 }
+// "← Aksi Cepat" di panel hasil scan: tutup panel lalu kembali ke kartu Aksi Cepat di Home.
+document.getElementById('modeResultsClose').addEventListener('click', ()=>{
+  document.getElementById('modeResultsSection').classList.remove('show');
+  backToAksiCepat();
+});
+
+// ===== TOMBOL BACK PERAMBAN / HP =====
+// Tanpa ini, back di HP langsung keluar dari app walau ada panel/modal/workspace yang terbuka. Cara kerjanya: satu
+// entri riwayat "penjaga" selalu ada di atas. Back menutup lapisan paling atas lalu memasang penjaga lagi; kalau tidak
+// ada lapisan terbuka, back dibiarkan keluar seperti biasa. Tombol tutup di layar tidak menyentuh riwayat.
+const BACK_GUARD = { pp: 'ict-screening-guard' };
+function closeTopLayer(){
+  const shown = id => document.getElementById(id).classList.contains('show');
+  for(const id of ['journalModalBackdrop', 'modalBackdrop']){
+    if(shown(id)){ document.getElementById(id).classList.remove('show'); return true; }
+  }
+  if(document.getElementById('sidebar').classList.contains('open')){ closeSidebarMobile(); return true; }
+  for(const id of ['modeResultsSection', 'alertDrawer', 'settingsDrawer', 'historyPanel']){
+    if(shown(id)){ document.getElementById(id).classList.remove('show'); syncDrawerNavState(); return true; }
+  }
+  if(currentWorkspace !== 'wsHome'){ showWorkspace('wsHome'); return true; }
+  return false;
+}
+try{ history.replaceState({ pp: 'ict-screening-base' }, ''); history.pushState(BACK_GUARD, ''); }catch(e){ /* mis. file:// tertentu — back tetap default */ }
+window.addEventListener('popstate', ()=>{
+  try{
+    if(closeTopLayer()) history.pushState(BACK_GUARD, '');
+    else history.back(); // tidak ada yang bisa ditutup — biarkan keluar
+  }catch(e){ /* abaikan */ }
+});
 document.getElementById('reviewHistoryBtn').addEventListener('click', ()=>{
   closeOtherFullscreenPanels('historyPanel');
   document.getElementById('historyPanel').classList.add('show');
@@ -4158,8 +4202,11 @@ const DETAIL_TF_MAP = {
 };
 const MTF_TIMEFRAMES = ['1h','4h','1d','1w']; // tabel konteks multi-timeframe di detail pair
 
-async function openDetail(symbol){
+// tf (opsional) = timeframe entry gaya yang menemukan setup di scan (Intraday = 1h, Swing = 4h). Tanpa ini, pair hasil
+// scan Intraday terbuka di 4H (= gaya Swing) dan bisa menampilkan keputusan yang bertentangan dengan hasil scan.
+async function openDetail(symbol, tf){
   currentDetailSymbol = symbol;
+  if(tf && DETAIL_TF_MAP[tf]) currentDetailTf = tf;
   lastDetailFull = null; // biar tombol Copy AI nggak kepakai sambil data pair lama masih nyangkut
   if(!DETAIL_TF_MAP[currentDetailTf]) currentDetailTf = '4h';
   document.getElementById('mhSym').textContent = symbol.replace('USDT','') + " / USDT";
