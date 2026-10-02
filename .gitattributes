@@ -1,0 +1,3 @@
+# Satu format akhir baris untuk semua file (LF), terlepas dari core.autocrlf di mesin masing-masing.
+* text=auto eol=lf
+*.png binary

@@ -9,3 +9,8 @@ Thumbs.db
 
 # Local scratch/test files (not part of the deployed app)
 *.test.js
+
+# Local tool settings & scratch output (never part of the app)
+.claude/
+shots/
+*.local.json
