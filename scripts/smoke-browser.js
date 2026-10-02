@@ -166,7 +166,7 @@ async function main() {
   const intraHtml = await evaluate('document.getElementById("modeResultsList").innerText');
   check(/SOL/.test(intraHtml) && /LONG/.test(intraHtml), 'scan Intraday menemukan SOL sebagai LONG (skenario sweep+MSS)');
   check(/DOGE/.test(intraHtml) && /SHORT/.test(intraHtml), 'scan Intraday menemukan DOGE sebagai SHORT (skenario cermin)');
-  check(/SIAP ENTRY/.test(intraHtml), 'hasil dikelompokkan: SIAP ENTRY');
+  check(/ZONA SIAP ENTRY/.test(intraHtml) && /ZONA PANTAU/.test(intraHtml), 'hasil dikelompokkan: ZONA SIAP ENTRY dan ZONA PANTAU');
   check(/LINK/.test(intraHtml) && /Unicorn/.test(intraHtml), 'scan Intraday menemukan LINK sebagai model Unicorn');
   check(/ADA/.test(intraHtml) && /Sweep→IFVG/.test(intraHtml), 'scan Intraday menemukan ADA sebagai model Sweep→IFVG (Inverse Blueprint)');
   await shot('03-scan-intraday', 430, 1000);

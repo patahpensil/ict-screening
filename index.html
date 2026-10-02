@@ -3680,8 +3680,8 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
       const row = tickerData.find(x=>x.symbol===h.symbol);
       return row ? coinRowHtml(row, wl, ictHitBadgeHtml(h), ICT_CFG.styles[h.style].ltf) : '';
     }).join('');
-  listEl.innerHTML = group(shown.filter(h=>h.ev.best.status==='in_zone'), '✅ SIAP ENTRY — harga sudah di zona')
-    + group(shown.filter(h=>h.ev.best.status!=='in_zone'), '👀 PANTAU — setup valid, tunggu retrace ke zona');
+  listEl.innerHTML = group(shown.filter(h=>h.ev.best.status==='in_zone'), '✅ ZONA SIAP ENTRY — harga sudah di zona')
+    + group(shown.filter(h=>h.ev.best.status!=='in_zone'), '👀 ZONA PANTAU — setup valid, tunggu retrace ke zona');
   observeVisibleRows();
 
   // ===== Notifikasi: cuma buat setup SIAP ENTRY yang baru (atau sudah lewat masa cooldown) =====
