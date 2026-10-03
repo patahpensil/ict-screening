@@ -137,6 +137,7 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
+scripts/test-ict-bias.js       uji lapis BIAS (struktur menentukan arah; MA/EMA hanya menimbang; fase koreksi/lanjutan; cermin; fuzz)
 scripts/test-ict-filters.js    uji filter (MA200, EMA, volume spike, momentum): angka eksak, cermin, fuzz, keterpisahan dari engine
 scripts/test-ict-track.js      uji pelacak Decision (armed → RUNNING → TP/SL/void, candle konservatif, SL close-based, cermin)
 scripts/e2e-binance.js         uji end-to-end aplikasi asli terhadap Binance sungguhan (butuh Chrome + jaringan; opsional BINANCE_PROXY; tidak di CI)
@@ -155,6 +156,7 @@ node scripts/test-ict.js
 node scripts/test-ict-models.js
 node scripts/test-ict-track.js
 node scripts/test-ict-filters.js
+node scripts/test-ict-bias.js
 ```
 
 `scripts/smoke-browser.js` butuh Chrome atau Edge terpasang dan tidak dijalankan di CI: `node scripts/smoke-browser.js --shots=folder`.

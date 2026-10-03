@@ -24,6 +24,7 @@ scripts/check-cache-bump.js    enforces the CACHE_NAME rule below
 scripts/selftest.js            proves check.js actually rejects defects, so it can't rot into always-green
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
 scripts/test-ict-models.js     tests for the Unicorn & Inverse Blueprint (IFVG) models against the rules in the two guide PDFs
+scripts/test-ict-bias.js       tests for the BIAS layer (structure decides direction; MAs only weigh; phase; mirror; fuzz)
 scripts/test-ict-filters.js    tests for the FILTER block (MA200, EMA, volume spike, momentum) — exact numbers, mirror, fuzz, separation from the engine
 scripts/test-ict-track.js      tests for the Decision tracker (armed → running → TP/SL/void, conservative candle rules)
 scripts/e2e-binance.js         end-to-end test of the REAL app against REAL Binance (needs Chrome + network; optional BINANCE_PROXY; not in CI)
@@ -37,7 +38,7 @@ scripts/vps-backtest.sh        OPTIONAL: one-command futures backtest for a VPS 
 ## Development workflow
 
 - Edit `index.html` directly; there's nothing to compile. Open it in a browser (or serve the folder statically) to test.
-- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js`, `node scripts/test-ict-models.js` and `node scripts/test-ict-track.js` and `node scripts/test-ict-filters.js`.**
+- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js`, `node scripts/test-ict-models.js` and `node scripts/test-ict-track.js`, `node scripts/test-ict-filters.js` and `node scripts/test-ict-bias.js`.**
   - `check.js` catches the class of mistake this single-file app is most prone to: a function called but never defined, a `getElementById` pointing at a missing id, a duplicate id, an inline `onclick` naming a missing function, or a syntax error. It checks *calls by name* only — it does **not** catch a reference to a deleted constant/variable.
   - `test-ict.js` extracts the block between the `/* ICT-ENGINE-START */` and `/* ICT-ENGINE-END */` markers in `index.html` and runs it in Node: a known bullish sweep+MSS scenario must give LONG with exact entry/SL/TP, its price-mirror must give SHORT with mirrored levels, an opposing HTF bias must give SKIP, plus a random-walk fuzz (no crashes, consistent plans, rare signals) and a ban on classic-indicator calls inside the engine block.
 - For anything touching UI/flow, also run `node scripts/smoke-browser.js --shots=<folder>` (needs Chrome or Edge) and look at the screenshots. It mocks the Binance API with synthetic candles, so it is deterministic and offline. It fails on any exception or `console.error`.
@@ -123,6 +124,14 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - **Engine memakai close candle TUTUP**, harga live bisa sudah melewati rencana: daftar scan membuang setup yang harga live-nya melewati SL/TP1 (`ictPlanBeyondLive`), dan `armSetups` tidak mendaftarkannya.
 - **Tick harga ditahan (`trackReady`) sampai riwayat candle diproses** saat app dibuka / setelah celah >15 dtk, supaya setup yang sebenarnya sudah terisi lalu kena TP tidak salah dicap void.
 - Uji nyata: `BINANCE_PROXY=socks5://127.0.0.1:1080 node scripts/e2e-binance.js` (ISP Indonesia memblokir Binance; pakai terowongan SSH ke VPS). Smoke test (mock) memakai jam beku 21:00Z karena hasil scan bergantung jam dinding (level Asian/killzone).
+
+## Konsep BIAS → AREA → TRIGGER (pembangunan bertahap, keputusan pemilik 2026-10-04)
+
+Dibangun berlapis; hanya setup yang lolos ketiganya boleh masuk universe (Deep Scan "siap entry"/Decision). Status: PANTAU (bias+area) → SIAP ENTRY (+trigger H1) → RUNNING; entry tersentuh SEBELUM trigger lengkap = **WAIT AND SEE** (banner, bukan trade, tidak di Decision; dicatat bayangan untuk analisis; berakhir: trigger lengkap → SIAP ENTRY, tembus SL / capai TP1 → ditutup, lewat ±12 candle H1 → dihapus). Cara B: BIAS dan AREA wajib untuk semua model; trigger bawaan model diakui bila setara (hanya Intraday, karena model itu sudah di H1); Swing selalu butuh trigger H1 baru; momentum (volume spike ATAU displacement) wajib untuk semua; entry/SL/TP Unicorn & IFVG tetap aturan PDF. Fib vs OTE ditentukan lewat studi dulu. SNR: level horizontal ≥2 sentuhan swing di H4/D1, toleransi menyesuaikan ukuran candle pair, hanya BONUS peringkat (bukan wajib).
+
+- **Langkah 1 (selesai): blok `ICT-FILTERS`** (MA200, EMA21/30/50, volume spike, momentum) + data 400 candle.
+- **Langkah 2 (selesai): blok `ICT-BIAS`** — `ictBiasLayer`/`ictBiasFromCandles`. Intraday: struktur **H4** menentukan arah, konteks D1. Swing: struktur **D1**, konteks W1. Trigger H1 untuk keduanya. Arah HANYA dari struktur TF bias (bullish→long, bearish→short, transisi/netral→tidak ada bias); D1 dan H4 boleh berbeda dan tiap gaya mengambil biasnya sendiri. Melawan konteks = tetap sah tetapi `counterContext`: peringkat −3 dan area wajib ketat di premium/discount. MA200 (TF bias & konteks) dan MA/EMA di H1 hanya **menimbang**: fase `koreksi` bila ≥2 dari MA200/EMA21/30/50 di H1 berada di sisi yang melawan bias (area yang diterima lebih dalam), selisih peringkat ±1 per MA200; pair tanpa MA200 lolos. `ev.bias` kini dibawa hasil scan dan tampil di panel detail, **tetapi BELUM menjadi gerbang** — gerbang dipasang di langkah integrasi.
+- Berikutnya: studi Fib vs OTE, lapis AREA, lapis TRIGGER + adaptor model, integrasi (gerbang, status, WAIT AND SEE, tampilan, catatan gerbang di Histori), dokumentasi akhir.
 
 ## Hard rules
 

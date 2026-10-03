@@ -143,6 +143,36 @@ const INIT = `(()=>{
     // konsistensi scan vs Decision
     const mism = await ev(`(async()=>{ const bad=[]; for(const h of lastScanResults.hits){ const tf=ICT_CFG.styles[h.style].ltf; await loadDetail(h.symbol, tf); const f=lastDetailFull; const want=h.ev.best.side==="long"?"LONG":"SHORT"; if(!f||f.ev.decision!==want||f.ev.best.id!==h.ev.best.id) bad.push(h.symbol+"@"+tf+" scan="+want+"/"+h.ev.best.id+" decision="+(f?f.ev.decision+"/"+(f.ev.best&&f.ev.best.id):"null")); } return bad; })()`, 300000);
     check(mism.length === 0, 'hasil scan = keputusan halaman Decision/detail untuk semua pair (rumus tidak tumpang tindih)', mism.slice(0, 3).join(' | '));
+    // lapis BIAS di data asli: distribusi, invarian, dan kecocokan dengan hasil scan (belum menjadi gerbang)
+    const bz = await ev(`(async()=>{
+      const pairs = tickerData.filter(d => d.quoteVolume >= ICT_MIN_QUOTE_VOL).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40).map(d => d.symbol);
+      const out = { intraday: { n:0, long:0, short:0, none:0, counter:0, koreksi:0, lanjutan:0, phaseNull:0, ma200Bias:0, ma200Ctx:0 }, swing: { n:0, long:0, short:0, none:0, counter:0, koreksi:0, lanjutan:0, phaseNull:0, ma200Bias:0, ma200Ctx:0 }, bad: [], thrown: 0 };
+      for (const s of pairs) {
+        const raw = {}; for (const tf of ["1h","4h","1d","1w"]) raw[tf] = await fetchKlinesFull(s, tf, ICT_FETCH).catch(() => null);
+        for (const style of ["intraday","swing"]) {
+          let b; try { b = ictBiasFromCandles(style, raw, { bars: ICT_CANDLES }); } catch (e) { out.thrown++; continue; }
+          const o = out[style]; o.n++;
+          const cfg = ICT_CFG.styles[style]; const st = raw[cfg.htf] && raw[cfg.htf].length >= 20 ? ictContext(ictWindow(raw[cfg.htf])).structure.bias : null;
+          const want = st === "bullish" ? "long" : st === "bearish" ? "short" : null;
+          if (b.side !== want || b.ok !== (want !== null)) out.bad.push(s + "/" + style + " side=" + b.side + " struktur=" + st);
+          if (b.ok && b.rankDelta !== (b.counterContext ? -3 : 0) + b.ma.aligned - b.ma.opposed) out.bad.push(s + "/" + style + " rumus peringkat");
+          if (b.side === "long") o.long++; else if (b.side === "short") o.short++; else o.none++;
+          if (b.counterContext) o.counter++;
+          if (b.phase.value === "koreksi") o.koreksi++; else if (b.phase.value === "lanjutan") o.lanjutan++; else if (b.ok) o.phaseNull++;
+          if (b.ok && b.ma.bias && b.ma.bias.ok !== false) o.ma200Bias++; if (b.ok && b.ma.context && b.ma.context.ok !== false) o.ma200Ctx++;
+        }
+      }
+      // kecocokan hasil scan Deep Scan terakhir dengan lapis BIAS
+      const hits = lastScanResults.hits, cmp = { n: hits.length, agree: 0, opposite: 0, nobias: 0, counter: 0, koreksi: 0, missing: 0 };
+      for (const h of hits) { const b = h.ev.bias; if (!b) { cmp.missing++; continue; } if (!b.ok) cmp.nobias++; else if (b.side === h.ev.best.side) cmp.agree++; else cmp.opposite++; if (b.counterContext) cmp.counter++; if (b.phase.value === "koreksi") cmp.koreksi++; }
+      return { out, cmp, pairs: pairs.length };
+    })()`, 400000);
+    check(bz.out.thrown === 0 && bz.out.bad.length === 0, `lapis BIAS di data asli (${bz.pairs} pair × 2 gaya): tanpa error; arah = struktur TF bias; rumus peringkat benar`, bz.out.bad.slice(0, 3).join(' | '));
+    info('distribusi BIAS Intraday (H4): ' + JSON.stringify(bz.out.intraday));
+    info('distribusi BIAS Swing (D1):    ' + JSON.stringify(bz.out.swing));
+    check(bz.out.intraday.long + bz.out.intraday.short > 0 && bz.out.swing.long + bz.out.swing.short > 0, 'kedua gaya menghasilkan bias di pasar nyata');
+    check(bz.cmp.missing === 0, 'setiap hasil Deep Scan membawa lapis BIAS', JSON.stringify(bz.cmp));
+    info(`hasil Deep Scan terhadap lapis BIAS: sejalan ${bz.cmp.agree}, BERLAWANAN ${bz.cmp.opposite}, tanpa bias ${bz.cmp.nobias}, melawan konteks ${bz.cmp.counter}, fase koreksi ${bz.cmp.koreksi} (dari ${bz.cmp.n}) — ini yang akan tersaring bila BIAS dijadikan gerbang`);
     const n = await ev('window.__net.length');
     const slice = await ev(`window.__net.slice(${reqBefore})`);
     const non200 = slice.filter(x => x.s !== 200);

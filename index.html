@@ -3768,6 +3768,91 @@ function flMomentum(candles, i, dir){
 }
 /* ICT-FILTERS-END */
 
+/* ICT-BIAS-START */
+// ===== LAPIS BIAS — murni, diuji scripts/test-ict-bias.js =====
+// Struktur harga adalah RAJA: arah (long/short) HANYA datang dari struktur timeframe bias. MA/EMA cuma MENIMBANG (fase koreksi/lanjutan,
+// kedalaman area yang diterima, peringkat) dan tidak pernah membalik, meniadakan, atau menciptakan bias.
+// Intraday: bias H4, konteks D1. Swing: bias D1, konteks W1. Trigger H1 untuk keduanya. D1 dan H4 boleh berbeda — tiap gaya mengambil
+// biasnya sendiri (tidak netral). Bias yang melawan TF konteks tetap sah tetapi peringkatnya turun dan areanya harus lebih ketat.
+// Bergantung pada engine (ICT_CFG, ictContext) dan blok filter (flMaState, flMaStack).
+const BIAS_CFG = {
+  triggerTf: '1h',
+  phaseAgainstMin: 2,   // fase "koreksi": >= N dari MA yang tersedia (MA200, EMA21/30/50) di TF trigger berada di sisi yang melawan bias
+  rank: { counterContext: -3, maAligned: 1, maOpposed: -1 }, // selisih peringkat (dipakai integrasi nanti); MA200 TF bias & konteks
+};
+function biasSideOf(structureBias){ return structureBias === 'bullish' ? 'long' : structureBias === 'bearish' ? 'short' : null; }
+// inp: { biasCtx, ctxCtx, raw: { bias, context, trigger } (candle penuh), tf: { bias, context, trigger } }
+function ictBiasLayer(style, inp){
+  const tf = inp.tf;
+  const out = {
+    style, tf, ok: false, side: null, structure: null,
+    context: { tf: tf.context, relation: 'tidak ada', bias: null }, counterContext: false,
+    ma: { aligned: 0, opposed: 0, available: 0, bias: null, context: null },
+    phase: { tf: tf.trigger, value: null, against: 0, available: 0, names: [] },
+    areaRule: null, rankDelta: 0, reasons: [],
+  };
+  const TFU = x => String(x || '').toUpperCase();
+  const st = inp.biasCtx ? inp.biasCtx.structure : null;
+  if(!st){ out.reasons.push(`Data ${TFU(tf.bias)} belum cukup untuk membaca struktur — tidak ada bias ${style}`); return out; }
+  out.structure = { bias: st.bias, label: st.label };
+  out.side = biasSideOf(st.bias);
+  if(!out.side){ out.reasons.push(`Struktur ${TFU(tf.bias)} belum jelas (${st.label}) — tidak ada bias ${style}`); return out; }
+  out.ok = true;
+  const long = out.side === 'long';
+  out.reasons.push(`Struktur ${TFU(tf.bias)} ${long ? 'bullish' : 'bearish'}: ${st.label}`);
+
+  // konteks TF lebih besar
+  const cst = inp.ctxCtx ? inp.ctxCtx.structure : null;
+  if(cst){
+    out.context.bias = cst.bias;
+    const cside = biasSideOf(cst.bias);
+    out.context.relation = cside === null ? 'netral' : cside === out.side ? 'searah' : 'melawan';
+    out.counterContext = out.context.relation === 'melawan';
+    out.reasons.push(`Konteks ${TFU(tf.context)}: ${cst.label} — ${out.context.relation === 'melawan' ? 'MELAWAN bias (tetap sah, peringkat turun, area lebih ketat)' : out.context.relation}`);
+  }
+
+  // MA200 di TF bias dan TF konteks: hanya menimbang
+  [['bias', inp.raw && inp.raw.bias], ['context', inp.raw && inp.raw.context]].forEach(([k, candles]) => {
+    const s = flMaState(candles, 'ma200');
+    out.ma[k] = s.ok ? { above: s.above, distPct: s.distPct, slope: s.slope } : { ok: false, reason: s.reason };
+    if(!s.ok) return;
+    out.ma.available++;
+    if(long ? s.above : !s.above) out.ma.aligned++; else out.ma.opposed++;
+    out.reasons.push(`MA200 ${TFU(tf[k])}: harga ${s.above ? 'di atas' : 'di bawah'} (${s.distPct >= 0 ? '+' : ''}${s.distPct.toFixed(1)}%) — ${(long ? s.above : !s.above) ? 'mendukung' : 'melawan'} bias (hanya menimbang)`);
+  });
+  if(out.ma.available === 0) out.reasons.push('MA200 belum tersedia (data kurang) — tidak memblokir');
+
+  // fase di TF trigger: berapa MA/EMA yang berada di sisi yang melawan bias
+  const stack = flMaStack(inp.raw ? inp.raw.trigger : null);
+  const names = [];
+  [['ma200', 'MA200'], ['ema21', 'EMA21'], ['ema30', 'EMA30'], ['ema50', 'EMA50']].forEach(([k, label]) => {
+    const s = stack[k];
+    if(s && s.ok && (long ? !s.above : s.above)) names.push(label);
+  });
+  out.phase.available = stack.available; out.phase.against = names.length; out.phase.names = names;
+  out.phase.value = stack.available < 2 ? null : names.length >= BIAS_CFG.phaseAgainstMin ? 'koreksi' : 'lanjutan';
+  out.reasons.push(out.phase.value === null
+    ? `Fase ${TFU(tf.trigger)}: data MA kurang — tidak diketahui`
+    : `Fase ${TFU(tf.trigger)}: ${out.phase.value.toUpperCase()} — ${names.length}/${stack.available} MA/EMA di sisi yang melawan bias${names.length ? ' (' + names.join(', ') + ')' : ''}`);
+
+  // aturan untuk lapis AREA (dipakai integrasi): sisi zona, apakah wajib ketat, dan kedalaman
+  out.areaRule = { zone: long ? 'discount' : 'premium', strictZone: out.counterContext, depth: out.phase.value === 'koreksi' ? 'dalam' : 'biasa' };
+  out.rankDelta = (out.counterContext ? BIAS_CFG.rank.counterContext : 0) + out.ma.aligned * BIAS_CFG.rank.maAligned + out.ma.opposed * BIAS_CFG.rank.maOpposed;
+  return out;
+}
+// Bangun bias satu gaya dari candle penuh per timeframe. rawByTf = { '1h': [...], '4h': [...], '1d': [...], '1w': [...] } (boleh null).
+// opts.bars = jumlah candle terakhir yang dibaca engine (ICT_CANDLES); filter membaca candle penuh.
+function ictBiasFromCandles(style, rawByTf, opts){
+  const cfg = ICT_CFG.styles[style];
+  const W = (opts && opts.bars) || 200;
+  const win = c => (c && c.length > W ? c.slice(-W) : c);
+  const ctxOf = c => (c && c.length >= 20 ? ictContext(win(c)) : null);
+  const tf = { bias: cfg.htf, context: cfg.htf2, trigger: BIAS_CFG.triggerTf };
+  const raw = { bias: rawByTf[tf.bias] || null, context: rawByTf[tf.context] || null, trigger: rawByTf[tf.trigger] || null };
+  return ictBiasLayer(style, { biasCtx: ctxOf(raw.bias), ctxCtx: ctxOf(raw.context), raw, tf });
+}
+/* ICT-BIAS-END */
+
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
 // Beberapa fitur (scan Intraday/Swing, Deep Scan, modal detail, alert watchlist) sering minta candle
@@ -3924,13 +4009,15 @@ function observeVisibleRows(){
 // ===== SCAN ICT — tahap 2 (deteksi setup) + tahap 3 (validasi multi-timeframe) untuk 1 pair & 1 gaya =====
 async function scanPairIct(symbol, style){
   const cfg = ICT_CFG.styles[style];
-  const [ltf, htf, htf2] = await Promise.all([
+  const [ltf, htf, htf2, trig] = await Promise.all([
     fetchKlinesFull(symbol, cfg.ltf, ICT_FETCH),
     fetchKlinesFull(symbol, cfg.htf, ICT_FETCH),
     fetchKlinesFull(symbol, cfg.htf2, ICT_FETCH).catch(()=>null), // konteks TF terbesar opsional — kalau gagal, jangan batalkan scan
+    fetchKlinesFull(symbol, BIAS_CFG.triggerTf, ICT_FETCH).catch(()=>null), // TF trigger (H1) — untuk Swing ini request tambahan; fase koreksi/lanjutan membacanya
   ]);
   const ev = ictEvaluate(style, ictWindow(ltf), ictWindow(htf), ictWindow(htf2), new Date(), null, { prefs: loadIctPrefs() });
-  ev.raw = { ltf, htf, htf2 }; // candle penuh (<= ICT_FETCH) untuk filter MA200 dst.; engine di atas hanya membaca jendela ICT_CANDLES
+  ev.raw = { ltf, htf, htf2, trig }; // candle penuh (<= ICT_FETCH) untuk filter MA200 dst.; engine di atas hanya membaca jendela ICT_CANDLES
+  ev.bias = ictBiasFromCandles(style, { [cfg.ltf]: ltf, [cfg.htf]: htf, [cfg.htf2]: htf2, [BIAS_CFG.triggerTf]: trig }, { bars: ICT_CANDLES }); // lapis BIAS (belum menjadi gerbang)
   return ev;
 }
 
@@ -4971,7 +5058,8 @@ async function loadDetail(symbol, tf){
     const fundingRow = tickerData.find(x=>x.symbol===symbol);
     const fundingRate = fundingRow && fundingRow.fundingRate!==undefined && fundingRow.fundingRate!==null ? fundingRow.fundingRate : (fundingData[symbol]!==undefined?fundingData[symbol]:null);
 
-    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf });
+    const biasLayer = ictBiasFromCandles(map.style, rawByTf, { bars: ICT_CANDLES }); // gaya kanonik (Intraday: H4/D1, Swing: D1/W1), bukan TF yang sedang dilihat
+    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer });
   }catch(err){
     console.error(err);
     // Kegagalan dari permintaan basi juga nggak boleh nimpa layar yang sekarang.
@@ -5133,6 +5221,27 @@ TP (* = dipilih): ${tps || 'n/a'} | Breakeven: ${p.be ? fp(p.be.price) + ' (' + 
 }
 
 // Timing: killzone + macro persis seperti tabel berkas
+// Panel BIAS & FASE: struktur menentukan arah; MA/EMA hanya menimbang (tidak pernah membalik bias).
+function ictBiasHtml(b){
+  if(!b) return '';
+  const label = ICT_CFG.styles[b.style] ? ICT_CFG.styles[b.style].label : b.style;
+  const TFU = x => String(x || '').toUpperCase();
+  const head = b.ok
+    ? `<div class="trend-banner ${b.side === 'long' ? 'score-hi' : 'score-lo'}" style="margin-top:0;"><div class="tb-title">${b.side === 'long' ? 'BIAS LONG' : 'BIAS SHORT'} — struktur ${TFU(b.tf.bias)} ${escapeHtml(b.structure.bias)}</div><div class="tb-sub">${escapeHtml(b.structure.label)}</div></div>`
+    : `<div class="sop-note"><b>Tidak ada bias ${escapeHtml(label)}.</b> ${escapeHtml(b.reasons[0] || '')}</div>`;
+  if(!b.ok) return head;
+  const ph = b.phase.value;
+  const maTxt = k => { const m = b.ma[k]; return m && m.ok === false ? 'belum ada (data kurang)' : m ? `harga ${m.above ? 'di atas' : 'di bawah'} (${m.distPct >= 0 ? '+' : ''}${m.distPct.toFixed(1)}%)` : '-'; };
+  return head + `
+    <div class="ind-grid" style="margin-top:8px;">
+      <div class="ind-cell"><div class="il">Konteks ${TFU(b.tf.context)}</div><div class="iv ${b.counterContext ? 'dec-warn' : ''}" style="font-size:13px;">${escapeHtml(b.context.relation)}</div><div class="ib">${b.counterContext ? 'melawan bias: tetap sah, peringkat turun, area lebih ketat' : 'struktur TF lebih besar'}</div></div>
+      <div class="ind-cell"><div class="il">MA200 (menimbang)</div><div class="iv" style="font-size:12px;">${TFU(b.tf.bias)}: ${escapeHtml(maTxt('bias'))}</div><div class="ib">${TFU(b.tf.context)}: ${escapeHtml(maTxt('context'))}</div></div>
+      <div class="ind-cell"><div class="il">Fase ${TFU(b.phase.tf)}</div><div class="iv ${ph === 'koreksi' ? 'dec-warn' : ''}" style="font-size:13px;">${ph ? escapeHtml(ph.toUpperCase()) : 'TIDAK DIKETAHUI'}</div><div class="ib">${ph ? b.phase.against + '/' + b.phase.available + ' MA/EMA melawan bias' + (b.phase.names.length ? ' (' + escapeHtml(b.phase.names.join(', ')) + ')' : '') : 'data MA kurang'}</div></div>
+      <div class="ind-cell"><div class="il">Aturan area</div><div class="iv" style="font-size:13px;">${escapeHtml(b.areaRule.zone)}${b.areaRule.strictZone ? ' (ketat)' : ''}</div><div class="ib">kedalaman: ${escapeHtml(b.areaRule.depth)} · selisih peringkat ${b.rankDelta >= 0 ? '+' : ''}${b.rankDelta}</div></div>
+    </div>
+    <div class="sop-note" style="margin-top:8px;">Struktur harga menentukan arah. MA200 dan EMA hanya <b>menimbang</b>: mengubah fase, kedalaman area yang diterima, dan peringkat — tidak pernah membalik atau membatalkan bias. Gaya ${escapeHtml(label)}: bias ${TFU(b.tf.bias)}, konteks ${TFU(b.tf.context)}, trigger ${TFU(b.phase.tf)}.</div>`;
+}
+
 function ictTimingHtml(ev){
   const kz = ev.killzone, mc = ev.macro;
   return `
@@ -5250,6 +5359,8 @@ function renderDetail(d){
       ${bannerSub ? `<div class="tb-sub">${escapeHtml(bannerSub)}</div>` : ''}
     </div>
     <div class="sop-note" style="margin-top:10px;"><b>ℹ️ Alat bantu keputusan, bukan sinyal yang terbukti.</b> Engine ini mendeteksi pola ICT secara mekanis. Backtest walk-forward di data nyata (20 pair, ±5.900 trade) <b>belum menemukan keunggulan statistik</b>: ekspektasi ≈ 0R sebelum fee dan negatif setelah fee. Pakai sebagai peta struktur &amp; likuiditas — keputusan akhir ada di kamu. Analisis memakai candle yang sudah <b>tutup</b> (body closure butuh candle tertutup), jadi sinyal baru muncul setelah candle penutupnya selesai. Detail di README.</div>
+    <div class="ind-section-title">BIAS &amp; FASE — GAYA ${escapeHtml((ICT_CFG.styles[d.bias ? d.bias.style : ev.style] || {label:''}).label.toUpperCase())}</div>
+    ${ictBiasHtml(d.bias)}
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>

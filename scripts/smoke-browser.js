@@ -218,7 +218,9 @@ async function main() {
   check(/CHECKLIST ICT/.test(modal) && /Bias HTF searah/.test(modal), 'detail SOL: checklist ICT tampil');
   check(/RENCANA ENTRY ICT/.test(modal) && /Take Profit 1/.test(modal), 'detail SOL: rencana entry (Entry/SL/TP/RR) tampil');
   check(!/NaN|undefined|Infinity/.test(modal), 'detail SOL: tidak ada "NaN"/"undefined"/"Infinity" di layar');
-  check(!/(EMA|RSI|MACD|ADX|ATR|VWAP|StochRSI|Bollinger|Fibonacci)/.test(modal), 'detail SOL: tidak ada indikator klasik di layar');
+  check(!/(RSI|MACD|ADX|ATR|VWAP|StochRSI|Bollinger|Fibonacci)/.test(modal), 'detail SOL: tidak ada indikator yang tetap dilarang di layar (MA200/EMA kini boleh, sebagai filter)');
+  check(/BIAS & FASE — GAYA INTRADAY/i.test(modal) && /BIAS LONG/.test(modal) && /Konteks 1D/i.test(modal) && /MA200 [(]menimbang[)]/i.test(modal) && /Fase 1H/i.test(modal) && /Aturan area/i.test(modal), 'detail SOL: panel BIAS & FASE (struktur 4H menentukan, konteks 1D, MA200 menimbang, fase 1H, aturan area)');
+  check(await evaluate('(()=>{ const b = lastDetailFull && lastDetailFull.d && lastDetailFull.d.bias; return !!b && b.ok && b.side === "long" && b.tf.bias === "4h" && b.tf.context === "1d" && b.tf.trigger === "1h"; })()') === true, 'detail SOL: lapis BIAS Intraday = LONG dari struktur 4H, konteks 1D, trigger 1H');
   await shot('05-detail-sol', 430, 1400);
   // ganti timeframe
   for (const tf of ['1h', '1d', '1w', '12h']) {
@@ -262,7 +264,7 @@ async function main() {
   check(true, 'kembali ke 1H untuk uji simpan histori');
   const prompts = await evaluate('["teknikal","risk","sentimen","bull","bear"].map(a => generateAgentPrompt(a))');
   check(prompts.every(p => typeof p === 'string' && p.length > 800 && !/NaN|undefined|Infinity/.test(p)), 'prompt 5 agent ter-generate tanpa NaN/undefined');
-  check(!/EMA|RSI|MACD|ADX|ATR|Bollinger|VWAP|Fibonacci|StochRSI/.test(prompts[0]), 'prompt AI tidak menyebut indikator klasik');
+  check(!/RSI|MACD|ADX|ATR|Bollinger|VWAP|Fibonacci|StochRSI/.test(prompts[0]), 'prompt AI tidak menyebut indikator yang tetap dilarang');
   await evaluate('openDetail("ADAUSDT")'); await waitFor('document.getElementById("modalBody").innerText.toLowerCase().includes("detail — sweep")', 'detail ADA untuk prompt');
   const adPrompt = await evaluate('generateAgentPrompt("teknikal")');
   check(/MODEL TERDETEKSI: Sweep → IFVG/.test(adPrompt) && /Entry \(\* = dipilih\)/.test(adPrompt) && /Macro|NY AM|di luar macro/i.test(adPrompt), 'prompt AI memuat model IFVG + opsi entry/SL/TP + macro');
@@ -316,6 +318,9 @@ async function main() {
   check(await evaluate('WS_MAIN_URLS[0].includes("/market/stream") && WS_MAIN_URLS[1].includes("/stream?")') === true, 'WebSocket utama memakai /market/stream dengan cadangan endpoint lama');
   await evaluate('wsConn = { readyState: 1, close(){} }; wsLastMsg = 0; setWsStatus(false)');
   check(await evaluate('wsConnected') === false, 'status WebSocket tidak "Live" selama belum ada pesan');
+  // langkah 2: lapis BIAS ikut di hasil scan (belum menjadi gerbang) dan Swing menarik candle trigger 1H
+  check(await evaluate('lastScanResults.hits.length > 0 && lastScanResults.hits.every(h => h.ev.bias && h.ev.bias.tf.trigger === "1h" && (h.style === "intraday" ? h.ev.bias.tf.bias === "4h" : h.ev.bias.tf.bias === "1d"))') === true, 'tiap hasil scan membawa lapis BIAS dengan TF yang benar (Intraday 4H, Swing 1D, trigger 1H)');
+  check(await evaluate('window.__mockCalls.some(u => u.includes("/klines") && u.includes("interval=1h"))') === true, 'candle trigger 1H ditarik');
   // langkah 1 konsep BIAS/AREA/TRIGGER: filter tersedia & data ditarik 400 candle, engine tetap membaca jendela 200
   check(await evaluate('typeof flMaStack === "function" && typeof flMomentum === "function" && typeof flVolumeSpike === "function"') === true, 'modul filter (MA/EMA, volume spike, momentum) termuat');
   check(await evaluate('ICT_FETCH === 400 && ICT_CANDLES === 200 && ictWindow(Array.from({length:400},(_,i)=>i)).length === 200 && ictWindow(Array.from({length:400},(_,i)=>i))[0] === 200 && ictWindow([1,2,3]).length === 3') === true, 'ictWindow: 400 candle ditarik, engine hanya membaca 200 terakhir; array pendek tidak dipotong');
