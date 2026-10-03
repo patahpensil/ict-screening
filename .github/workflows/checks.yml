@@ -69,6 +69,10 @@ jobs:
       - name: Uji lapis TRIGGER
         run: node scripts/test-ict-trigger.js
 
+      # Hitungan alat backtest konsep penuh (riset): simulasi eksak, entri acak, tanpa look-ahead, walk-forward sintetis.
+      - name: Uji alat backtest konsep
+        run: node scripts/test-backtest-concept.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

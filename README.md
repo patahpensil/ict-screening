@@ -137,6 +137,7 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
+scripts/backtest-concept.js     RISET: backtest konsep penuh BIAS→AREA→TRIGGER (model kelima vs entri acak; gerbang pada model lama); diuji test-backtest-concept.js
 scripts/test-ict-trigger.js    uji lapis TRIGGER H1 (masuk AREA → CHoCH/BOS → momentum → FVG/IFVG → entry; kedaluwarsa/batal; cermin; model kelima; fuzz)
 scripts/test-ict-area.js       uji lapis AREA (band OTE, leg lantai 3x/bonus 5x, premium/discount, SNR bonus, cermin, fuzz)
 scripts/test-ict-bias.js       uji lapis BIAS (struktur menentukan arah; MA/EMA hanya menimbang; fase koreksi/lanjutan; cermin; fuzz)
