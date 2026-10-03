@@ -61,6 +61,10 @@ jobs:
       - name: Uji hitungan studi Fib vs OTE
         run: node scripts/test-study-fib-ote.js
 
+      # Uji lapis AREA: zona OB/FVG di band OTE leg impuls (lantai 3x, bonus 5x), premium/discount, SNR bonus, cermin, fuzz.
+      - name: Uji lapis AREA
+        run: node scripts/test-ict-area.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

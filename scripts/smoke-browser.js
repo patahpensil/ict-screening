@@ -318,6 +318,11 @@ async function main() {
   check(await evaluate('WS_MAIN_URLS[0].includes("/market/stream") && WS_MAIN_URLS[1].includes("/stream?")') === true, 'WebSocket utama memakai /market/stream dengan cadangan endpoint lama');
   await evaluate('wsConn = { readyState: 1, close(){} }; wsLastMsg = 0; setWsStatus(false)');
   check(await evaluate('wsConnected') === false, 'status WebSocket tidak "Live" selama belum ada pesan');
+  // langkah 4a: lapis AREA ikut di hasil scan (belum menjadi gerbang) dan tampil di panel detail
+  check(await evaluate('lastScanResults.hits.length > 0 && lastScanResults.hits.every(h => h.ev.area && typeof h.ev.area.ok === "boolean" && Array.isArray(h.ev.area.areas) && Array.isArray(h.ev.area.legs))') === true, 'tiap hasil scan membawa lapis AREA (ok, areas, legs)');
+  check(await evaluate('(()=>{ const a = lastDetailFull && lastDetailFull.d && lastDetailFull.d.area; return !!a && typeof a.ok === "boolean" && a.style === "intraday" && Array.isArray(a.reasons) && a.reasons.length > 0; })()') === true, 'detail SOL: lapis AREA ada dengan alasan tercatat');
+  check(/AREA — ZONA ENTRY LOGIS/i.test(modal) && /(AREA ADA|Belum ada AREA)/i.test(modal) && /OTE ≥ golden pocket/.test(modal), 'detail SOL: panel AREA tampil (zona entry logis, band OTE, catatan studi)');
+  check(!/NaN|undefined|Infinity/.test(modal), 'panel BIAS+AREA tanpa NaN/undefined');
   // langkah 2: lapis BIAS ikut di hasil scan (belum menjadi gerbang) dan Swing menarik candle trigger 1H
   check(await evaluate('lastScanResults.hits.length > 0 && lastScanResults.hits.every(h => h.ev.bias && h.ev.bias.tf.trigger === "1h" && (h.style === "intraday" ? h.ev.bias.tf.bias === "4h" : h.ev.bias.tf.bias === "1d"))') === true, 'tiap hasil scan membawa lapis BIAS dengan TF yang benar (Intraday 4H, Swing 1D, trigger 1H)');
   check(await evaluate('window.__mockCalls.some(u => u.includes("/klines") && u.includes("interval=1h"))') === true, 'candle trigger 1H ditarik');

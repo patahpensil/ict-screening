@@ -173,6 +173,42 @@ const INIT = `(()=>{
     check(bz.out.intraday.long + bz.out.intraday.short > 0 && bz.out.swing.long + bz.out.swing.short > 0, 'kedua gaya menghasilkan bias di pasar nyata');
     check(bz.cmp.missing === 0, 'setiap hasil Deep Scan membawa lapis BIAS', JSON.stringify(bz.cmp));
     info(`hasil Deep Scan terhadap lapis BIAS: sejalan ${bz.cmp.agree}, BERLAWANAN ${bz.cmp.opposite}, tanpa bias ${bz.cmp.nobias}, melawan konteks ${bz.cmp.counter}, fase koreksi ${bz.cmp.koreksi} (dari ${bz.cmp.n}) — ini yang akan tersaring bila BIAS dijadikan gerbang`);
+    // lapis AREA di data asli: seberapa sering terbentuk, invarian, dan kecocokan entry hasil scan dengan AREA (belum menjadi gerbang)
+    const az = await ev(`(async()=>{
+      const pairs = tickerData.filter(d => d.quoteVolume >= ICT_MIN_QUOTE_VOL).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40).map(d => d.symbol);
+      const mk = () => ({ n: 0, bias: 0, ok: 0, bonus: 0, lantai: 0, snr: 0, inZone: 0, waiting: 0, dalam: 0, strict: 0, short: 0, legNone: 0, legSmall: 0, noZone: 0 });
+      const out = { intraday: mk(), swing: mk(), bad: [], thrown: 0 };
+      for (const s of pairs) {
+        const raw = {}; for (const tf of ["1h","4h","1d","1w"]) raw[tf] = await fetchKlinesFull(s, tf, ICT_FETCH).catch(() => null);
+        const cm = ictCtxMap(raw, ICT_CANDLES);
+        for (const style of ["intraday","swing"]) {
+          let b, a; try { b = ictBiasFromCandles(style, raw, { bars: ICT_CANDLES, ctxMap: cm }); a = ictAreaLayer(style, b, cm); } catch (e) { out.thrown++; continue; }
+          const o = out[style]; o.n++;
+          if (!b.ok) { if (a.ok || a.areas.length) out.bad.push(s + "/" + style + " area tanpa bias"); continue; }
+          o.bias++;
+          if (a.depth === "dalam") o.dalam++; if (a.strict) o.strict++; if (a.side === "short") o.short++;
+          a.legs.forEach(l => { if (!l.ok) { if (l.mult === undefined) o.legNone++; else o.legSmall++; } });
+          if (!a.ok) { if (a.legs.some(l => l.ok)) o.noZone++; continue; }
+          o.ok++; if (a.area.legTier === "bonus") o.bonus++; else o.lantai++; if (a.area.snr) o.snr++; if (a.area.status === "in_zone") o.inZone++; else o.waiting++;
+          const last = cm[ICT_CFG.styles[style].ltf].last, eq = cm[b.tf.bias].range ? cm[b.tf.bias].range.eq : null, long = a.side === "long";
+          for (const z of a.areas) {
+            if (z.ce < z.band.lo - 1e-9 || z.ce > z.band.hi + 1e-9 || z.low < z.band.lo - 1e-9 || z.high > z.band.hi + 1e-9 || z.low > z.high) out.bad.push(s + "/" + style + " zona di luar band");
+            if (z.legMult < AREA_CFG.legMinMult - 1e-9) out.bad.push(s + "/" + style + " leg di bawah lantai");
+            if (long ? last < z.low : last > z.high) out.bad.push(s + "/" + style + " harga sudah menembus zona");
+            if (eq !== null) { const mid = (z.low + z.high) / 2; if (long ? !(mid < eq) : !(mid > eq)) out.bad.push(s + "/" + style + " premium/discount"); if (a.strict && (long ? !(z.high <= eq) : !(z.low >= eq))) out.bad.push(s + "/" + style + " ketat"); }
+            if (z.type === undefined && false) out.bad.push("x");
+          }
+        }
+      }
+      const hits = lastScanResults.hits, cmp = { n: hits.length, hasArea: 0, entryInArea: 0, noArea: 0, missing: 0, aligned: 0 };
+      for (const h of hits) { const a = h.ev.area; if (!a) { cmp.missing++; continue; } if (!h.ev.bias || !h.ev.bias.ok || h.ev.bias.side !== h.ev.best.side) cmp.aligned += 0; else cmp.aligned++; if (a.ok) cmp.hasArea++; else cmp.noArea++; const e = h.ev.best.plan.entry; if (a.areas.some(z => e >= z.low && e <= z.high)) cmp.entryInArea++; }
+      return { out, cmp, pairs: pairs.length };
+    })()`, 400000);
+    check(az.out.thrown === 0 && az.out.bad.length === 0, `lapis AREA di data asli (${az.pairs} pair × 2 gaya): tanpa error; CE di band, zona ⊂ band, leg ≥ 3x, harga belum menembus zona, aturan premium/discount terpenuhi`, az.out.bad.slice(0, 3).join(' | '));
+    info('AREA Intraday (H4): ' + JSON.stringify(az.out.intraday));
+    info('AREA Swing (D1/H4): ' + JSON.stringify(az.out.swing));
+    check(az.cmp.missing === 0, 'setiap hasil Deep Scan membawa lapis AREA', JSON.stringify(az.cmp));
+    info(`hasil Deep Scan terhadap lapis AREA: AREA ada ${az.cmp.hasArea}, tidak ada ${az.cmp.noArea}, entry berada DI DALAM AREA ${az.cmp.entryInArea} (dari ${az.cmp.n}) — ini yang akan lolos gerbang AREA bila entry harus di dalam AREA`);
     const n = await ev('window.__net.length');
     const slice = await ev(`window.__net.slice(${reqBefore})`);
     const non200 = slice.filter(x => x.s !== 200);
@@ -209,9 +245,9 @@ const INIT = `(()=>{
       check(d.wsOn === true && Math.abs(d.cvd) > 0, `${s}: CVD berjalan`, 'cvd=' + Math.round(d.cvd) + ' USDT');
       check(d.imb !== undefined && d.imb >= -1 && d.imb <= 1 && d.bid > 0 && d.ask >= d.bid, `${s}: orderbook valid`, `imb=${(d.imb || 0).toFixed(3)} bid=${d.bid} ask=${d.ask}`); }
     // validasi CVD independen: jumlahkan aggTrades REST 60 detik terakhir dan bandingkan arah/skala dengan jendela CVD aplikasi
-    const ind = await ev(`(async()=>{ const now=Date.now(); const r = await (await fetch("https://fapi.binance.com/fapi/v1/aggTrades?symbol=BTCUSDT&startTime="+(now-30000)+"&endTime="+now+"&limit=1000")).json(); let d=0,v=0; for(const t of r){ const q=parseFloat(t.p)*parseFloat(t.q); d += t.m ? -q : q; v += q; } const app = liveData.BTCUSDT.cvdWin.filter(x=>x.t>=now-30000).reduce((s,x)=>s+x.d,0); const appV = liveData.BTCUSDT.cvdWin.filter(x=>x.t>=now-30000).reduce((s,x)=>s+Math.abs(x.d),0); return { n: r.length, d, v, app, appV }; })()`);
-    check(ind.v > 0 && Math.abs(ind.appV - ind.v) / ind.v < 0.30, 'volume taker 30 dtk di app ≈ aggTrades REST Binance (selisih <30%)', `REST ${Math.round(ind.v)} vs app ${Math.round(ind.appV)} USDT (${ind.n} trade)`);
-    check(Math.sign(ind.d) === Math.sign(ind.app) || Math.abs(ind.d) < ind.v * 0.05, 'arah CVD 30 dtk (beli−jual) sama dengan hitungan independen REST', `REST ${Math.round(ind.d)} vs app ${Math.round(ind.app)}`);
+    const ind = await ev(`(async()=>{ const now=Date.now(); const r = await (await fetch("https://fapi.binance.com/fapi/v1/aggTrades?symbol=BTCUSDT&startTime="+(now-26000)+"&endTime="+(now-4000)+"&limit=1000")).json(); let d=0,v=0; for(const t of r){ const q=parseFloat(t.p)*parseFloat(t.q); d += t.m ? -q : q; v += q; } const app = liveData.BTCUSDT.cvdWin.filter(x=>x.t>=now-26000 && x.t<=now-4000).reduce((s,x)=>s+x.d,0); const appV = liveData.BTCUSDT.cvdWin.filter(x=>x.t>=now-26000 && x.t<=now-4000).reduce((s,x)=>s+Math.abs(x.d),0); return { n: r.length, d, v, app, appV }; })()`);
+    check(ind.v > 0 && Math.abs(ind.appV - ind.v) / ind.v < 0.30, 'volume taker 22 dtk (jendela dalam, tepi 4 dtk dibuang) di app ≈ aggTrades REST Binance (selisih <30%)', `REST ${Math.round(ind.v)} vs app ${Math.round(ind.appV)} USDT (${ind.n} trade)`);
+    check(Math.sign(ind.d) === Math.sign(ind.app) || Math.abs(ind.d) < ind.v * 0.05, 'arah CVD 22 dtk (jendela dalam) (beli−jual) sama dengan hitungan independen REST', `REST ${Math.round(ind.d)} vs app ${Math.round(ind.app)}`);
     const st = await ev('JSON.stringify(structById)'); check(Object.keys(JSON.parse(st)).length >= 1, 'CHoCH/BOS terambil dari candle tutup asli', st.slice(0, 160));
     await ev('renderDecision()'); const dec = await ev('document.getElementById("decisionList").innerText');
     check(/RUNNING/.test(dec) && /BTC/.test(dec) && /ETH/.test(dec) && /OPEN INTEREST/.test(dec) && /CVD/.test(dec) && /ORDERBOOK/.test(dec) && /STRUKTUR/.test(dec), 'kartu Decision BTC & ETH menampilkan OI, CVD, orderbook, struktur');

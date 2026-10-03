@@ -3840,18 +3840,127 @@ function ictBiasLayer(style, inp){
   out.rankDelta = (out.counterContext ? BIAS_CFG.rank.counterContext : 0) + out.ma.aligned * BIAS_CFG.rank.maAligned + out.ma.opposed * BIAS_CFG.rank.maOpposed;
   return out;
 }
+// Konteks engine per timeframe dari candle penuh (engine hanya membaca `bars` candle terakhir). Satu peta dipakai BIAS dan AREA.
+function ictCtxMap(rawByTf, bars){
+  const W = bars || 200, map = {};
+  Object.keys(rawByTf || {}).forEach(tf => { const c = rawByTf[tf]; if(c && c.length >= 20) map[tf] = ictContext(c.length > W ? c.slice(-W) : c); });
+  return map;
+}
 // Bangun bias satu gaya dari candle penuh per timeframe. rawByTf = { '1h': [...], '4h': [...], '1d': [...], '1w': [...] } (boleh null).
 // opts.bars = jumlah candle terakhir yang dibaca engine (ICT_CANDLES); filter membaca candle penuh.
 function ictBiasFromCandles(style, rawByTf, opts){
   const cfg = ICT_CFG.styles[style];
   const W = (opts && opts.bars) || 200;
-  const win = c => (c && c.length > W ? c.slice(-W) : c);
-  const ctxOf = c => (c && c.length >= 20 ? ictContext(win(c)) : null);
+  const cm = (opts && opts.ctxMap) || ictCtxMap(rawByTf, W);
   const tf = { bias: cfg.htf, context: cfg.htf2, trigger: BIAS_CFG.triggerTf };
   const raw = { bias: rawByTf[tf.bias] || null, context: rawByTf[tf.context] || null, trigger: rawByTf[tf.trigger] || null };
-  return ictBiasLayer(style, { biasCtx: ctxOf(raw.bias), ctxCtx: ctxOf(raw.context), raw, tf });
+  return ictBiasLayer(style, { biasCtx: cm[tf.bias] || null, ctxCtx: cm[tf.context] || null, raw, tf });
 }
 /* ICT-BIAS-END */
+
+/* ICT-AREA-START */
+// ===== LAPIS AREA — murni, diuji scripts/test-ict-area.js =====
+// AREA = satu zona entry yang logis: OB/FVG yang CE-nya jatuh di dalam band retracement (OTE) dari leg impuls searah bias.
+// - Leg harus impulsif: >= 3x rata-rata range 1 candle (lantai) — >= 5x menjadi BONUS peringkat (hasil penyapuan studi Fib vs OTE).
+// - Fibonacci tidak dipakai; band = OTE ICT (studi: OTE >= golden pocket). Kedalaman dari BIAS: 'biasa' = OTE penuh (0,62-0,79),
+//   'dalam' (fase koreksi) = separuh dalam OTE (0,705-0,79).
+// - Premium/discount memakai EQ dealing range TF bias: dasar = tengah zona di sisi yang benar; ketat (melawan konteks) = SELURUH zona.
+// - SNR (level dengan >=2 sentuhan swing di H4/D1, toleransi = 0,25 x rata-rata range candle H4) hanya BONUS peringkat, bukan wajib.
+// - Leg diambil dari TF bias dan TF masuk gaya yang dicakup studi (Intraday: H4; Swing: D1 dan H4); H1 tidak dipakai untuk leg (tanpa bukti).
+//   Zona (OB/FVG) boleh dari TF masuk dan TF bias. Harga yang sudah menembus zona ke arah merugikan = zona tidak berlaku.
+// Bergantung pada engine (ICT_CFG) dan keluaran lapis BIAS; tidak memakai filter MA.
+const AREA_CFG = {
+  legTfs: ['4h', '1d'],        // TF yang dicakup studi leg; leg di TF lain tidak dipakai
+  legMinMult: 3,               // lantai: |leg| >= 3 x rata-rata range 1 candle (20 candle sebelum ujung leg)
+  legBonusMult: 5,             // bonus peringkat
+  avgRangeBars: 20,
+  snrTfs: ['4h', '1d'], snrTolFrac: 0.25, snrMinTouches: 2,
+  rank: { legBonus: 1, snr: 1 },
+};
+// Rata-rata range (high-low) `bars` candle sebelum indeks e (e tidak ikut).
+function areaAvgRange(candles, e){
+  let sum = 0, cnt = 0;
+  for(let k = Math.max(0, e - AREA_CFG.avgRangeBars); k < e; k++){ sum += candles[k].high - candles[k].low; cnt++; }
+  return cnt ? sum / cnt : 0;
+}
+// Leg impuls searah bias pada satu TF: long = swing low -> swing high TERAKHIR; short = swing high -> swing low TERAKHIR.
+// Tidak ada leg bila swing terakhir bukan ujung leg searah bias (pullback sudah selesai / belum terbentuk).
+function areaLegOf(side, ctx){
+  const st = ctx && ctx.structure;
+  if(!st || !st.lastHigh || !st.lastLow) return { ok: false, reason: 'swing belum cukup' };
+  const hi = st.lastHigh, lo = st.lastLow, long = side === 'long';
+  if(long ? !(hi.index > lo.index) : !(lo.index > hi.index)) return { ok: false, reason: long ? 'swing terakhir adalah low (belum ada leg naik yang sedang di-retrace)' : 'swing terakhir adalah high (belum ada leg turun yang sedang di-retrace)' };
+  const R = hi.price - lo.price;
+  if(!(R > 0)) return { ok: false, reason: 'leg tidak valid' };
+  const endIdx = long ? hi.index : lo.index, avg = areaAvgRange(ctx.candles, endIdx);
+  if(!(avg > 0)) return { ok: false, reason: 'rata-rata range nol' };
+  const mult = R / avg;
+  return { ok: true, lo: lo.price, hi: hi.price, R, startIdx: long ? lo.index : hi.index, endIdx, mult, tier: mult >= AREA_CFG.legBonusMult ? 'bonus' : mult >= AREA_CFG.legMinMult ? 'lantai' : 'kecil' };
+}
+// Level SNR: klaster swing (high & low) yang berdekatan (<= tol, rantai tunggal) dengan >= snrMinTouches sentuhan.
+function areaSnrLevels(ctxs, tol){
+  const prices = [];
+  ctxs.forEach(c => { if(c && c.liquidity && c.liquidity.raw) c.liquidity.raw.forEach(p => prices.push(p.price)); });
+  prices.sort((a, b) => a - b);
+  const levels = []; let cl = [];
+  const flush = () => { if(cl.length >= AREA_CFG.snrMinTouches) levels.push({ price: cl.reduce((s, x) => s + x, 0) / cl.length, touches: cl.length }); cl = []; };
+  prices.forEach(p => { if(cl.length && p - cl[cl.length - 1] > tol) flush(); cl.push(p); });
+  flush();
+  return levels;
+}
+// bias = keluaran ictBiasLayer; tfCtx = { '1h': ctx, '4h': ctx, '1d': ctx, ... } (ictContext per TF; kunci memakai cfg.ltf/htf/htf2 gaya).
+function ictAreaLayer(style, bias, tfCtx){
+  const out = { style, ok: false, side: bias ? bias.side : null, depth: null, strict: false, area: null, areas: [], legs: [], rankDelta: 0, reasons: [], skipped: { tembus: 0, premiumDiscount: 0 } };
+  if(!bias || !bias.ok || !bias.areaRule){ out.reasons.push('Tidak ada bias — AREA tidak dicari'); return out; }
+  const cfg = ICT_CFG.styles[style], side = bias.side, long = side === 'long', typ = long ? 'bull' : 'bear';
+  const ltfTf = cfg.ltf, biasTf = bias.tf.bias, rule = bias.areaRule;
+  out.depth = rule.depth; out.strict = rule.strictZone;
+  const fromD = rule.depth === 'dalam' ? (ICT_CFG.oteLo + ICT_CFG.oteHi) / 2 : ICT_CFG.oteLo, toD = ICT_CFG.oteHi;
+  const legTfs = [...new Set([biasTf, ltfTf])].filter(tf => AREA_CFG.legTfs.includes(tf) && tfCtx[tf]);
+  const zoneTfs = [...new Set([ltfTf, biasTf])].filter(tf => tfCtx[tf]);
+  const lastCtx = tfCtx[ltfTf] || tfCtx[biasTf];
+  if(!lastCtx){ out.reasons.push('Data TF belum cukup'); return out; }
+  const last = lastCtx.last, biasCtx = tfCtx[biasTf], eq = biasCtx && biasCtx.range ? biasCtx.range.eq : null;
+  const ctx4 = tfCtx['4h'] || biasCtx, tol = AREA_CFG.snrTolFrac * areaAvgRange(ctx4.candles, ctx4.candles.length);
+  const snr = areaSnrLevels(AREA_CFG.snrTfs.map(tf => tfCtx[tf]).filter(Boolean), tol);
+  const seen = new Map();
+  for(const lt of legTfs){
+    const leg = areaLegOf(side, tfCtx[lt]);
+    if(!leg.ok){ out.legs.push({ tf: lt, ok: false, reason: leg.reason }); continue; }
+    if(leg.tier === 'kecil'){ out.legs.push({ tf: lt, ok: false, reason: `leg ${leg.mult.toFixed(1)}x < lantai ${AREA_CFG.legMinMult}x rata-rata range (noise)`, mult: leg.mult }); continue; }
+    const band = long ? { lo: leg.hi - toD * leg.R, hi: leg.hi - fromD * leg.R } : { lo: leg.lo + fromD * leg.R, hi: leg.lo + toD * leg.R };
+    out.legs.push({ tf: lt, ok: true, lo: leg.lo, hi: leg.hi, mult: leg.mult, tier: leg.tier, band });
+    for(const zt of zoneTfs){
+      const c = tfCtx[zt];
+      [...(c.obs || []), ...(c.fvgs || [])].filter(z => z.type === typ && z.barsAgo <= ICT_CFG.maxPoiAge && z.ce >= band.lo && z.ce <= band.hi).forEach(z => {
+        const a = { tf: zt, legTf: lt, kind: z.kind, low: Math.max(z.low, band.lo), high: Math.min(z.high, band.hi), poiLow: z.low, poiHigh: z.high, ce: z.ce, age: z.barsAgo, legTier: leg.tier, legMult: leg.mult, band };
+        if(long ? last < a.low : last > a.high){ out.skipped.tembus++; return; }
+        if(eq !== null){
+          const mid = (a.low + a.high) / 2;
+          const base = long ? mid < eq : mid > eq, whole = long ? a.high <= eq : a.low >= eq;
+          if(!base || (rule.strictZone && !whole)){ out.skipped.premiumDiscount++; return; }
+        }
+        const lvl = snr.find(l => l.price >= a.low - tol && l.price <= a.high + tol);
+        a.snr = lvl ? { price: lvl.price, touches: lvl.touches } : null;
+        a.status = last >= a.low && last <= a.high ? 'in_zone' : 'waiting';
+        a.rankDelta = (a.legTier === 'bonus' ? AREA_CFG.rank.legBonus : 0) + (a.snr ? AREA_CFG.rank.snr : 0);
+        const key = [a.tf, a.kind, a.poiLow, a.poiHigh].join('|'), prev = seen.get(key);
+        if(!prev || a.rankDelta > prev.rankDelta) seen.set(key, a);
+      });
+    }
+  }
+  out.areas = [...seen.values()].sort((x, y) => (y.rankDelta - x.rankDelta) || (Math.abs(x.ce - last) - Math.abs(y.ce - last)));
+  if(out.areas.length){
+    out.ok = true; out.area = out.areas[0]; out.rankDelta = out.area.rankDelta;
+    out.reasons.push(`AREA ${out.area.kind === 'fvg' ? 'FVG' : 'Order Block'} ${out.area.tf.toUpperCase()} ${fmtPriceSafe(out.area.low)}–${fmtPriceSafe(out.area.high)} di band retracement ${rule.depth === 'dalam' ? 'dalam' : 'OTE'} leg ${out.area.legTf.toUpperCase()} (${out.area.legMult.toFixed(1)}x${out.area.legTier === 'bonus' ? ', bonus' : ''})${out.area.snr ? ', SNR ' + out.area.snr.touches + ' sentuhan' : ''}`);
+  } else {
+    const okLegs = out.legs.filter(l => l.ok);
+    out.reasons.push(!out.legs.length ? 'Tidak ada TF leg yang tersedia (butuh 4H/1D)' : !okLegs.length ? 'Tidak ada leg impuls yang memenuhi lantai: ' + out.legs.map(l => `${l.tf.toUpperCase()}: ${l.reason}`).join('; ')
+      : `Tidak ada OB/FVG searah dengan CE di band retracement${out.skipped.tembus ? ` (${out.skipped.tembus} sudah ditembus harga)` : ''}${out.skipped.premiumDiscount ? ` (${out.skipped.premiumDiscount} gagal aturan ${rule.zone}${rule.strictZone ? ' ketat' : ''})` : ''}`);
+  }
+  return out;
+}
+/* ICT-AREA-END */
 
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
@@ -4017,7 +4126,10 @@ async function scanPairIct(symbol, style){
   ]);
   const ev = ictEvaluate(style, ictWindow(ltf), ictWindow(htf), ictWindow(htf2), new Date(), null, { prefs: loadIctPrefs() });
   ev.raw = { ltf, htf, htf2, trig }; // candle penuh (<= ICT_FETCH) untuk filter MA200 dst.; engine di atas hanya membaca jendela ICT_CANDLES
-  ev.bias = ictBiasFromCandles(style, { [cfg.ltf]: ltf, [cfg.htf]: htf, [cfg.htf2]: htf2, [BIAS_CFG.triggerTf]: trig }, { bars: ICT_CANDLES }); // lapis BIAS (belum menjadi gerbang)
+  const rawMap = { [cfg.ltf]: ltf, [cfg.htf]: htf, [cfg.htf2]: htf2, [BIAS_CFG.triggerTf]: trig };
+  const ctxMap = ictCtxMap(rawMap, ICT_CANDLES);
+  ev.bias = ictBiasFromCandles(style, rawMap, { bars: ICT_CANDLES, ctxMap }); // lapis BIAS (belum menjadi gerbang)
+  ev.area = ictAreaLayer(style, ev.bias, ctxMap);                              // lapis AREA (belum menjadi gerbang)
   return ev;
 }
 
@@ -5058,8 +5170,10 @@ async function loadDetail(symbol, tf){
     const fundingRow = tickerData.find(x=>x.symbol===symbol);
     const fundingRate = fundingRow && fundingRow.fundingRate!==undefined && fundingRow.fundingRate!==null ? fundingRow.fundingRate : (fundingData[symbol]!==undefined?fundingData[symbol]:null);
 
-    const biasLayer = ictBiasFromCandles(map.style, rawByTf, { bars: ICT_CANDLES }); // gaya kanonik (Intraday: H4/D1, Swing: D1/W1), bukan TF yang sedang dilihat
-    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer });
+    const ctxMapD = ictCtxMap(rawByTf, ICT_CANDLES);
+    const biasLayer = ictBiasFromCandles(map.style, rawByTf, { bars: ICT_CANDLES, ctxMap: ctxMapD }); // gaya kanonik (Intraday: H4/D1, Swing: D1/W1), bukan TF yang sedang dilihat
+    const areaLayer = ictAreaLayer(map.style, biasLayer, ctxMapD);
+    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer, area: areaLayer });
   }catch(err){
     console.error(err);
     // Kegagalan dari permintaan basi juga nggak boleh nimpa layar yang sekarang.
@@ -5242,6 +5356,20 @@ function ictBiasHtml(b){
     <div class="sop-note" style="margin-top:8px;">Struktur harga menentukan arah. MA200 dan EMA hanya <b>menimbang</b>: mengubah fase, kedalaman area yang diterima, dan peringkat — tidak pernah membalik atau membatalkan bias. Gaya ${escapeHtml(label)}: bias ${TFU(b.tf.bias)}, konteks ${TFU(b.tf.context)}, trigger ${TFU(b.phase.tf)}.</div>`;
 }
 
+// Panel AREA: satu zona entry logis (OB/FVG yang CE-nya di band OTE leg impuls). SNR hanya bonus peringkat.
+function ictAreaHtml(a){
+  if(!a) return '';
+  const TFU = x => String(x || '').toUpperCase();
+  const legs = (a.legs || []).map(l => l.ok
+    ? `<div class="bd-row2"><span class="bd-factor2">Leg ${TFU(l.tf)}</span><span class="bd-reason2">${fmtPrice(l.lo)} → ${fmtPrice(l.hi)} · ${l.mult.toFixed(1)}x rata-rata range · ${l.tier === 'bonus' ? 'BONUS (≥5x)' : 'lolos lantai (≥3x)'} · band ${fmtPrice(l.band.lo)}–${fmtPrice(l.band.hi)}</span></div>`
+    : `<div class="bd-row2"><span class="bd-factor2">Leg ${TFU(l.tf)}</span><span class="bd-reason2">${escapeHtml(l.reason)}</span></div>`).join('');
+  const areas = (a.areas || []).slice(0, 4).map((z, i) => `<div class="bd-row2"><span class="bd-factor2">${i === 0 ? 'AREA' : 'Alternatif'} ${z.kind === 'fvg' ? 'FVG' : 'Order Block'} ${TFU(z.tf)}</span><span class="bd-reason2">${fmtPrice(z.low)} – ${fmtPrice(z.high)} · CE ${fmtPrice(z.ce)} · ${z.status === 'in_zone' ? 'harga di zona' : 'menunggu retrace'}${z.snr ? ' · SNR ' + z.snr.touches + ' sentuhan @ ' + fmtPrice(z.snr.price) : ''} · selisih peringkat ${z.rankDelta >= 0 ? '+' : ''}${z.rankDelta}</span></div>`).join('');
+  const head = a.ok
+    ? `<div class="trend-banner ${a.side === 'long' ? 'score-hi' : 'score-lo'}" style="margin-top:0;"><div class="tb-title">AREA ADA — ${escapeHtml(a.depth === 'dalam' ? 'band dalam (fase koreksi)' : 'band OTE')}${a.strict ? ' · ketat (melawan konteks)' : ''}</div><div class="tb-sub">${escapeHtml(a.reasons[0] || '')}</div></div>`
+    : `<div class="sop-note"><b>Belum ada AREA.</b> ${escapeHtml(a.reasons[0] || '')}</div>`;
+  return head + `<div class="bd-block" style="margin-top:8px;">${legs}${areas}</div><div class="sop-note" style="margin-top:8px;">Band retracement memakai OTE ICT (studi: OTE ≥ golden pocket; tidak ada level Fibonacci yang istimewa). Leg harus ≥3x rata-rata range candle agar tidak noise; ≥5x jadi bonus peringkat. SNR hanya bonus.</div>`;
+}
+
 function ictTimingHtml(ev){
   const kz = ev.killzone, mc = ev.macro;
   return `
@@ -5361,6 +5489,8 @@ function renderDetail(d){
     <div class="sop-note" style="margin-top:10px;"><b>ℹ️ Alat bantu keputusan, bukan sinyal yang terbukti.</b> Engine ini mendeteksi pola ICT secara mekanis. Backtest walk-forward di data nyata (20 pair, ±5.900 trade) <b>belum menemukan keunggulan statistik</b>: ekspektasi ≈ 0R sebelum fee dan negatif setelah fee. Pakai sebagai peta struktur &amp; likuiditas — keputusan akhir ada di kamu. Analisis memakai candle yang sudah <b>tutup</b> (body closure butuh candle tertutup), jadi sinyal baru muncul setelah candle penutupnya selesai. Detail di README.</div>
     <div class="ind-section-title">BIAS &amp; FASE — GAYA ${escapeHtml((ICT_CFG.styles[d.bias ? d.bias.style : ev.style] || {label:''}).label.toUpperCase())}</div>
     ${ictBiasHtml(d.bias)}
+    <div class="ind-section-title">AREA — ZONA ENTRY LOGIS</div>
+    ${ictAreaHtml(d.area)}
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>
