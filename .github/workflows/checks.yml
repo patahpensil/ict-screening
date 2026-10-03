@@ -57,6 +57,10 @@ jobs:
       - name: Uji lapis BIAS
         run: node scripts/test-ict-bias.js
 
+      # Hitungan studi Fib vs OTE (alat riset, bukan kode aplikasi): leg/pullback/simulasi trade, cermin, tanpa look-ahead.
+      - name: Uji hitungan studi Fib vs OTE
+        run: node scripts/test-study-fib-ote.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
