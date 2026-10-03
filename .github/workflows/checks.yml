@@ -49,6 +49,10 @@ jobs:
       - name: Uji pelacak Decision
         run: node scripts/test-ict-track.js
 
+      # Uji filter (MA200, EMA, volume spike, momentum): angka eksak, cermin, fuzz, dan keterpisahan dari engine ICT.
+      - name: Uji filter
+        run: node scripts/test-ict-filters.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

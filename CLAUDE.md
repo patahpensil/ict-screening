@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ICT Screening — a Progressive Web App that screens Binance USDT-M Perpetual Futures in real time using **ICT / Smart Money Concepts**, entirely client-side (no backend, no API key, no build step). It talks directly to `fapi.binance.com` / `fstream.binance.com` from the user's browser. All persistent state (watchlist, journal, setup history, alerts, settings) lives in `localStorage` — nothing is sent to any server the app controls.
 
-This repo is a **rewrite of the screening concept** of the original Patah Pensill (EMA/RSI/MACD/ADX-based AI Confluence Score + Momentum Quick Score + Markov Screener). Those three systems and **every classic indicator** were removed on purpose. Do not reintroduce them (see "Hard rules" below).
+This repo is a **rewrite of the screening concept** of the original Patah Pensill (EMA/RSI/MACD/ADX-based AI Confluence Score + Momentum Quick Score + Markov Screener). Those three systems were removed on purpose. Classic indicators were also removed at first; since 2026-10-04 the owner allows a small set back **only as FILTERS that weigh, never as the decider** (see "Hard rules" below).
 
 The README.md (in Indonesian) is the product-level source of truth for features and the screening pipeline — read it first for what the app does before touching how it's coded.
 
@@ -24,6 +24,7 @@ scripts/check-cache-bump.js    enforces the CACHE_NAME rule below
 scripts/selftest.js            proves check.js actually rejects defects, so it can't rot into always-green
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
 scripts/test-ict-models.js     tests for the Unicorn & Inverse Blueprint (IFVG) models against the rules in the two guide PDFs
+scripts/test-ict-filters.js    tests for the FILTER block (MA200, EMA, volume spike, momentum) — exact numbers, mirror, fuzz, separation from the engine
 scripts/test-ict-track.js      tests for the Decision tracker (armed → running → TP/SL/void, conservative candle rules)
 scripts/e2e-binance.js         end-to-end test of the REAL app against REAL Binance (needs Chrome + network; optional BINANCE_PROXY; not in CI)
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
@@ -36,7 +37,7 @@ scripts/vps-backtest.sh        OPTIONAL: one-command futures backtest for a VPS 
 ## Development workflow
 
 - Edit `index.html` directly; there's nothing to compile. Open it in a browser (or serve the folder statically) to test.
-- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js`, `node scripts/test-ict-models.js` and `node scripts/test-ict-track.js`.**
+- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js`, `node scripts/test-ict-models.js` and `node scripts/test-ict-track.js` and `node scripts/test-ict-filters.js`.**
   - `check.js` catches the class of mistake this single-file app is most prone to: a function called but never defined, a `getElementById` pointing at a missing id, a duplicate id, an inline `onclick` naming a missing function, or a syntax error. It checks *calls by name* only — it does **not** catch a reference to a deleted constant/variable.
   - `test-ict.js` extracts the block between the `/* ICT-ENGINE-START */` and `/* ICT-ENGINE-END */` markers in `index.html` and runs it in Node: a known bullish sweep+MSS scenario must give LONG with exact entry/SL/TP, its price-mirror must give SHORT with mirrored levels, an opposing HTF bias must give SKIP, plus a random-walk fuzz (no crashes, consistent plans, rare signals) and a ban on classic-indicator calls inside the engine block.
 - For anything touching UI/flow, also run `node scripts/smoke-browser.js --shots=<folder>` (needs Chrome or Edge) and look at the screenshots. It mocks the Binance API with synthetic candles, so it is deterministic and offline. It fails on any exception or `console.error`.
@@ -125,7 +126,8 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 
 ## Hard rules
 
-- **No classic indicators, anywhere.** No EMA/SMA, RSI/StochRSI, MACD, ADX, ATR, Bollinger, VWAP, Fibonacci, momentum/quick scores, OI/long-short-ratio derived signals. `test-ict.js` bans their function names inside the engine block; keep the rest of the file clean too. The only market-data extras that remain are funding rate (display, filter, watchlist alert) and the 24h range position — neither may feed a setup decision.
+- **Indicators are FILTERS only (owner decision 2026-10-04).** Price structure decides direction ("struktur is KING"); ICT (BIAS → AREA → TRIGGER) decides entries. Allowed as weighing filters, in the separate `ICT-FILTERS-START/END` block only: MA200 (SMA), EMA 21/30/50, volume spike, displacement. A filter may change *phase* (correction vs continuation), the *depth of area accepted*, or *ranking* — it must never flip the bias, create a setup, or veto one on its own. Still banned: RSI/StochRSI, MACD, ADX, ATR, Bollinger, VWAP, scores/quick scores, and OI/long-short-ratio as signals. Fibonacci is pending the Fib-vs-OTE study. **`test-ict.js` still bans indicator names inside the ICT-ENGINE block, and `test-ict-filters.js` checks the engine never calls a filter** — keep the engine pure and let the filters weigh from outside. Funding rate and 24h range position stay display/filter only.
+- **Data depth:** `ICT_FETCH = 400` candles are fetched per timeframe (same Binance weight as 200; MA200 needs >200) but the ICT engine only ever reads `ictWindow()` = the last `ICT_CANDLES = 200`, so engine behaviour is unchanged. Filters get the full candles (`ev.raw`, `rawByTf`).
 - **The engine block stays pure.** Nothing between `ICT-ENGINE-START` and `ICT-ENGINE-END` may touch `document`, `localStorage`, `fetch`, or app globals (it defines its own `fmtPriceSafe`). That is what makes `test-ict.js` possible.
 - **One definition of each ICT concept.** Swings/zigzag, structure events, liquidity pools, FVG, OB, dealing range, killzone each exist once in the engine and are reused by the scanner, detail view, alerts, and AI prompt. Do not write a second structure/liquidity routine in UI code — a recurring bug source in the original app was the same pair showing different readings in different places.
 - **Tuning knobs live in `ICT_CFG`** (swing bars, equal-level tolerance, sweep/MSS lookbacks, displacement multiple, OTE band, SL buffer, max zone distance, POI age). If you change one, rerun `test-ict.js` — the fuzz test guards against a screener that fires on noise.

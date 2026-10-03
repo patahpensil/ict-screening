@@ -316,6 +316,11 @@ async function main() {
   check(await evaluate('WS_MAIN_URLS[0].includes("/market/stream") && WS_MAIN_URLS[1].includes("/stream?")') === true, 'WebSocket utama memakai /market/stream dengan cadangan endpoint lama');
   await evaluate('wsConn = { readyState: 1, close(){} }; wsLastMsg = 0; setWsStatus(false)');
   check(await evaluate('wsConnected') === false, 'status WebSocket tidak "Live" selama belum ada pesan');
+  // langkah 1 konsep BIAS/AREA/TRIGGER: filter tersedia & data ditarik 400 candle, engine tetap membaca jendela 200
+  check(await evaluate('typeof flMaStack === "function" && typeof flMomentum === "function" && typeof flVolumeSpike === "function"') === true, 'modul filter (MA/EMA, volume spike, momentum) termuat');
+  check(await evaluate('ICT_FETCH === 400 && ICT_CANDLES === 200 && ictWindow(Array.from({length:400},(_,i)=>i)).length === 200 && ictWindow(Array.from({length:400},(_,i)=>i))[0] === 200 && ictWindow([1,2,3]).length === 3') === true, 'ictWindow: 400 candle ditarik, engine hanya membaca 200 terakhir; array pendek tidak dipotong');
+  check(await evaluate('window.__mockCalls.some(u => u.includes("/klines") && u.includes("limit=400")) && !window.__mockCalls.some(u => u.includes("/klines") && u.includes("interval=1h") && u.includes("limit=200"))') === true, 'klines diminta dengan limit=400 (bukan 200)');
+  check(await evaluate('(()=>{ const e = lastScanResults.hits[0]; return !!e && !!e.ev.raw && !!e.ev.raw.ltf; })()') === true, 'hasil scan membawa candle penuh (ev.raw) untuk filter');
   // 7a. Decision: pair RUNNING (Entry tersentuh) + data real-time, hilang saat kena TP/SL, tercatat di Review
   await evaluate('showWorkspace("wsHome")');
   await evaluate('document.getElementById("decisionQuickBtn").click()');

@@ -75,6 +75,30 @@ const INIT = `(()=>{
     const px = await ev('parseFloat(tickerData.find(d=>d.symbol==="BTCUSDT").lastPrice)');
     const l1m = await ev('fetchKlinesFull("BTCUSDT","1m",ICT_CANDLES).then(c => c[c.length-1].close)');
     check(Math.abs(px - l1m) / px < 0.003, 'harga ticker BTC sejalan dengan close candle 1m terakhir', `${px} vs ${l1m}`);
+    // kedalaman data 400: diterima Binance, MA200 D1 tersedia untuk pair lama dan tidak memblokir pair baru; engine tetap identik pada jendela 200
+    const depth = await ev(`(async()=>{
+      const out = {};
+      for (const s of ["BTCUSDT","ETHUSDT"]) { const c = await fetchKlinesFull(s, "1d", ICT_FETCH); out[s] = { n: c.length, ma200: flMaState(c, "ma200").ok, ema50: flMaState(c, "ema50").ok }; }
+      const young = tickerData.filter(d => d.quoteVolume > 5e6).slice(0, 120);
+      let shortOne = null; for (const d of young) { const c = await fetchKlinesFull(d.symbol, "1d", ICT_FETCH).catch(() => null); if (c && c.length < 200) { shortOne = { s: d.symbol, n: c.length, ma200: flMaState(c, "ma200").ok, ma200Reason: flMaState(c, "ma200").reason }; break; } }
+      return { out, shortOne };
+    })()`, 300000);
+    check(Object.values(depth.out).every(x => x.n >= 390 && x.ma200 && x.ema50), 'limit=400 diterima Binance: D1 BTC/ETH ≥390 candle, MA200 dan EMA50 tersedia', JSON.stringify(depth.out));
+    if (depth.shortOne) check(depth.shortOne.ma200 === false && depth.shortOne.ma200Reason === 'data kurang', 'pair dengan <200 candle harian: MA200 "data kurang" (tidak memblokir)', JSON.stringify(depth.shortOne));
+    else info('tidak ada pair <200 candle harian di 120 pair teratas (pengecekan pair baru dilewati)');
+    const eq = await ev(`(async()=>{
+      const bad = [], syms = ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","LINKUSDT","AVAXUSDT"];
+      const sig = e => JSON.stringify([e.decision, e.best && [e.best.id, e.best.side, e.best.plan.entry, e.best.plan.sl, e.best.plan.tp]]);
+      for (const style of ["intraday","swing"]) for (const s of syms) {
+        const cfg = ICT_CFG.styles[style];
+        const get = async (tf) => { const a = await fetchKlinesFull(s, tf, 200); const b = await fetchKlinesFull(s, tf, ICT_FETCH); return [a, b]; };
+        const [l200, l400] = await get(cfg.ltf), [h200, h400] = await get(cfg.htf), [g200, g400] = await get(cfg.htf2);
+        const e1 = ictEvaluate(style, l200, h200, g200, new Date(), null, { prefs: loadIctPrefs() });
+        const e2 = ictEvaluate(style, ictWindow(l400), ictWindow(h400), ictWindow(g400), new Date(), null, { prefs: loadIctPrefs() });
+        if (sig(e1) !== sig(e2)) bad.push(s + "/" + style + " 200=" + sig(e1).slice(0, 60) + " 400=" + sig(e2).slice(0, 60));
+      }
+      return bad; })()`, 300000);
+    check(eq.length === 0, 'engine ICT memberi hasil IDENTIK pada candle limit=200 vs jendela 200 dari limit=400 (16 kombinasi pair×gaya)', eq.slice(0, 3).join(' | '));
   });
 
   await phase('B. Scan Intraday / Swing / Deep Scan (data asli)', async () => {

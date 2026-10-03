@@ -3689,6 +3689,85 @@ function trkStepCandles(rec, candles, opts){
 }
 /* ICT-TRACK-END */
 
+/* ICT-FILTERS-START */
+// ===== FILTER (BUKAN penentu) — murni, diuji scripts/test-ict-filters.js =====
+// Indikator di sini hanya MENIMBANG. Arah (BIAS) ditentukan struktur harga, entry ditentukan AREA + TRIGGER ICT; MA/EMA/volume tidak
+// pernah menentukan keduanya. Dipakai lapis BIAS (fase koreksi/lanjutan), AREA (kedalaman yang diterima) dan konfirmasi momentum TRIGGER.
+// Memakai ictIsDisplacement/ictAvgBodyAt dari blok ICT-ENGINE supaya "displacement" cuma punya satu definisi. Semua candle sudah TUTUP.
+const FILTER_CFG = {
+  maPeriods: { ema21: 21, ema30: 30, ema50: 50, ma200: 200 }, // ma200 = SMA 200; lainnya EMA
+  slopeBars: 10,        // kemiringan = perubahan nilai MA dibanding N candle lalu
+  slopeFlatPct: 0.1,    // |perubahan| < 0,1% dianggap datar
+  volMult: 2,           // volume spike = volume >= N x rata-rata volume 20 candle sebelumnya
+  volLookback: 20,
+};
+// SMA seri: null sampai terkumpul n close.
+function flSmaSeries(closes, n){
+  const out = new Array(closes.length).fill(null);
+  if(!(n > 0) || closes.length < n) return out;
+  let sum = 0;
+  for(let i = 0; i < closes.length; i++){ sum += closes[i]; if(i >= n) sum -= closes[i - n]; if(i >= n - 1) out[i] = sum / n; }
+  return out;
+}
+// EMA seri kanonik: di-seed dengan SMA n close pertama (BUKAN close pertama — itu bug cold-start lama), lalu k = 2/(n+1).
+function flEmaSeries(closes, n){
+  const out = new Array(closes.length).fill(null);
+  if(!(n > 0) || closes.length < n) return out;
+  let seed = 0;
+  for(let i = 0; i < n; i++) seed += closes[i];
+  let prev = seed / n; out[n - 1] = prev;
+  const k = 2 / (n + 1);
+  for(let i = n; i < closes.length; i++){ prev = closes[i] * k + prev * (1 - k); out[i] = prev; }
+  return out;
+}
+// Keadaan satu MA di candle terakhir. Data kurang (mis. pair baru tanpa 200 candle) -> ok:false, TIDAK memblokir apa pun.
+function flMaState(candles, key){
+  const n = FILTER_CFG.maPeriods[key];
+  if(!n || !candles || candles.length < n) return { key, period: n || null, ok: false, reason: 'data kurang' };
+  const closes = candles.map(c => c.close);
+  const s = key === 'ma200' ? flSmaSeries(closes, n) : flEmaSeries(closes, n);
+  const v = s[s.length - 1], price = closes[closes.length - 1];
+  const back = s[s.length - 1 - FILTER_CFG.slopeBars];
+  let slope = null;
+  if(back !== null && back !== undefined && back > 0){
+    const ch = (v / back - 1) * 100;
+    slope = ch > FILTER_CFG.slopeFlatPct ? 'naik' : ch < -FILTER_CFG.slopeFlatPct ? 'turun' : 'datar';
+  }
+  return { key, period: n, ok: true, value: v, price, above: price > v, distPct: (price / v - 1) * 100, slope };
+}
+// Susunan MA/EMA satu timeframe + hitungan berapa yang tersedia dan di sisi mana harga berada.
+function flMaStack(candles){
+  const st = { n: candles ? candles.length : 0 };
+  ['ma200', 'ema21', 'ema30', 'ema50'].forEach(k => { st[k] = flMaState(candles, k); });
+  const ok = ['ma200', 'ema21', 'ema30', 'ema50'].map(k => st[k]).filter(x => x.ok);
+  st.available = ok.length; st.above = ok.filter(x => x.above).length; st.below = ok.length - st.above;
+  return st;
+}
+// Volume spike di candle i (volume >= mult x rata-rata volume `lookback` candle sebelumnya, candle i tidak ikut dihitung).
+function flVolumeSpike(candles, i, mult, lookback){
+  const m = mult || FILTER_CFG.volMult, lb = lookback || FILTER_CFG.volLookback;
+  if(!candles || !candles[i] || i < lb) return { ok: false, ratio: null, reason: 'data kurang' };
+  let sum = 0;
+  for(let j = i - lb; j < i; j++) sum += candles[j].volume;
+  const avg = sum / lb;
+  if(!(avg > 0)) return { ok: false, ratio: null, reason: 'volume nol' };
+  const ratio = candles[i].volume / avg;
+  return { ok: ratio >= m, ratio, avg };
+}
+// Satu konfirmasi momentum untuk TRIGGER: displacement (body candle besar, definisi engine) ATAU volume spike. Keduanya harus
+// searah dir ('up' | 'down'): lonjakan volume pada candle yang menutup melawan arah bukan konfirmasi.
+function flMomentum(candles, i, dir){
+  const c = candles[i];
+  const aligned = dir === 'up' ? c.close > c.open : c.close < c.open;
+  const vol = flVolumeSpike(candles, i);
+  const volOk = vol.ok && aligned;
+  const dispOk = ictIsDisplacement(candles, i, dir);
+  const avg = ictAvgBodyAt(candles, i, 20);
+  const bodyRatio = avg > 0 ? Math.abs(c.close - c.open) / avg : null;
+  return { ok: volOk || dispOk, kind: volOk && dispOk ? 'keduanya' : volOk ? 'volume' : dispOk ? 'displacement' : null, volumeSpike: volOk, volumeRatio: vol.ratio, displacement: dispOk, bodyRatio };
+}
+/* ICT-FILTERS-END */
+
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
 // Beberapa fitur (scan Intraday/Swing, Deep Scan, modal detail, alert watchlist) sering minta candle
@@ -3749,7 +3828,10 @@ const ICT_MIN_QUOTE_VOL = 20e6;
 // Estimasi biaya satu trade: entry limit (maker 0,02%) + exit (taker 0,05%) + slippage SL (0,02%) ≈ 0,09% dari harga.
 // Tier fee standar Binance USDT-M; tier Anda bisa berbeda. Hanya untuk transparansi — tidak memengaruhi keputusan.
 const ICT_FEE_ROUNDTRIP = 0.0009;
-const ICT_CANDLES = 200; // jumlah candle yang ditarik per timeframe — sama di semua tempat biar cache request terpakai ulang
+const ICT_CANDLES = 200; // jendela candle yang dibaca ENGINE ICT (struktur, likuiditas, FVG, OB) — jangan diubah tanpa menjalankan test-ict.js
+const ICT_FETCH = 400;   // candle yang DITARIK per timeframe, sama di semua tempat biar cache request terpakai ulang. Filter MA200 butuh >200 candle.
+                         // Bobot request Binance tetap sama (limit 100-499 = bobot 2). Engine hanya melihat ictWindow(); filter melihat semuanya.
+function ictWindow(c){ return c && c.length > ICT_CANDLES ? c.slice(-ICT_CANDLES) : c; }
 
 const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit' };
 function ictShortTitle(id){ return ICT_SHORT_TITLES[id] || String(id); }
@@ -3795,8 +3877,8 @@ function pumpRowScanQueue(){
 
 async function doRowScan(symbol){
   try{
-    const candles4h = await fetchKlinesFull(symbol, "4h", ICT_CANDLES);
-    const q = ictQuickBias(candles4h);
+    const candles4h = await fetchKlinesFull(symbol, "4h", ICT_FETCH);
+    const q = ictQuickBias(ictWindow(candles4h));
     deepData[symbol] = q ? { bias: q.bias, zone: q.zone, event: q.event } : { bias: null, zone: null, event: null };
   }catch(err){
     console.error("Row scan gagal:", symbol, err);
@@ -3843,11 +3925,13 @@ function observeVisibleRows(){
 async function scanPairIct(symbol, style){
   const cfg = ICT_CFG.styles[style];
   const [ltf, htf, htf2] = await Promise.all([
-    fetchKlinesFull(symbol, cfg.ltf, ICT_CANDLES),
-    fetchKlinesFull(symbol, cfg.htf, ICT_CANDLES),
-    fetchKlinesFull(symbol, cfg.htf2, ICT_CANDLES).catch(()=>null), // konteks TF terbesar opsional — kalau gagal, jangan batalkan scan
+    fetchKlinesFull(symbol, cfg.ltf, ICT_FETCH),
+    fetchKlinesFull(symbol, cfg.htf, ICT_FETCH),
+    fetchKlinesFull(symbol, cfg.htf2, ICT_FETCH).catch(()=>null), // konteks TF terbesar opsional — kalau gagal, jangan batalkan scan
   ]);
-  return ictEvaluate(style, ltf, htf, htf2, new Date(), null, { prefs: loadIctPrefs() });
+  const ev = ictEvaluate(style, ictWindow(ltf), ictWindow(htf), ictWindow(htf2), new Date(), null, { prefs: loadIctPrefs() });
+  ev.raw = { ltf, htf, htf2 }; // candle penuh (<= ICT_FETCH) untuk filter MA200 dst.; engine di atas hanya membaca jendela ICT_CANDLES
+  return ev;
 }
 
 function ictHitBadgeHtml(h){
@@ -4202,11 +4286,12 @@ async function pollTrackOI(){
 async function pollTrackStructure(){
   for(const rec of runningRecs()){
     try{
-      const c = await fetchKlinesFull(rec.symbol, rec.tf, ICT_CANDLES);
-      const ctx = ictContext(c);
+      const c = await fetchKlinesFull(rec.symbol, rec.tf, ICT_FETCH);
+      const w = ictWindow(c); // indeks event struktur relatif terhadap jendela engine
+      const ctx = ictContext(w);
       if(!ctx) continue;
       const ev = ctx.structure.event;
-      structById[rec.id] = ev ? { type: ev.type, direction: ev.direction, level: ev.level, barsAgo: ev.barsAgo, t: c[ev.idx] ? c[ev.idx].t : null } : null;
+      structById[rec.id] = ev ? { type: ev.type, direction: ev.direction, level: ev.level, barsAgo: ev.barsAgo, t: w[ev.idx] ? w[ev.idx].t : null } : null;
       if(rec.slCloseBased && rec.status === 'running'){
         const hit = trkCloseSl(rec, c, TF_MS[rec.tf]);
         if(hit){ const before = rec.status, tpb = rec.tpHit || 0; trkClose(rec, 'slclose', hit.price, hit.at); trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams(); }
@@ -4228,7 +4313,7 @@ async function trackReconcile(rec){
   const cs = (await res.json()).map(k => ({ t: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], ct: k[6] }))
     .filter(c => !(c.ct > now) && c.t >= from - ivMs);
   let ltf = null;
-  if(rec.slCloseBased && rec.status !== 'closed'){ try{ ltf = await fetchKlinesFull(rec.symbol, rec.tf, ICT_CANDLES); }catch(e){ /* tanpa LTF, SL close dinilai nanti */ } }
+  if(rec.slCloseBased && rec.status !== 'closed'){ try{ ltf = await fetchKlinesFull(rec.symbol, rec.tf, ICT_FETCH); }catch(e){ /* tanpa LTF, SL close dinilai nanti */ } }
   const before = rec.status, tpb = rec.tpHit || 0;
   trkStepCandles(rec, cs, { ltfCandles: ltf, ltfMs: TF_MS[rec.tf] });
   if(rec.status !== before || (rec.tpHit || 0) !== tpb){ trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams(); }
@@ -4383,10 +4468,10 @@ async function checkWatchlistAlerts(){
       const symbol = wl[idx++];
       try{
         const [c1h, c4h] = await Promise.all([
-          fetchKlinesFull(symbol, '1h', ICT_CANDLES),
-          fetchKlinesFull(symbol, '4h', ICT_CANDLES),
+          fetchKlinesFull(symbol, '1h', ICT_FETCH),
+          fetchKlinesFull(symbol, '4h', ICT_FETCH),
         ]);
-        const ctx1 = ictContext(c1h), ctx4 = ictContext(c4h);
+        const ctx1 = ictContext(ictWindow(c1h)), ctx4 = ictContext(ictWindow(c4h));
 
         if(ctx1 && ctx1.liquidity.lastSweep && ctx1.liquidity.lastSweep.barsAgo <= 2){
           const s = ctx1.liquidity.lastSweep;
@@ -4858,12 +4943,12 @@ async function loadDetail(symbol, tf){
   document.getElementById('modalBody').innerHTML = `<div class="modal-loading"><span class="loader"></span>Memuat analisa ICT ${tf.toUpperCase()}…</div>`;
   try{
     const wantTfs = [...new Set([tf, map.htf, map.htf2, ...MTF_TIMEFRAMES].filter(Boolean))];
-    const fetched = await Promise.all(wantTfs.map(t => fetchKlinesFull(symbol, t, ICT_CANDLES).catch(()=>null)));
+    const fetched = await Promise.all(wantTfs.map(t => fetchKlinesFull(symbol, t, ICT_FETCH).catch(()=>null)));
     // Permintaan yang lebih baru sudah jalan (pengguna keburu tap pair/timeframe lain) — hasil ini basi.
     // Berhenti diam-diam, jangan tulis apa pun ke layar.
     if(myToken !== detailRequestToken) return;
-    const byTf = {};
-    wantTfs.forEach((t,i)=>{ byTf[t] = fetched[i]; });
+    const byTf = {}, rawByTf = {}; // byTf = jendela untuk engine; rawByTf = candle penuh untuk filter
+    wantTfs.forEach((t,i)=>{ rawByTf[t] = fetched[i]; byTf[t] = ictWindow(fetched[i]); });
     const candles = byTf[tf];
     if(!candles) throw new Error('klines timeframe utama gagal');
 
@@ -4886,7 +4971,7 @@ async function loadDetail(symbol, tf){
     const fundingRow = tickerData.find(x=>x.symbol===symbol);
     const fundingRate = fundingRow && fundingRow.fundingRate!==undefined && fundingRow.fundingRate!==null ? fundingRow.fundingRate : (fundingData[symbol]!==undefined?fundingData[symbol]:null);
 
-    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate });
+    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf });
   }catch(err){
     console.error(err);
     // Kegagalan dari permintaan basi juga nggak boleh nimpa layar yang sekarang.

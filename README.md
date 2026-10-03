@@ -4,7 +4,7 @@ Progressive Web App (PWA) untuk screening Binance USDT-M Futures secara real-tim
 
 > ⚠️ **Alat bantu keputusan, bukan sinyal terbukti.** Backtest walk-forward di data nyata belum menemukan keunggulan statistik dari setup yang dideteksi. Lihat bagian [Hasil backtest](#hasil-backtest--baca-ini-sebelum-memakai-sinyalnya).
 
-> Versi ini adalah rombakan konsep screening dari Patah Pensill (aplikasi sebelumnya). **Semua indikator klasik (EMA, RSI, MACD, ADX, ATR, Bollinger, VWAP, Fibonacci, StochRSI) dibuang.** AI Confluence Score, Momentum Quick Score, dan Markov Screener diganti total dengan pipeline setup ICT di bawah. Gaya trading: **Intraday** dan **Swing** (Scalping dihapus).
+> Versi ini adalah rombakan konsep screening dari Patah Pensill (aplikasi sebelumnya). **Indikator klasik pada awalnya dibuang semua; sejak 2026-10-04 sebagian kecil (MA200, EMA 21/30/50, volume spike) dipakai KEMBALI hanya sebagai filter yang menimbang — struktur harga tetap penentu arah dan ICT penentu entry. RSI, MACD, ADX, ATR, Bollinger, VWAP, dan StochRSI tetap dibuang.** AI Confluence Score, Momentum Quick Score, dan Markov Screener diganti total dengan pipeline setup ICT di bawah. Gaya trading: **Intraday** dan **Swing** (Scalping dihapus).
 
 ## Navigasi
 
@@ -137,6 +137,7 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
+scripts/test-ict-filters.js    uji filter (MA200, EMA, volume spike, momentum): angka eksak, cermin, fuzz, keterpisahan dari engine
 scripts/test-ict-track.js      uji pelacak Decision (armed → RUNNING → TP/SL/void, candle konservatif, SL close-based, cermin)
 scripts/e2e-binance.js         uji end-to-end aplikasi asli terhadap Binance sungguhan (butuh Chrome + jaringan; opsional BINANCE_PROXY; tidak di CI)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
@@ -153,6 +154,7 @@ node scripts/check.js
 node scripts/test-ict.js
 node scripts/test-ict-models.js
 node scripts/test-ict-track.js
+node scripts/test-ict-filters.js
 ```
 
 `scripts/smoke-browser.js` butuh Chrome atau Edge terpasang dan tidak dijalankan di CI: `node scripts/smoke-browser.js --shots=folder`.
