@@ -311,8 +311,9 @@ async function main() {
     window.__oiCalls = []; window.__oi = 1000; const f = window.fetch;
     window.fetch = (u, o) => { if(String(u).includes('/openInterest')){ window.__oiCalls.push(String(u)); return Promise.resolve(new Response(JSON.stringify({ symbol: 'X', openInterest: String(window.__oi), time: Date.now() }), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return f(u, o); };
     trackRecs.length = 0; for(const k in liveData) delete liveData[k];
+    saveSetupHistory([]); updateHistoryBadge();
     window.__px = (sym, p) => { tickerData.find(d => d.symbol === sym).lastPrice = String(p); };
-    window.__mkHit = (sym, side, entry, sl, tp) => ({ symbol: sym, style: 'intraday', ev: { best: { side, id: 'SWEEP_MSS', grade: 'A', check: { passes: 7, total: 8 }, plan: { entry, sl, tp, rr: Math.abs(tp - entry) / Math.abs(entry - sl), slCloseBased: false } } } });
+    window.__mkHit = (sym, side, entry, sl, tp, tp2, tp3) => ({ symbol: sym, style: 'intraday', ev: { best: { side, id: 'SWEEP_MSS', grade: 'A', check: { passes: 7, total: 8 }, plan: { entry, sl, tp, tp2: tp2 ?? null, tp3: tp3 ?? null, rr: Math.abs(tp - entry) / Math.abs(entry - sl), slCloseBased: false } } } });
   })()`);
   const P0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="SOLUSDT").lastPrice)');
   const ent = P0 * 0.99, slL = P0 * 0.97, tpL = P0 * 1.03;
@@ -361,11 +362,55 @@ async function main() {
   check(!/DOGE/.test(await evaluate('document.getElementById("decisionList").innerText')), 'pair SHORT hilang dari Decision setelah SL');
   const j2 = await evaluate('loadJournal().find(e => e.trackId === trackRecs.find(r=>r.symbol==="DOGEUSDT").id)');
   check(j2 && j2.status === 'loss' && j2.direction === 'short', 'hasil SL otomatis tercatat di Review sebagai LOSS');
+  // histori otomatis: TP1 (SOL) dan SL (DOGE)
+  const hSol = await evaluate("loadSetupHistory().find(e => e.symbol === \"SOLUSDT\" && e.auto)");
+  check(hSol && hSol.outcome === "win" && hSol.exit.label === "TP1" && hSol.needsNote === false && /Keluar di TP1/.test(hSol.noteAuto), "keluar di TP1 otomatis tercatat di Histori Setup (WIN, TP1, tanpa kewajiban keterangan)");
+  const hDog = await evaluate("loadSetupHistory().find(e => e.symbol === \"DOGEUSDT\" && e.auto)");
+  check(hDog && hDog.outcome === "lose" && hDog.exit.label === "SL" && hDog.needsNote === true && /Keluar di SL/.test(hDog.noteAuto) && hDog.note === "", "keluar di SL otomatis tercatat di Histori Setup (LOSE) dan menunggu keterangan wajib");
+  check(/CVD|Struktur|real-time/.test(hDog.noteAuto), "keterangan otomatis SL memuat kondisi saat keluar (CVD/struktur atau catatan data tidak tersedia)");
+  // penjagaan: setup yang harganya SUDAH melewati SL tidak didaftarkan (bukan trade palsu di histori)
+  const L0 = await evaluate("parseFloat(tickerData.find(d=>d.symbol===\"LINKUSDT\").lastPrice)");
+  const nBefore = await evaluate("trackRecs.length");
+  await evaluate(`armSetups([__mkHit("LINKUSDT","long",${L0*1.02},${L0*1.01},${L0*1.06})])`);
+  check(await evaluate("trackRecs.length") === nBefore, "setup yang harga sekarang sudah di bawah SL tidak dipantau (tidak jadi entri histori palsu)");
+  // multi-TP: ADA long, TP1 -> TP2 -> TP3 bertahap, tetap RUNNING sampai TP3
+  const A0 = await evaluate("parseFloat(tickerData.find(d=>d.symbol===\"ADAUSDT\").lastPrice)");
+  const aE = A0 * 0.99, aSl = A0 * 0.97, aT1 = A0 * 1.01, aT2 = A0 * 1.03, aT3 = A0 * 1.05;
+  await evaluate(`armSetups([__mkHit("ADAUSDT","long",${aE},${aSl},${aT1},${aT2},${aT3})]); __px("ADAUSDT", ${aE}); trackTick()`);
+  await evaluate(`__px("ADAUSDT", ${aT1}); trackTick(); renderDecision()`);
+  let ada = await evaluate("trackRecs.find(r => r.symbol === \"ADAUSDT\")");
+  check(ada.status === "running" && ada.tpHit === 1 && /TP1 ✓/.test(await evaluate("document.getElementById(\"decisionList\").innerText")), "multi-TP: TP1 tercapai -> pair tetap RUNNING di Decision, TP1 bertanda ✓");
+  check(await evaluate("loadSetupHistory().filter(e => e.symbol === \"ADAUSDT\").length") === 0, "multi-TP: belum ada entri histori sebelum TP terakhir/SL");
+  await evaluate(`__px("ADAUSDT", ${aT2}); trackTick()`);
+  check(await evaluate("trackRecs.find(r => r.symbol === \"ADAUSDT\").tpHit") === 2 && await evaluate("trackRecs.find(r => r.symbol === \"ADAUSDT\").status") === "running", "multi-TP: TP2 tercapai -> masih RUNNING menuju TP3");
+  await evaluate(`__px("ADAUSDT", ${aT3}); trackTick(); renderDecision()`);
+  const hAda = await evaluate("loadSetupHistory().find(e => e.symbol === \"ADAUSDT\" && e.auto)");
+  check(hAda && hAda.outcome === "win" && hAda.exit.label === "TP3" && hAda.exit.tpHit === 3 && hAda.tp3 > 0, "TP3 tercapai -> pair keluar dari Decision dan tercatat di Histori sebagai WIN TP3");
+  check(!/ADA/.test(await evaluate("document.getElementById(\"decisionList\").innerText")), "pair multi-TP hilang dari Decision setelah TP terakhir");
+  // SL setelah TP1: tetap lose, TP1 tercatat
+  const X0 = await evaluate("parseFloat(tickerData.find(d=>d.symbol===\"TRXUSDT\").lastPrice)");
+  const xE = X0 * 1.01, xSl = X0 * 1.03, xT1 = X0 * 0.99, xT2 = X0 * 0.97;
+  await evaluate(`armSetups([__mkHit("TRXUSDT","short",${xE},${xSl},${xT1},${xT2},null)]); __px("TRXUSDT", ${xE}); trackTick(); __px("TRXUSDT", ${xT1}); trackTick(); __px("TRXUSDT", ${xSl}); trackTick()`);
+  const hTrx = await evaluate("loadSetupHistory().find(e => e.symbol === \"TRXUSDT\" && e.auto)");
+  check(hTrx && hTrx.outcome === "lose" && hTrx.exit.tpHit === 1 && Math.abs(hTrx.exit.r + 1) < 1e-9 && /TP1 sempat tercapai/.test(hTrx.noteAuto) && hTrx.needsNote === true, "SL setelah TP1: LOSE (-1R), TP1 sempat tercapai dicatat, keterangan wajib");
+  // keterangan wajib: tidak bisa dikosongkan, bisa diisi
+  check(await evaluate("updateHistoryBadge()") === 2, "lencana Histori Setup menghitung 2 entri SL yang belum diberi keterangan");
+  await evaluate("closeOtherFullscreenPanels(\"historyPanel\"); document.getElementById(\"historyPanel\").classList.add(\"show\"); renderSetupHistory()");
+  const hp = await evaluate("document.getElementById(\"historyPanel\").innerText");
+  check(/PERLU KETERANGAN/.test(hp) && /WIN/.test(hp) && /LOSE/.test(hp) && /DECISION WIN [/] LOSE/i.test(hp), "panel Histori menampilkan WIN/LOSE otomatis, penanda PERLU KETERANGAN, dan statistik Decision");
+  check(!/NaN|undefined|Infinity/.test(hp), "panel Histori tanpa NaN/undefined");
+  await evaluate(`saveHistoryNote("${hDog.id}")`);
+  check(await evaluate(`loadSetupHistory().find(e => e.id === "${hDog.id}").needsNote`) === true, "keterangan kosong ditolak untuk entri SL");
+  await evaluate(`document.getElementById("hnote_${hDog.id}").value = "Masuk sebelum konfirmasi CHoCH"; saveHistoryNote("${hDog.id}")`);
+  check(await evaluate(`(()=>{ const e = loadSetupHistory().find(x => x.id === "${hDog.id}"); return e.needsNote === false && e.note === "Masuk sebelum konfirmasi CHoCH"; })()`) === true && await evaluate("updateHistoryBadge()") === 1, "keterangan terisi -> entri lengkap, lencana turun jadi 1");
+  await shot("10-histori-decision", 430, 1000);
+  await evaluate("document.getElementById(\"historyPanelClose\").click()");
+
   // kembali ke Home dan bersihkan
   await evaluate('showWorkspace("wsHome")');
   check(await evaluate('document.getElementById("decisionCount").style.display') === 'none', 'lencana Decision tersembunyi saat tidak ada pair RUNNING');
   // simpan ke localStorage & muat ulang berhasil (catatan bertahan)
-  check(await evaluate('(()=>{ saveTrack(); return JSON.parse(localStorage.getItem(LS_TRACK)).length === 2; })()') === true, 'catatan pelacak tersimpan di localStorage');
+  check(await evaluate('(()=>{ saveTrack(); return JSON.parse(localStorage.getItem(LS_TRACK)).length === 4; })()') === true, 'catatan pelacak tersimpan di localStorage');
 
   // 7. tombol back peramban/HP: harus menutup lapisan teratas (bukan keluar app), lapis demi lapis
   await evaluate('showWorkspace("wsHome")');

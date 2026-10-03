@@ -13,7 +13,7 @@ const text = fs.readFileSync(process.env.ICT_SRC || path.resolve(__dirname, '..'
 const a = text.indexOf('/* ICT-TRACK-START */'), b = text.indexOf('/* ICT-TRACK-END */');
 if (a < 0 || b < 0) { console.error('Marker ICT-TRACK tidak ditemukan'); process.exit(1); }
 const ctx = vm.createContext({ Math, Number, isFinite });
-vm.runInContext(text.slice(a, b) + ';this.T={trkR,trkStepPrice,trkStepCandles,trkCloseSl,trkClose};', ctx);
+vm.runInContext(text.slice(a, b) + ';this.T={trkR,trkStepPrice,trkStepCandles,trkCloseSl,trkClose,trkLevels,trkFinalLevel};', ctx);
 const T = ctx.T;
 
 let failed = 0;
@@ -72,6 +72,29 @@ for (const side of ['long', 'short']) {
   T.trkStepCandles(r, [KS(side, 2000, P(3), P(7), P(2), P(6))]);
   ok(r.status === 'closed' && r.outcome === 'void', 'candle armed menyentuh TP tanpa Entry -> void');
 
+  // ---- multi-TP: tiap TP dicatat, trade tetap running sampai TP terakhir ----
+  const M = o => mk(side, Object.assign({ tp2: P(10), tp3: P(14) }, o || {}));
+  r = M(); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(6), 3000);
+  ok(r.status === "running" && r.tpHit === 1 && r.tpAt[1] === 3000, "multi-TP: TP1 tercapai -> dicatat (tpHit 1), trade tetap running");
+  T.trkStepPrice(r, P(10), 4000);
+  ok(r.status === "running" && r.tpHit === 2, "multi-TP: TP2 tercapai -> tpHit 2, masih running (TP3 belum)");
+  T.trkStepPrice(r, P(14), 5000);
+  ok(r.status === "closed" && r.outcome === "tp" && r.tpLevel === 3 && near(r.exitPrice, P(14)) && near(r.r, 7), "multi-TP: TP3 tercapai -> closed tp, tpLevel 3, R = +7 (14 / 2)");
+  r = M(); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(6), 3000); T.trkStepPrice(r, P(-2), 4000);
+  ok(r.status === "closed" && r.outcome === "sl" && r.tpHit === 1 && r.tpLevel === 1 && near(r.r, -1), "multi-TP: SL setelah TP1 -> closed sl, R tetap -1, tpHit 1 tercatat");
+  r = M(); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(11), 3000);
+  ok(r.status === "running" && r.tpHit === 2, "multi-TP: harga melompat melewati TP1 dan TP2 sekaligus -> tpHit 2");
+  r = mk(side, { tp2: P(10) }); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(6), 3000);
+  ok(r.status === "running" && r.tpHit === 1, "tanpa TP3: TP2 adalah target terakhir (TP1 saja belum menutup)");
+  T.trkStepPrice(r, P(10), 4000);
+  ok(r.status === "closed" && r.tpLevel === 2 && near(r.r, 5), "tanpa TP3: TP2 tercapai -> closed tp, tpLevel 2, R = +5");
+  r = mk(side, { tp2: P(5), tp3: P(14) });
+  ok(T.trkLevels(r).map(l => l.n).join() === "1,3" && T.trkFinalLevel(r).n === 3, "TP2 yang tidak lebih jauh dari TP1 dibuang; TP3 tetap dipakai");
+  r = M(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(0), P(1)), KS(side, 3000, P(1), P(11), P(0.5), P(10)), KS(side, 4000, P(10), P(15), P(9), P(14))]);
+  ok(r.status === "closed" && r.tpLevel === 3 && r.closedAt === 4000 && r.tpAt[1] === 3000 && r.tpAt[2] === 3000, "candle multi-TP: TP1+TP2 di candle 2, TP3 di candle 3 -> closed tp");
+  r = M(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(0), P(1)), KS(side, 3000, P(1), P(11), P(-2.5), P(1))]);
+  ok(r.status === "closed" && r.outcome === "sl" && !r.tpHit, "candle multi-TP: SL dan TP2 satu candle -> SL duluan, tpHit tidak dicatat");
+
   // ---- SL berbasis penutupan candle (IFVG) ----
   const T0 = 10_000_000, H = 3_600_000;
   r = mk(side, { slCloseBased: true, status: 'running', runningAt: T0 });
@@ -100,9 +123,10 @@ for (let n = 0; n < 400; n++) {
     const o = p, c = p + (rnd() - 0.5) * 3, h = Math.max(o, c) + rnd() * 1.5, l = Math.min(o, c) - rnd() * 1.5;
     cs.push(K(2000 + i * 1000, o, h, l, c)); p = c;
   }
-  const L = mk('long'), S = mk('short');
+  const multi = n % 2 === 1; // selang-seling: satu TP vs TP1/TP2/TP3
+  const L = mk('long', multi ? { tp2: 110, tp3: 114 } : {}), S = mk('short', multi ? { tp2: 90, tp3: 86 } : {});
   T.trkStepCandles(L, cs); T.trkStepCandles(S, cs.map(mir));
-  if (L.status !== S.status || L.outcome !== S.outcome || L.closedAt !== S.closedAt || (L.status === "closed" && !near(L.r, S.r))) bad++;
+  if (L.status !== S.status || L.outcome !== S.outcome || L.closedAt !== S.closedAt || (L.tpHit || 0) !== (S.tpHit || 0) || (L.status === "closed" && !near(L.r, S.r))) bad++;
   outcomes[L.status === 'closed' ? L.outcome : 'none']++;
 }
 ok(bad === 0, 'fuzz 400 deret candle: long dan cermin short selalu menghasilkan status/hasil/waktu/R yang sama');

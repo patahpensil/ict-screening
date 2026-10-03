@@ -530,7 +530,7 @@
   .dec-prog .fill{position:absolute; left:0; top:0; height:100%; border-radius:var(--r-pill); background:var(--text-3); opacity:0.5;}
   .dec-prog .mark{position:absolute; top:-3px; width:2px; height:14px; background:var(--text-2);}
   .dec-prog .now{position:absolute; top:-4px; width:10px; height:16px; margin-left:-5px; border-radius:3px; background:var(--text-1); box-shadow:0 0 6px rgba(255,255,255,0.4);}
-  .dec-lv{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; font-family:'JetBrains Mono',monospace; font-size:11px; margin-bottom:10px;}
+  .dec-lv{display:grid; grid-template-columns:repeat(auto-fit,minmax(78px,1fr)); gap:6px; font-family:'JetBrains Mono',monospace; font-size:11px; margin-bottom:10px;}
   .dec-lv span{display:block; color:var(--text-3); font-size:9.5px; letter-spacing:0.06em;}
   .dec-data{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px;}
   .dec-cell{background:var(--surface-2); border:1px solid var(--border-soft); border-radius:var(--r-md); padding:9px 10px; font-size:12px;}
@@ -927,7 +927,7 @@
         <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         <span class="sni-text"><span class="sni-title">Review</span></span>
       </button>
-      <button class="sidebar-quick-item" id="sqHistory">📈 Histori Setup</button>
+      <button class="sidebar-quick-item" id="sqHistory">📈 Histori Setup <span class="badge-count" id="historyPendingBadge" style="display:none;" title="Keterangan SL yang belum diisi">0</span></button>
       <button class="sidebar-quick-item" id="sqSettings">⚙ Pengaturan Alert</button>
 
       <div class="sidebar-section-label">Quick Access</div>
@@ -1455,7 +1455,7 @@ const LS_SETUPHISTORY = "pp_setup_history";
 function loadSetupHistory(){
   try{ return JSON.parse(localStorage.getItem(LS_SETUPHISTORY) || "[]"); }catch(e){ return []; }
 }
-function saveSetupHistory(entries){ localStorage.setItem(LS_SETUPHISTORY, JSON.stringify(entries.slice(0,200))); }
+function saveSetupHistory(entries){ localStorage.setItem(LS_SETUPHISTORY, JSON.stringify(entries.slice(0,500))); }
 
 function saveSetupSnapshot(){
   const f = lastDetailFull;
@@ -1494,10 +1494,85 @@ function journalFromCurrentDetail(){
 }
 
 function computeSetupHistoryStats(entries){
-  const checked = entries.filter(e => e.result);
+  // Akurasi hanya dari pengecekan manual/otomatis-24-jam; hasil Decision (auto) dihitung terpisah di bawah.
+  const checked = entries.filter(e => e.result && !e.auto);
   const matches = checked.filter(e => e.result==='match').length;
   const accuracy = checked.length>0 ? (matches/checked.length)*100 : 0;
-  return { total: entries.length, checkedCount: checked.length, matches, accuracy };
+  const dec = entries.filter(e => e.auto);
+  const decWins = dec.filter(e => e.outcome === 'win').length;
+  const pending = dec.filter(e => e.needsNote).length;
+  return { total: entries.length, checkedCount: checked.length, matches, accuracy, decTotal: dec.length, decWins, decLoses: dec.length - decWins, pending };
+}
+
+// ===== HISTORI OTOMATIS DARI DECISION =====
+// Setiap pair Decision yang keluar (TP1/TP2/TP3 terakhir atau SL) otomatis jadi satu entri Histori Setup: win/lose, level yang
+// tercapai, R, dan ringkasan kondisi saat keluar. Entri SL WAJIB dilengkapi keterangan dari Anda (needsNote sampai diisi).
+function trackAutoNote(rec){
+  const win = rec.outcome === 'tp', long = rec.side === 'long';
+  const lines = [];
+  const lvl = win ? `TP${rec.tpLevel}` : (rec.outcome === 'slclose' ? 'SL (penutupan candle)' : 'SL');
+  lines.push(`Keluar di ${lvl} @ ${fmtPrice(rec.exitPrice)} (${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R) setelah berjalan ${trkAgo((rec.closedAt || Date.now()) - (rec.runningAt || rec.armedAt))}.`);
+  if(!win && rec.tpLevel > 0) lines.push(`TP${rec.tpLevel} sempat tercapai sebelum SL kena (SL tetap di level awal, tanpa partial close).`);
+  const d = liveData[rec.symbol], fresh = Date.now() - (rec.closedAt || 0) < 120000;
+  if(d && fresh && (d.wsOn || d.oi > 0 || structById[rec.id] !== undefined)){
+    const st = structById[rec.id];
+    if(st){
+      const against = st.type === 'CHoCH' && ((long && st.direction === 'bearish') || (!long && st.direction === 'bullish'));
+      const after = st.t !== null && st.t >= (rec.runningAt || 0);
+      lines.push(`Struktur ${rec.tf.toUpperCase()}: ${st.type} ${st.direction} ${st.barsAgo} candle lalu${against && after ? ' — BERLAWANAN arah posisi dan terjadi setelah entry' : against ? ' (berlawanan, tapi sebelum entry)' : ''}.`);
+    } else if(st === null) lines.push(`Struktur ${rec.tf.toUpperCase()}: belum ada BOS/CHoCH.`);
+    if(d.cvdWin && (d.wsOn || d.cvdWin.length)){
+      const c5 = d.cvdWin.reduce((s, x) => s + x.d, 0);
+      const fmt = v => `${v >= 0 ? '+' : '−'}${fmtNum(Math.abs(v))}`;
+      lines.push(`CVD sejak dipantau ${fmt(d.cvd)} (5 mnt terakhir ${fmt(c5)})${(long && d.cvd < 0) || (!long && d.cvd > 0) ? ' — melawan arah posisi' : ''}.`);
+    }
+    if(d.oi > 0 && rec.oiBase > 0) lines.push(`OI ${(d.oi / rec.oiBase - 1) * 100 >= 0 ? '+' : ''}${((d.oi / rec.oiBase - 1) * 100).toFixed(2)}% sejak RUNNING.`);
+    if(d.imb !== undefined) lines.push(`Orderbook 20 level: bid ${Math.round((1 + d.imb) * 50)}% / ask ${Math.round((1 - d.imb) * 50)}%.`);
+  } else lines.push('Data real-time (OI/CVD/orderbook) tidak tersedia untuk keluarnya ini — hasil dihitung dari candle saat app dibuka kembali.');
+  return lines.join('\n');
+}
+function historyFromTrack(rec){
+  const list = loadSetupHistory();
+  if(list.some(e => e.trackId === rec.id)) return;
+  const win = rec.outcome === 'tp';
+  list.unshift({
+    id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    symbol: rec.symbol, tf: rec.tf, date: new Date(rec.closedAt || Date.now()).toISOString(),
+    setup: `${rec.title} · ${ICT_CFG.styles[rec.style].label}`, side: rec.side, decision: rec.side === 'long' ? 'LONG' : 'SHORT', grade: rec.grade, status: 'closed',
+    entry: rec.entry, sl: rec.sl, tp: rec.tp, tp2: rec.tp2 ?? null, tp3: rec.tp3 ?? null, rr: rec.rr,
+    priceAtSave: rec.entry, checkedPrice: rec.exitPrice, checkedAt: new Date(rec.closedAt || Date.now()).toISOString(), result: win ? 'match' : 'miss',
+    auto: true, trackId: rec.id, outcome: win ? 'win' : 'lose',
+    exit: { label: win ? `TP${rec.tpLevel}` : (rec.outcome === 'slclose' ? 'SL (close)' : 'SL'), price: rec.exitPrice, r: rec.r, tpHit: rec.tpLevel || 0, runningAt: rec.runningAt || null },
+    noteAuto: trackAutoNote(rec), note: '', needsNote: !win,
+  });
+  saveSetupHistory(list);
+  updateHistoryBadge();
+  if(document.getElementById('historyPanel').classList.contains('show')) renderSetupHistory();
+}
+function updateHistoryBadge(){
+  const n = loadSetupHistory().filter(e => e.needsNote).length, el = document.getElementById('historyPendingBadge');
+  if(el){ el.textContent = n; el.style.display = n > 0 ? 'inline-flex' : 'none'; }
+  return n;
+}
+function saveHistoryNote(id){
+  const entries = loadSetupHistory(), e = entries.find(x => x.id === id);
+  if(!e) return;
+  const box = document.getElementById('hnote_' + id);
+  const text = box ? box.value.trim() : '';
+  if(e.needsNote && !text){ setStatus('Keterangan wajib diisi untuk entri yang kena SL.', 'err'); if(box) box.focus(); return; }
+  e.note = text; if(text) e.needsNote = false;
+  saveSetupHistory(entries);
+  updateHistoryBadge();
+  renderSetupHistory();
+  setStatus('✓ Keterangan disimpan', 'ok');
+}
+// Dipanggil saat app dibuka: kalau ada entri SL tanpa keterangan, langsung buka Histori Setup.
+function promptPendingNotes(){
+  const n = updateHistoryBadge();
+  if(n > 0){
+    closeOtherFullscreenPanels('historyPanel'); document.getElementById('historyPanel').classList.add('show'); renderSetupHistory();
+    setStatus(`${n} entri SL menunggu keterangan Anda di Histori Setup.`, 'err');
+  }
 }
 
 // Logika cocok/meleset — dipakai bareng oleh cek manual (tombol) dan auto-validasi (otomatis tiap refresh).
@@ -1563,15 +1638,41 @@ function renderSetupHistory(){
     <div class="sb-cell"><div class="lbl">SUDAH DICEK</div><div class="val">${stats.checkedCount}</div></div>
     <div class="sb-cell"><div class="lbl">AKURASI</div><div class="val" style="color:${stats.accuracy>=50?'var(--mint)':'var(--crimson)'}">${stats.checkedCount>0?stats.accuracy.toFixed(0)+'%':'-'}</div></div>
     <div class="sb-cell"><div class="lbl">COCOK</div><div class="val">${stats.matches}/${stats.checkedCount}</div></div>
+    <div class="sb-cell"><div class="lbl">DECISION WIN / LOSE</div><div class="val">${stats.decTotal > 0 ? `<span style="color:var(--mint)">${stats.decWins}</span> / <span style="color:var(--crimson)">${stats.decLoses}</span>` : '-'}</div></div>
+    <div class="sb-cell"><div class="lbl">PERLU KETERANGAN</div><div class="val" style="color:${stats.pending > 0 ? 'var(--amber)' : 'inherit'}">${stats.pending}</div></div>
   `;
   const listEl = document.getElementById('historyList');
   if(entries.length === 0){
     listEl.innerHTML = `<div class="empty-state">Belum ada setup yang disimpan. Buka detail pair yang punya setup ICT, scroll ke Rencana Entry, lalu tap "📌 Simpan ke Histori Setup".</div>`;
     return;
   }
-  listEl.innerHTML = entries.map(e=>{
+  // Entri SL yang belum diberi keterangan selalu di paling atas.
+  const ordered = entries.slice().sort((a, b) => (b.needsNote ? 1 : 0) - (a.needsNote ? 1 : 0));
+  listEl.innerHTML = ordered.map(e=>{
     const sideLabel = e.side==='long'?'LONG':'SHORT';
     const sideCls = e.side==='long'?'score-hi':'score-lo';
+    if(e.auto){
+      const win = e.outcome === 'win', ex = e.exit || {};
+      const tps = [e.tp, e.tp2, e.tp3].map((v, i) => v != null ? `TP${i + 1}: <b>${fmtPrice(v)}</b>${ex.tpHit > i ? ' ✓' : ''}` : null).filter(Boolean).join(' · ');
+      return `
+    <div class="journal-entry" style="${e.needsNote ? 'border-left:3px solid var(--amber); padding-left:11px;' : ''}">
+      <div class="je-top">
+        <span class="je-symbol">${escapeHtml(e.symbol.replace('USDT',''))}</span>
+        <span class="badge-pill ${sideCls}">${sideLabel} · ${escapeHtml(e.setup||'-')} · ${escapeHtml(e.grade||'-')}</span>
+        <span class="badge-pill ${win ? 'score-hi' : 'score-lo'}">${win ? '✓ WIN' : '✗ LOSE'} · ${escapeHtml(ex.label || '')} · ${ex.r >= 0 ? '+' : ''}${(ex.r || 0).toFixed(2)}R</span>
+        <span class="je-date">${new Date(e.date).toLocaleString('id-ID', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+        <button class="je-delete" onclick="deleteSetupHistoryEntry('${e.id}')" title="Hapus">🗑</button>
+      </div>
+      <div class="je-row"><span>Entry: <b>${fmtPrice(e.entry)}</b></span><span>SL: <b>${fmtPrice(e.sl)}</b></span><span>Keluar: <b>${ex.price != null ? fmtPrice(ex.price) : '-'}</b></span></div>
+      <div class="je-row"><span>${tps}</span></div>
+      <div style="margin-top:8px; font-size:11.5px; color:var(--text-2); white-space:pre-line;">${escapeHtml(e.noteAuto || '')}</div>
+      <div style="margin-top:8px;">
+        ${e.needsNote ? `<div class="dec-warn" style="font-size:11px; font-weight:700; margin-bottom:4px;">⚠ PERLU KETERANGAN — tulis kenapa SL kena (wajib)</div>` : `<div style="font-size:10.5px; color:var(--text-3); margin-bottom:4px;">KETERANGAN ANDA</div>`}
+        <textarea id="hnote_${e.id}" rows="2" placeholder="${e.needsNote ? 'Contoh: CHoCH berlawanan muncul sebelum SL, entry terlalu cepat sebelum konfirmasi…' : 'Catatan tambahan (opsional)…'}" style="width:100%; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-md); color:var(--text-1); padding:8px 10px; font-family:inherit; font-size:12px;">${escapeHtml(e.note || '')}</textarea>
+        <button class="btn btn-primary" onclick="saveHistoryNote('${e.id}')" style="font-size:10px; padding:6px 10px; margin-top:6px;">${e.needsNote ? 'Simpan keterangan' : 'Simpan catatan'}</button>
+      </div>
+    </div>`;
+    }
     let resultBadge = `<button class="btn" onclick="checkSetupHistoryEntry('${e.id}')" style="font-size:10px; padding:6px 10px;">Cek Sekarang</button>`;
     if(e.result==='match') resultBadge = `<span class="badge-pill score-hi">✓ COCOK</span>`;
     else if(e.result==='miss') resultBadge = `<span class="badge-pill score-lo">✗ MELESET</span>`;
@@ -2850,11 +2951,13 @@ function ictBuildPlan(side, entry, slBase, slLabel, entryLabel, buffer, minRR, c
   const idx = ICT_CFG.tpMode === 'nearest' ? (targets.length ? 0 : -1) : targets.findIndex(t => rrOf(t) >= minRR);
   const tp1 = idx >= 0 ? targets[idx] : (targets[0] || null);
   const tp2 = idx >= 0 ? (targets[idx + 1] || null) : (targets[1] || null);
+  const tp3 = idx >= 0 ? (targets[idx + 2] || null) : (targets[2] || null);
   return {
     side, entry, entryLabel, sl, slLabel,
     tp: tp1 ? tp1.price : null, tpLabel: tp1 ? tp1.label : 'Tidak ada target likuiditas di depan',
     tp2: tp2 ? tp2.price : null, tp2Label: tp2 ? tp2.label : null,
-    rr: tp1 ? rrOf(tp1) : 0, rr2: tp2 ? rrOf(tp2) : null, minRR,
+    tp3: tp3 ? tp3.price : null, tp3Label: tp3 ? tp3.label : null,
+    rr: tp1 ? rrOf(tp1) : 0, rr2: tp2 ? rrOf(tp2) : null, rr3: tp3 ? rrOf(tp3) : null, minRR,
     risk,
   };
 }
@@ -3361,6 +3464,7 @@ function ictIfvgCandidates(ltf, htf, side, cfg, kz, mc, prefs){
     const tp = tpSel ? tpSel.price : null;
     const rest = Object.keys(tpOpts).filter(k => k !== tpKey).map(k => tpOpts[k]).filter(o => Math.abs(o.price - entry) > Math.abs((tp === null ? entry : tp) - entry)).sort((a, b) => Math.abs(a.price - entry) - Math.abs(b.price - entry));
     const tp2 = rest.length ? rest[0] : null;
+    const tp3 = rest.length > 1 ? rest[1] : null;
     const rr = tp !== null ? rrOf(tp) : 0;
     const be = {
       rule50: tp !== null ? { price: entry + 0.5 * (tp - entry), label: 'Rule of 50: geser SL ke breakeven di 50% jarak ke TP (opsional ambil 50% profit)' } : null,
@@ -3369,7 +3473,8 @@ function ictIfvgCandidates(ltf, htf, side, cfg, kz, mc, prefs){
     const plan = {
       side, entry, entryLabel: entries[entryKey].label + (entryNote ? ' (fallback)' : ''), sl, slLabel: slOpts[slKey].label, slCloseBased: slOpts[slKey].closeBased,
       tp, tpLabel: tpSel ? tpSel.label : 'Tidak ada target likuiditas/FVG di depan', tp2: tp2 ? tp2.price : null, tp2Label: tp2 ? tp2.label : null,
-      rr, rr2: tp2 ? rrOf(tp2.price) : null, minRR: cfg.minRR, risk, managed: prefs.be !== 'none',
+      tp3: tp3 ? tp3.price : null, tp3Label: tp3 ? tp3.label : null,
+      rr, rr2: tp2 ? rrOf(tp2.price) : null, rr3: tp3 ? rrOf(tp3.price) : null, minRR: cfg.minRR, risk, managed: prefs.be !== 'none',
       be: prefs.be === 'none' ? null : (be[prefs.be] || be.rule50), beKey: prefs.be,
     };
 
@@ -3483,8 +3588,10 @@ function ictQuickBias(candles){
 
 /* ICT-TRACK-START */
 // ===== PELACAK SETUP — murni (tanpa DOM/jaringan), diuji scripts/test-ict-track.js =====
-// Siklus satu catatan: armed (menunggu harga menyentuh Entry) -> running (Entry tersentuh) -> closed (TP / SL).
-// Closed juga bisa 'void' (target tercapai tanpa pernah menyentuh Entry) atau 'expired' (kedaluwarsa) — keduanya tidak dihitung sebagai trade.
+// Siklus satu catatan: armed (menunggu harga menyentuh Entry) -> running (Entry tersentuh) -> closed (TP terakhir / SL).
+// Closed juga bisa 'void' (TP1 tercapai tanpa pernah menyentuh Entry) atau 'expired' (kedaluwarsa) — keduanya tidak dihitung sebagai trade.
+// Multi-TP: tiap TP yang tercapai dicatat di rec.tpHit (1..3) dan trade tetap running; closed 'tp' saat TP TERAKHIR (tertinggi yang
+// ada) tercapai. SL tetap di level awal, tanpa partial close/breakeven: SL setelah TP1 tetap -1R (tpHit mencatat TP yang sempat tercapai).
 // Asumsi fill: order limit di level Entry. Long terisi saat harga <= Entry, short saat harga >= Entry.
 // Aturan konservatif (sama dengan backtest): di candle yang mengisi Entry hanya SL yang dihitung; kalau SL dan TP
 // sama-sama tersentuh dalam satu candle, SL yang dianggap kena duluan.
@@ -3492,12 +3599,32 @@ function trkRisk(rec){ return Math.abs(rec.entry - rec.sl); }
 function trkR(rec, price){ const risk = trkRisk(rec); return risk > 0 ? (rec.side === 'long' ? price - rec.entry : rec.entry - price) / risk : 0; }
 function trkEntryTouched(rec, lo, hi){ return rec.side === 'long' ? lo <= rec.entry : hi >= rec.entry; }
 function trkHitSl(rec, lo, hi){ return rec.side === 'long' ? lo <= rec.sl : hi >= rec.sl; }
-function trkHitTp(rec, lo, hi){ return rec.side === 'long' ? hi >= rec.tp : lo <= rec.tp; }
+function trkHitTp(rec, lo, hi){ return rec.side === 'long' ? hi >= rec.tp : lo <= rec.tp; } // TP1 (dipakai untuk 'void')
+// TP yang valid, berurutan menjauhi Entry (angka TP yang tidak searah/tidak menjauh dibuang). n = nomor TP asli (1..3).
+function trkLevels(rec){
+  const dir = rec.side === 'long' ? 1 : -1, out = []; let prev = rec.entry;
+  [rec.tp, rec.tp2, rec.tp3].forEach((v, i) => {
+    if(v !== null && v !== undefined && isFinite(v) && (v - prev) * dir > 0){ out.push({ n: i + 1, price: v }); prev = v; }
+  });
+  return out;
+}
+function trkFinalLevel(rec){ const L = trkLevels(rec); return L.length ? L[L.length - 1] : null; }
 function trkClose(rec, outcome, exitPrice, at){
-  rec.status = 'closed'; rec.outcome = outcome; rec.closedAt = at;
+  rec.status = 'closed'; rec.outcome = outcome; rec.closedAt = at; rec.tpLevel = rec.tpHit || 0;
   rec.exitPrice = (outcome === 'tp' || outcome === 'sl' || outcome === 'slclose') ? exitPrice : null;
   rec.r = rec.exitPrice !== null ? trkR(rec, rec.exitPrice) : 0;
   return rec;
+}
+// Catat TP yang baru tersentuh; true kalau TP terakhir sudah tercapai.
+function trkAdvanceTp(rec, lo, hi, at){
+  const L = trkLevels(rec);
+  for(const lv of L){
+    if((rec.tpHit || 0) >= lv.n) continue;
+    if(rec.side === 'long' ? hi >= lv.price : lo <= lv.price){ rec.tpHit = lv.n; rec.tpAt = rec.tpAt || {}; rec.tpAt[lv.n] = at; }
+    else break;
+  }
+  const fin = L.length ? L[L.length - 1] : null;
+  return !!fin && (rec.tpHit || 0) >= fin.n;
 }
 // Satu harga terakhir (tick real-time). SL berbasis penutupan candle (slCloseBased) tidak dinilai dari tick.
 function trkStepPrice(rec, price, now){
@@ -3507,7 +3634,7 @@ function trkStepPrice(rec, price, now){
   }
   if(rec.status === 'running'){
     if(!rec.slCloseBased && trkHitSl(rec, price, price)) return trkClose(rec, 'sl', rec.sl, now);
-    if(trkHitTp(rec, price, price)) return trkClose(rec, 'tp', rec.tp, now);
+    if(trkAdvanceTp(rec, price, price, now)) return trkClose(rec, 'tp', trkFinalLevel(rec).price, now);
   }
   return rec;
 }
@@ -3538,7 +3665,7 @@ function trkStepCandles(rec, candles, opts){
     if(closeSl === undefined) closeSl = trkCloseSl(rec, opts.ltfCandles, opts.ltfMs);
     if(closeSl && k.t >= closeSl.at){ trkClose(rec, 'slclose', closeSl.price, closeSl.at); break; }
     if(!rec.slCloseBased && trkHitSl(rec, k.low, k.high)){ trkClose(rec, 'sl', rec.sl, k.t); break; }
-    if(trkHitTp(rec, k.low, k.high)){ trkClose(rec, 'tp', rec.tp, k.t); break; }
+    if(trkAdvanceTp(rec, k.low, k.high, k.t)){ trkClose(rec, 'tp', trkFinalLevel(rec).price, k.t); break; }
   }
   return rec;
 }
@@ -3854,17 +3981,21 @@ function armSetups(hits){
     if(!p || p.tp === null || p.tp === undefined || !(trkRisk(p) > 0)) continue;
     const key = [h.symbol, h.style, b.side, b.id, Number(p.entry).toPrecision(7)].join('|');
     if(trackRecs.some(r => r.key === key)) continue;
+    // Harga sekarang sudah melewati SL atau TP1: setup sudah tidak berlaku — jangan didaftarkan (kalau tidak, tercatat sebagai
+    // "terisi lalu SL/TP" padahal tidak pernah dipantau masuk).
+    const px0 = parseFloat((tickerData.find(d => d.symbol === h.symbol) || {}).lastPrice);
+    if(px0 > 0 && ((b.side === 'long' ? px0 <= p.sl : px0 >= p.sl) || (b.side === 'long' ? px0 >= p.tp : px0 <= p.tp))) continue;
     const rec = {
       id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7), key, symbol: h.symbol, style: h.style, tf: ICT_CFG.styles[h.style].ltf,
       side: b.side, setupId: b.id, title: ictShortTitle(b.id), grade: b.grade, passes: b.check.passes, total: b.check.total,
-      entry: p.entry, sl: p.sl, tp: p.tp, rr: p.rr, slCloseBased: !!p.slCloseBased, armedAt: now, status: 'armed',
+      entry: p.entry, sl: p.sl, tp: p.tp, tp2: p.tp2 ?? null, tp3: p.tp3 ?? null, rr: p.rr, slCloseBased: !!p.slCloseBased, armedAt: now, status: 'armed',
     };
     trackRecs.push(rec);
     const row = tickerData.find(d => d.symbol === h.symbol);
     const price = row ? parseFloat(row.lastPrice) : NaN;
     if(price > 0){
       trkStepPrice(rec, price, now);
-      if(rec.status !== 'armed'){ rec.filledAtArm = true; onTrackTransition(rec, 'armed'); }
+      if(rec.status !== 'armed'){ rec.filledAtArm = true; onTrackTransition(rec, 'armed', 0); }
     }
   }
   const armed = trackRecs.filter(r => r.status === 'armed').sort((a, b) => a.armedAt - b.armedAt);
@@ -3880,25 +4011,34 @@ function journalFromTrack(rec){
     id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), createdAt: Date.now(),
     date: new Date(rec.closedAt || Date.now()).toISOString().slice(0, 10),
     symbol: rec.symbol, direction: rec.side, status: rec.r > 0 ? 'win' : rec.r < 0 ? 'loss' : 'breakeven',
-    entry: rec.entry, exit: rec.exitPrice, sl: rec.sl, tp1: rec.tp,
+    entry: rec.entry, exit: rec.exitPrice, sl: rec.sl, tp1: rec.tp, tp2: rec.tp2 ?? '', tp3: rec.tp3 ?? '',
     pnlPct: +(((rec.exitPrice - rec.entry) / rec.entry) * dir * 100).toFixed(3),
     setup: `${rec.title} · ${ICT_CFG.styles[rec.style].label}`,
-    notes: `Otomatis dari Decision — ${rec.outcome === 'tp' ? 'kena TP' : 'kena SL'}, ${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R. Asumsi fill limit di Entry; tanpa fee/slippage. PnL% = pergerakan harga, bukan modal.`,
+    notes: `Otomatis dari Decision — ${rec.outcome === 'tp' ? 'kena TP' + rec.tpLevel : 'kena SL' + (rec.tpLevel > 0 ? ' setelah TP' + rec.tpLevel + ' tercapai' : '')}, ${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R. Asumsi fill limit di Entry; tanpa fee/slippage. PnL% = pergerakan harga, bukan modal. Keterangan lengkap ada di Histori Setup.`,
     auto: true, trackId: rec.id,
   });
   saveJournalEntries(entries);
   renderJournal();
 }
 
-function onTrackTransition(rec, from){
+// from = status sebelum langkah, tpBefore = tpHit sebelum langkah. Dipanggil kalau status ATAU tpHit berubah.
+function onTrackTransition(rec, from, tpBefore){
   const sym = rec.symbol.replace('USDT', ''), side = rec.side === 'long' ? 'LONG' : 'SHORT';
+  if(rec.status === 'running' && from === 'running'){
+    const lv = trkLevels(rec).find(l => l.n === rec.tpHit);
+    if(lv) pushAlert(`🎯 ${sym} ${side} TP${rec.tpHit} tercapai @ ${fmtPrice(lv.price)} — masih RUNNING menuju target berikutnya`, rec.symbol, false);
+    return;
+  }
   if(rec.status === 'running'){
     pushAlert(`🧭 ${sym} ${side} RUNNING — harga menyentuh Entry ${fmtPrice(rec.entry)} (${rec.title}, ${ICT_CFG.styles[rec.style].label})`, rec.symbol, false);
     pollTrackOI(); pollTrackStructure();
   } else if(rec.status === 'closed' && (rec.outcome === 'tp' || rec.outcome === 'sl' || rec.outcome === 'slclose')){
+    historyFromTrack(rec); // wajib: setiap pair yang keluar dari Decision tercatat otomatis di Histori Setup
     journalFromTrack(rec);
-    const win = rec.r > 0;
-    pushAlert(`${win ? '✅' : '❌'} ${sym} ${side} ${win ? 'kena TP' : 'kena SL'} (${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R) — keluar dari Decision, dicatat di Review`, rec.symbol, false);
+    const win = rec.outcome === 'tp';
+    pushAlert(win
+      ? `✅ ${sym} ${side} kena TP${rec.tpLevel} (+${rec.r.toFixed(2)}R) — keluar dari Decision, tercatat di Histori Setup`
+      : `❌ ${sym} ${side} kena SL${rec.tpLevel > 0 ? ' (setelah TP' + rec.tpLevel + ')' : ''} (${rec.r.toFixed(2)}R) — WAJIB isi keterangan di Histori Setup`, rec.symbol, false);
   }
 }
 
@@ -3913,9 +4053,9 @@ function trackTick(){
     if(rec.status === 'armed' && now - rec.armedAt > TRACK_EXPIRE_MS[rec.style]){ trkClose(rec, 'expired', null, now); changed = true; continue; }
     const p = px.get(rec.symbol);
     if(!(p > 0)) continue;
-    const before = rec.status;
+    const before = rec.status, tpb = rec.tpHit || 0;
     trkStepPrice(rec, p, now);
-    if(rec.status !== before){ changed = true; onTrackTransition(rec, before); }
+    if(rec.status !== before || (rec.tpHit || 0) !== tpb){ changed = true; onTrackTransition(rec, before, tpb); }
   }
   for(const s in liveData){ const d = liveData[s]; const cut = now - 300000; while(d.cvdWin.length && d.cvdWin[0].t < cut) d.cvdWin.shift(); }
   const keep = trackRecs.filter(r => r.status !== 'closed' || now - (r.closedAt || 0) < TRACK_KEEP_CLOSED_MS);
@@ -3998,7 +4138,7 @@ async function pollTrackStructure(){
       structById[rec.id] = ev ? { type: ev.type, direction: ev.direction, level: ev.level, barsAgo: ev.barsAgo, t: c[ev.idx] ? c[ev.idx].t : null } : null;
       if(rec.slCloseBased && rec.status === 'running'){
         const hit = trkCloseSl(rec, c, TF_MS[rec.tf]);
-        if(hit){ const before = rec.status; trkClose(rec, 'slclose', hit.price, hit.at); trackDirty = true; onTrackTransition(rec, before); syncTrackStreams(); }
+        if(hit){ const before = rec.status, tpb = rec.tpHit || 0; trkClose(rec, 'slclose', hit.price, hit.at); trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams(); }
       }
     }catch(e){ /* lewati */ }
   }
@@ -4018,9 +4158,9 @@ async function trackReconcile(rec){
     .filter(c => !(c.ct > now) && c.t >= from - ivMs);
   let ltf = null;
   if(rec.slCloseBased && rec.status !== 'closed'){ try{ ltf = await fetchKlinesFull(rec.symbol, rec.tf, ICT_CANDLES); }catch(e){ /* tanpa LTF, SL close dinilai nanti */ } }
-  const before = rec.status;
+  const before = rec.status, tpb = rec.tpHit || 0;
   trkStepCandles(rec, cs, { ltfCandles: ltf, ltfMs: TF_MS[rec.tf] });
-  if(rec.status !== before){ trackDirty = true; onTrackTransition(rec, before); syncTrackStreams(); }
+  if(rec.status !== before || (rec.tpHit || 0) !== tpb){ trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams(); }
 }
 let trackReconBusy = false;
 async function trackReconcileAll(onlyRunning){
@@ -4061,7 +4201,8 @@ function decisionCardHtml(rec){
   const d = liveData[rec.symbol] || {};
   const long = rec.side === 'long';
   const r = price > 0 ? trkR(rec, price) : 0;
-  const span = rec.tp - rec.sl;
+  const levels = trkLevels(rec), fin = levels.length ? levels[levels.length - 1] : { n: 1, price: rec.tp };
+  const span = fin.price - rec.sl;
   const frac = v => Math.max(0, Math.min(1, (v - rec.sl) / span)) * 100;
   const sinceEntry = price > 0 ? (price - rec.entry) * (long ? 1 : -1) : 0;
   const rrCls = r >= 0 ? 'chg-pos' : 'chg-neg';
@@ -4103,9 +4244,9 @@ function decisionCardHtml(rec){
       <div class="dec-meta">${escapeHtml(rec.title)} · ${escapeHtml(ICT_CFG.styles[rec.style].label)} (${rec.tf.toUpperCase()}) · grade ${escapeHtml(rec.grade)} · ${rec.passes}/${rec.total} syarat · berjalan ${trkAgo(Date.now() - rec.runningAt)}${rec.filledAtArm ? ' · Entry sudah tersentuh saat setup terdeteksi' : ''}</div>
     </div>
     <div class="dec-price"><span class="px">${price > 0 ? fmtPrice(price) : '-'}</span><span class="rr ${rrCls}">${r >= 0 ? '+' : ''}${r.toFixed(2)}R</span></div>
-    <div class="dec-prog"><div class="fill" style="width:${price > 0 ? frac(price) : 0}%"></div><div class="mark" style="left:${frac(rec.entry)}%" title="Entry"></div>${price > 0 ? `<div class="now" style="left:${frac(price)}%"></div>` : ''}</div>
+    <div class="dec-prog"><div class="fill" style="width:${price > 0 ? frac(price) : 0}%"></div><div class="mark" style="left:${frac(rec.entry)}%" title="Entry"></div>${levels.slice(0, -1).map(l => `<div class="mark" style="left:${frac(l.price)}%; opacity:0.55" title="TP${l.n}"></div>`).join('')}${price > 0 ? `<div class="now" style="left:${frac(price)}%"></div>` : ''}</div>
     <div class="dec-lv">
-      <div><span>SL</span>${fmtPrice(rec.sl)}</div><div><span>ENTRY</span>${fmtPrice(rec.entry)}</div><div><span>TP</span>${fmtPrice(rec.tp)}</div><div><span>RR</span>1:${rec.rr.toFixed(2)}</div>
+      <div><span>SL</span>${fmtPrice(rec.sl)}</div><div><span>ENTRY</span>${fmtPrice(rec.entry)}</div>${levels.map(l => `<div><span>TP${l.n}${(rec.tpHit || 0) >= l.n ? ' ✓' : ''}</span>${fmtPrice(l.price)}</div>`).join('')}<div><span>RR${levels.length > 1 ? ' TP' + fin.n : ''}</span>1:${(Math.abs(fin.price - rec.entry) / Math.abs(rec.entry - rec.sl)).toFixed(2)}</div>
     </div>
     <div class="dec-data">
       <div class="dec-cell"><div class="lbl">OPEN INTEREST</div>${oiCell}</div>
@@ -5015,6 +5156,7 @@ function renderDetail(d){
         <div class="entry-row"><span class="el">Stop Loss</span><span class="ev">${fmtPrice(p.sl)}<span class="ez">${escapeHtml(p.slLabel)}</span></span></div>
         <div class="entry-row"><span class="el">Take Profit 1</span><span class="ev">${p.tp!==null?fmtPrice(p.tp):'-'}<span class="ez">${escapeHtml(p.tpLabel)}</span></span></div>
         ${p.tp2!==null ? `<div class="entry-row"><span class="el">Take Profit 2</span><span class="ev">${fmtPrice(p.tp2)}<span class="ez">${escapeHtml(p.tp2Label)}</span></span></div>` : ''}
+        ${p.tp3 !== null && p.tp3 !== undefined ? `<div class="entry-row"><span class="el">Take Profit 3</span><span class="ev">${fmtPrice(p.tp3)}<span class="ez">${escapeHtml(p.tp3Label)}</span></span></div>` : ''}
         <div class="entry-row"><span class="el">Risk : Reward</span><span class="ev" style="color:${p.rr>=p.minRR?'var(--mint)':'var(--amber)'}">1 : ${p.rr.toFixed(2)}${p.rr2!==null?' <span class="ez">TP2 1 : '+p.rr2.toFixed(2)+'</span>':''}</span></div>
         <div class="entry-row"><span class="el">Estimasi biaya</span><span class="ev" style="color:${feeR>0.15?'var(--amber)':'var(--text-2)'}">≈ ${feeR.toFixed(2)}R<span class="ez">fee+slippage ≈ ${(ICT_FEE_ROUNDTRIP*100).toFixed(2)}% harga ÷ jarak SL ${(riskPct*100).toFixed(2)}%${feeR>0.15?' — stop rapat, fee memakan banyak R':''}</span></span></div>
         ${p.slCloseBased ? `<div class="entry-row"><span class="el">Cara keluar</span><span class="ev" style="font-size:12px;">Keluar manual bila ada candle CLOSE di luar IFVG (${fmtPrice(p.sl)})<span class="ez">bukan stop order tetap — risiko: close lalu berbalik</span></span></div>` : ''}
@@ -5537,6 +5679,8 @@ refreshAll().then(()=>{
 });
 startTracker();
 renderDecisionBadge();
+updateHistoryBadge();
+setTimeout(promptPendingNotes, 1200); // entri SL tanpa keterangan: wajib dilengkapi, langsung buka Histori Setup
 
 // ===== PWA: register service worker =====
 if ('serviceWorker' in navigator){
