@@ -45,6 +45,10 @@ jobs:
       - name: Uji model Unicorn & IFVG
         run: node scripts/test-ict-models.js
 
+      # Uji pelacak Decision: armed -> RUNNING -> TP/SL/void, aturan candle konservatif, SL close-based, cermin long/short.
+      - name: Uji pelacak Decision
+        run: node scripts/test-ict-track.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

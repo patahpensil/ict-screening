@@ -301,6 +301,72 @@ async function main() {
   check(!(await evaluate('document.getElementById("alertLog").innerText')).includes('undefined'), 'riwayat alert ter-render tanpa "undefined"');
   await shot('08-alert', 430, 900);
 
+  // 7a. Decision: pair RUNNING (Entry tersentuh) + data real-time, hilang saat kena TP/SL, tercatat di Review
+  await evaluate('showWorkspace("wsHome")');
+  await evaluate('document.getElementById("decisionQuickBtn").click()');
+  check(await evaluate('document.getElementById("wsDecision").classList.contains("active") && !document.getElementById("wsTrading").classList.contains("active")') === true, 'tombol Decision di Home membuka workspace Decision (bukan Trading Workspace)');
+  await evaluate(`(()=>{
+    window.__wsList = []; window.WebSocket = class { constructor(u){ this.url = String(u); window.__wsList.push(this); setTimeout(()=>{ this.onopen && this.onopen(); }, 10); } close(){ this.closed = true; } };
+    window.WebSocket.OPEN = 1; window.WebSocket.CONNECTING = 0;
+    window.__oiCalls = []; window.__oi = 1000; const f = window.fetch;
+    window.fetch = (u, o) => { if(String(u).includes('/openInterest')){ window.__oiCalls.push(String(u)); return Promise.resolve(new Response(JSON.stringify({ symbol: 'X', openInterest: String(window.__oi), time: Date.now() }), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return f(u, o); };
+    trackRecs.length = 0; for(const k in liveData) delete liveData[k];
+    window.__px = (sym, p) => { tickerData.find(d => d.symbol === sym).lastPrice = String(p); };
+    window.__mkHit = (sym, side, entry, sl, tp) => ({ symbol: sym, style: 'intraday', ev: { best: { side, id: 'SWEEP_MSS', grade: 'A', check: { passes: 7, total: 8 }, plan: { entry, sl, tp, rr: Math.abs(tp - entry) / Math.abs(entry - sl), slCloseBased: false } } } });
+  })()`);
+  const P0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="SOLUSDT").lastPrice)');
+  const ent = P0 * 0.99, slL = P0 * 0.97, tpL = P0 * 1.03;
+  await evaluate(`armSetups([__mkHit("SOLUSDT","long",${ent},${slL},${tpL})])`);
+  check(await evaluate('trackRecs.length === 1 && trackRecs[0].status === "armed"') === true, 'setup hasil scan otomatis dipantau (armed) selama harga belum menyentuh Entry');
+  await evaluate('renderDecision()');
+  check(!/RUNNING/.test(await evaluate('document.getElementById("decisionList").innerText')) && /1 setup dari scan sedang dipantau/.test(await evaluate('document.getElementById("decisionArmedNote").innerText')), 'Decision belum menampilkan pair armed; catatan jumlah setup dipantau muncul');
+  await evaluate(`__px("SOLUSDT", ${ent}); trackTick()`);
+  check(await evaluate('trackRecs[0].status') === 'running', 'harga menyentuh Entry -> status RUNNING');
+  await waitFor('liveData.SOLUSDT && liveData.SOLUSDT.oi > 0', 'OI SOL terambil', 8000);
+  const wsUrl = await evaluate('(__wsList[__wsList.length-1]||{}).url || ""');
+  check(/solusdt@aggTrade/.test(wsUrl) && /solusdt@depth20@500ms/.test(wsUrl), 'stream CVD (aggTrade) + orderbook (depth20) dibuka untuk pair RUNNING');
+  check(await evaluate('__oiCalls.length >= 1 && __oiCalls.every(u => u.includes("SOLUSDT"))') === true, 'OI hanya diminta untuk pair RUNNING');
+  await evaluate(`(()=>{ const w = __wsList[__wsList.length-1]; const send = (s, d) => w.onmessage({ data: JSON.stringify({ stream: s, data: d }) });
+    send('solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '10', m: false, T: Date.now() });   // beli agresif +1000
+    send('solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '4', m: true, T: Date.now() });     // jual agresif -400
+    send('solusdt@depth20@500ms', { s: 'SOLUSDT', b: [['99','10']], a: [['101','5']] });      // bid 990 vs ask 505
+    __oi = 1100; })()`);
+  await evaluate('pollTrackOI()'); await waitFor('liveData.SOLUSDT.oi === 1100', 'OI naik 10%', 5000);
+  await evaluate('pollTrackStructure()'); await waitFor('structById[trackRecs[0].id] !== undefined', 'CHoCH/struktur terambil', 8000);
+  await evaluate('renderDecision()');
+  const decTxt = await evaluate('document.getElementById("decisionList").innerText');
+  check(/RUNNING/.test(decTxt) && /SOL/.test(decTxt), 'Decision menampilkan SOL dengan penanda RUNNING');
+  check(/OPEN INTEREST/.test(decTxt) && /\+10\.00%/.test(decTxt), 'kartu menampilkan OI dan perubahannya (+10,00% sejak RUNNING)');
+  check(/CVD/.test(decTxt) && /\+\$600\.00/.test(decTxt), 'kartu menampilkan CVD kumulatif (+1000 -400 = +$600)');
+  check(/ORDERBOOK/i.test(decTxt) && /Bid 66% · Ask 34%/.test(decTxt) && /bid dominan/.test(decTxt), 'kartu menampilkan orderbook (bid 66% vs ask 34%, bid dominan)');
+  check(/STRUKTUR 1H/i.test(decTxt) && !/STRUKTUR 1H\s*memuat/i.test(decTxt), 'kartu menampilkan struktur/CHoCH 1H dari candle tutup');
+  check(!/NaN|undefined|Infinity/.test(decTxt), 'kartu Decision tanpa NaN/undefined');
+  check(await evaluate('document.getElementById("decisionCount").textContent === "1" && document.getElementById("decisionCount").style.display !== "none"') === true, 'lencana jumlah RUNNING di tombol Decision = 1');
+  await shot('09-decision-running', 430, 1000);
+  // keluar saat TP
+  await evaluate(`__px("SOLUSDT", ${tpL}); trackTick()`);
+  check(await evaluate('trackRecs[0].status === "closed" && trackRecs[0].outcome === "tp"') === true, 'harga mencapai TP -> catatan ditutup (tp)');
+  await evaluate('renderDecision()');
+  check(!/SOL/.test(await evaluate('document.getElementById("decisionList").innerText')) && await evaluate('__wsList[__wsList.length-1].closed === true') === true, 'pair hilang dari Decision dan stream ditutup setelah TP');
+  const j1 = await evaluate('loadJournal().find(e => e.trackId === trackRecs[0].id)');
+  check(j1 && j1.status === 'win' && j1.symbol === 'SOLUSDT' && j1.auto === true, 'hasil TP otomatis tercatat di Review sebagai WIN');
+  // SHORT keluar di SL
+  const D0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="DOGEUSDT").lastPrice)');
+  const dE = D0 * 1.01, dSl = D0 * 1.03, dTp = D0 * 0.97;
+  await evaluate(`armSetups([__mkHit("DOGEUSDT","short",${dE},${dSl},${dTp})]); __px("DOGEUSDT", ${dE}); trackTick()`);
+  check(await evaluate('trackRecs.find(r=>r.symbol==="DOGEUSDT").status') === 'running', 'SHORT: harga naik menyentuh Entry -> RUNNING');
+  await evaluate(`__px("DOGEUSDT", ${dSl}); trackTick(); renderDecision()`);
+  const dg = await evaluate('trackRecs.find(r=>r.symbol==="DOGEUSDT")');
+  check(dg.status === 'closed' && dg.outcome === 'sl' && Math.abs(dg.r + 1) < 1e-9, 'SHORT: harga mencapai SL -> ditutup (sl), R = -1');
+  check(!/DOGE/.test(await evaluate('document.getElementById("decisionList").innerText')), 'pair SHORT hilang dari Decision setelah SL');
+  const j2 = await evaluate('loadJournal().find(e => e.trackId === trackRecs.find(r=>r.symbol==="DOGEUSDT").id)');
+  check(j2 && j2.status === 'loss' && j2.direction === 'short', 'hasil SL otomatis tercatat di Review sebagai LOSS');
+  // kembali ke Home dan bersihkan
+  await evaluate('showWorkspace("wsHome")');
+  check(await evaluate('document.getElementById("decisionCount").style.display') === 'none', 'lencana Decision tersembunyi saat tidak ada pair RUNNING');
+  // simpan ke localStorage & muat ulang berhasil (catatan bertahan)
+  check(await evaluate('(()=>{ saveTrack(); return JSON.parse(localStorage.getItem(LS_TRACK)).length === 2; })()') === true, 'catatan pelacak tersimpan di localStorage');
+
   // 7. tombol back peramban/HP: harus menutup lapisan teratas (bukan keluar app), lapis demi lapis
   await evaluate('showWorkspace("wsHome")');
   await evaluate('closeOtherFullscreenPanels("alertDrawer"); document.getElementById("alertDrawer").classList.add("show")');

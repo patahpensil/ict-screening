@@ -10,6 +10,7 @@ Progressive Web App (PWA) untuk screening Binance USDT-M Futures secara real-tim
 
 - **Home** — ringkasan market, Mode Trading (Intraday / Swing), Aksi Cepat (Deep Scan Top 20, Decision, Market), dan hasil scan ICT terakhir
 - **Scanner Market** — daftar 400+ pair USDT-M Perpetual, filter & sortir manual (Volume, Gainers/Losers, Dekat 24H High/Low, Funding Ekstrem). Tiap baris punya badge konteks cepat: bias struktur 4H + posisi Premium/Discount
+- **Decision** — pair hasil scan yang harganya sudah menyentuh Entry (RUNNING, dengan penanda). Menampilkan OI, CVD, orderbook, dan CHoCH real-time; pair hilang saat kena TP/SL dan hasilnya otomatis tercatat di Review. Hanya tampilan, tidak memengaruhi penilaian setup; pemantauan jalan selama app terbuka
 - **Trading Workspace** — analisa ICT lengkap 1 pair: Analysis → Validation → Decision → Trading setup (+ kalkulator position size, posisi terbuka)
 - **Review** — histori trade, equity curve, jurnal, Histori Setup
 
@@ -136,6 +137,7 @@ scripts/check-cache-bump.js    memastikan CACHE_NAME naik tiap index.html/sw.js 
 scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menolak cacat
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
+scripts/test-ict-track.js      uji pelacak Decision (armed → RUNNING → TP/SL/void, candle konservatif, SL close-based, cermin)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
 scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (futures atau spot; butuh internet)
 scripts/vps-backtest.sh        OPSIONAL: satu perintah untuk menjalankan backtest + analisis di VPS (tanpa API key)
@@ -149,6 +151,7 @@ Sebelum commit, cukup pakai Node tanpa install apa pun:
 node scripts/check.js
 node scripts/test-ict.js
 node scripts/test-ict-models.js
+node scripts/test-ict-track.js
 ```
 
 `scripts/smoke-browser.js` butuh Chrome atau Edge terpasang dan tidak dijalankan di CI: `node scripts/smoke-browser.js --shots=folder`.

@@ -515,6 +515,30 @@
   .mh-star.active{color:var(--amber); border-color:var(--amber); background:var(--amber-dim);}
   .mh-headrow{display:flex; align-items:center;}
 
+  /* ===== DECISION: pair RUNNING ===== */
+  .dec-card{background:var(--surface); border:1px solid var(--border-soft); border-left:3px solid var(--mint); border-radius:var(--r-lg); padding:14px; margin-bottom:12px; cursor:pointer;}
+  .dec-card.short{border-left-color:var(--crimson);}
+  .dec-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+  .run-tag{display:inline-flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:800; letter-spacing:0.08em; color:var(--mint);}
+  .run-dot{width:8px; height:8px; border-radius:50%; background:var(--mint); box-shadow:0 0 8px var(--mint); animation:pulse 1.2s ease-in-out infinite;}
+  .dec-sym{font-weight:800; font-size:16px;}
+  .dec-meta{font-size:11px; color:var(--text-3); width:100%;}
+  .dec-price{display:flex; align-items:baseline; justify-content:space-between; margin:6px 0 10px;}
+  .dec-price .px{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:800;}
+  .dec-price .rr{font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:800;}
+  .dec-prog{position:relative; height:8px; background:var(--surface-2); border:1px solid var(--border-soft); border-radius:var(--r-pill); margin:4px 0 6px;}
+  .dec-prog .fill{position:absolute; left:0; top:0; height:100%; border-radius:var(--r-pill); background:var(--text-3); opacity:0.5;}
+  .dec-prog .mark{position:absolute; top:-3px; width:2px; height:14px; background:var(--text-2);}
+  .dec-prog .now{position:absolute; top:-4px; width:10px; height:16px; margin-left:-5px; border-radius:3px; background:var(--text-1); box-shadow:0 0 6px rgba(255,255,255,0.4);}
+  .dec-lv{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; font-family:'JetBrains Mono',monospace; font-size:11px; margin-bottom:10px;}
+  .dec-lv span{display:block; color:var(--text-3); font-size:9.5px; letter-spacing:0.06em;}
+  .dec-data{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px;}
+  .dec-cell{background:var(--surface-2); border:1px solid var(--border-soft); border-radius:var(--r-md); padding:9px 10px; font-size:12px;}
+  .dec-cell .lbl{font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:var(--text-3); margin-bottom:3px;}
+  .dec-cell .val{font-family:'JetBrains Mono',monospace; font-weight:800;}
+  .dec-cell .sub{font-size:10.5px; color:var(--text-3); margin-top:2px;}
+  .dec-warn{color:var(--amber);}
+
   /* ===== TOP BAR: SETTINGS + ALERTS ===== */
   .badge-count{
     display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px;
@@ -895,6 +919,10 @@
         <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
         <span class="sni-text"><span class="sni-title">Trading Workspace</span></span>
       </button>
+      <button class="sidebar-nav-item" data-ws="wsDecision">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="sni-text"><span class="sni-title">Decision</span></span>
+      </button>
       <button class="sidebar-nav-item" data-ws="wsReview">
         <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         <span class="sni-text"><span class="sni-title">Review</span></span>
@@ -994,7 +1022,7 @@
     <div class="ws-card-title">AKSI CEPAT</div>
     <div class="hero-mode-pills" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
       <button class="hero-mode-pill" id="scanTopBtn">⚡ Deep Scan Top 20 (Intraday + Swing)</button>
-      <button class="hero-mode-pill" id="decisionQuickBtn">🧭 Decision</button>
+      <button class="hero-mode-pill" id="decisionQuickBtn">🧭 Decision <span class="badge-count" id="decisionCount" style="display:none;">0</span></button>
       <button class="hero-mode-pill" id="marketQuickBtn">📊 Market / Semua Pair</button>
     </div>
     <div style="display:none;"><button id="alertBtn"><span class="badge-count" id="alertBadge">0</span></button></div>
@@ -1113,6 +1141,15 @@
   </div>
 
   <!-- ===== REVIEW WORKSPACE ===== -->
+  <div class="workspace" id="wsDecision">
+    <button class="back-to-home-btn" onclick="goHome()">← Back</button>
+    <div class="ws-header"><span class="ws-title">DECISION</span></div>
+    <div class="ws-sub">Pair yang harganya sudah menyentuh level Entry — tampil RUNNING sampai kena TP atau SL, lalu hilang dari sini</div>
+    <div class="ws-note">ℹ️ Setiap hasil scan otomatis dipantau selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini. Saat RUNNING, <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>CHoCH</b> (candle tutup) ditampilkan real-time. Data ini <b>hanya tampilan</b> — tidak memengaruhi penilaian setup. Hasil TP/SL otomatis dicatat ke Review. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
+    <div id="decisionList"></div>
+    <div class="ws-note" id="decisionArmedNote" style="margin-top:6px;"></div>
+  </div>
+
   <div class="workspace" id="wsReview">
     <button class="back-to-home-btn" onclick="goHome()">← Back</button>
     <div class="ws-header"><span class="ws-title">REVIEW WORKSPACE</span></div>
@@ -3444,6 +3481,69 @@ function ictQuickBias(candles){
 }
 /* ICT-ENGINE-END */
 
+/* ICT-TRACK-START */
+// ===== PELACAK SETUP — murni (tanpa DOM/jaringan), diuji scripts/test-ict-track.js =====
+// Siklus satu catatan: armed (menunggu harga menyentuh Entry) -> running (Entry tersentuh) -> closed (TP / SL).
+// Closed juga bisa 'void' (target tercapai tanpa pernah menyentuh Entry) atau 'expired' (kedaluwarsa) — keduanya tidak dihitung sebagai trade.
+// Asumsi fill: order limit di level Entry. Long terisi saat harga <= Entry, short saat harga >= Entry.
+// Aturan konservatif (sama dengan backtest): di candle yang mengisi Entry hanya SL yang dihitung; kalau SL dan TP
+// sama-sama tersentuh dalam satu candle, SL yang dianggap kena duluan.
+function trkRisk(rec){ return Math.abs(rec.entry - rec.sl); }
+function trkR(rec, price){ const risk = trkRisk(rec); return risk > 0 ? (rec.side === 'long' ? price - rec.entry : rec.entry - price) / risk : 0; }
+function trkEntryTouched(rec, lo, hi){ return rec.side === 'long' ? lo <= rec.entry : hi >= rec.entry; }
+function trkHitSl(rec, lo, hi){ return rec.side === 'long' ? lo <= rec.sl : hi >= rec.sl; }
+function trkHitTp(rec, lo, hi){ return rec.side === 'long' ? hi >= rec.tp : lo <= rec.tp; }
+function trkClose(rec, outcome, exitPrice, at){
+  rec.status = 'closed'; rec.outcome = outcome; rec.closedAt = at;
+  rec.exitPrice = (outcome === 'tp' || outcome === 'sl' || outcome === 'slclose') ? exitPrice : null;
+  rec.r = rec.exitPrice !== null ? trkR(rec, rec.exitPrice) : 0;
+  return rec;
+}
+// Satu harga terakhir (tick real-time). SL berbasis penutupan candle (slCloseBased) tidak dinilai dari tick.
+function trkStepPrice(rec, price, now){
+  if(rec.status === 'armed'){
+    if(trkEntryTouched(rec, price, price)){ rec.status = 'running'; rec.runningAt = now; }
+    else if(trkHitTp(rec, price, price)) return trkClose(rec, 'void', null, now);
+  }
+  if(rec.status === 'running'){
+    if(!rec.slCloseBased && trkHitSl(rec, price, price)) return trkClose(rec, 'sl', rec.sl, now);
+    if(trkHitTp(rec, price, price)) return trkClose(rec, 'tp', rec.tp, now);
+  }
+  return rec;
+}
+// Penutupan candle LTF pertama (setelah fill) di luar SL — hanya untuk SL "pelanggaran IFVG" (berbasis close).
+function trkCloseSl(rec, ltfCandles, ltfMs){
+  if(!rec.slCloseBased || !ltfCandles || !rec.runningAt) return null;
+  for(const c of ltfCandles){
+    if(c.t + ltfMs <= rec.runningAt) continue;
+    if(rec.side === 'long' ? c.close <= rec.sl : c.close >= rec.sl) return { at: c.t + ltfMs, price: c.close };
+  }
+  return null;
+}
+// Jalankan candle halus (1m/5m/15m) berurutan dari saat setup dipantau/running. opts: { ltfCandles, ltfMs }.
+function trkStepCandles(rec, candles, opts){
+  opts = opts || {};
+  let closeSl;
+  for(const k of candles){
+    if(rec.status === 'closed') break;
+    if(rec.status === 'armed'){
+      if(!trkEntryTouched(rec, k.low, k.high)){
+        if(trkHitTp(rec, k.low, k.high)) trkClose(rec, 'void', null, k.t);
+        continue;
+      }
+      rec.status = 'running'; rec.runningAt = k.t;
+      if(!rec.slCloseBased && trkHitSl(rec, k.low, k.high)) trkClose(rec, 'sl', rec.sl, k.t);
+      continue; // candle fill: TP tidak dihitung
+    }
+    if(closeSl === undefined) closeSl = trkCloseSl(rec, opts.ltfCandles, opts.ltfMs);
+    if(closeSl && k.t >= closeSl.at){ trkClose(rec, 'slclose', closeSl.price, closeSl.at); break; }
+    if(!rec.slCloseBased && trkHitSl(rec, k.low, k.high)){ trkClose(rec, 'sl', rec.sl, k.t); break; }
+    if(trkHitTp(rec, k.low, k.high)){ trkClose(rec, 'tp', rec.tp, k.t); break; }
+  }
+  return rec;
+}
+/* ICT-TRACK-END */
+
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
 // Beberapa fitur (scan Intraday/Swing, Deep Scan, modal detail, alert watchlist) sering minta candle
@@ -3666,6 +3766,7 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   const waiting = unique.filter(h => h.ev.best.status !== 'in_zone');
   lastScanResults = { at: Date.now(), label, hits: shown };
   renderTopSignals();
+  armSetups(shown); // setiap hasil scan otomatis dipantau; pindah ke Decision begitu harga menyentuh Entry
 
   statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid — diurutkan menurut kualitas setup (bukan peluang menang)`;
   if(unique.length === 0){
@@ -3723,6 +3824,308 @@ function runDeepScanTop20(){
     title: 'Deep Scan ICT — Intraday + Swing', label: 'Deep Scan (Intraday + Swing)',
     notifyFresh: true, disableBtnId: 'scanTopBtn',
   });
+}
+
+// ===== DECISION — pelacak setup (armed -> RUNNING -> TP/SL) + data real-time pair RUNNING =====
+// Logika status ada di blok ICT-TRACK (murni, diuji). Di sini: penyimpanan, harga real-time, stream CVD/orderbook,
+// polling OI & CHoCH, rekonsiliasi candle (menutup celah saat app tertutup), pencatatan ke Review, dan tampilan.
+// Data OI/CVD/orderbook HANYA tampilan — tidak pernah masuk penilaian setup (engine tetap bebas indikator).
+const LS_TRACK = 'ict_track_v1';
+const TRACK_MAX_ARMED = 60;                          // setup menunggu entry yang dipantau sekaligus
+const TRACK_MAX_LIVE = 8;                            // pair RUNNING yang mendapat stream CVD/orderbook sekaligus
+const TRACK_KEEP_CLOSED_MS = 60 * 864e5;
+const TRACK_EXPIRE_MS = { intraday: 24 * 36e5, swing: 7 * 864e5 }; // setup yang tak kunjung menyentuh Entry dianggap basi
+const TF_MS = { '1h': 36e5, '4h': 144e5 };
+let trackDirty = false;
+let trackRecs = (function(){
+  try{ const a = JSON.parse(localStorage.getItem(LS_TRACK) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+})();
+const liveData = {};   // symbol -> { oi, oiAt, cvd, cvdWin, cvdSince, bidUsd, askUsd, imb, bid, ask, wsOn }
+const structById = {}; // id catatan -> event struktur terakhir di TF entry
+function ld(sym){ return liveData[sym] || (liveData[sym] = { cvd: 0, cvdWin: [], cvdSince: Date.now(), wsOn: false }); }
+function saveTrack(){ try{ localStorage.setItem(LS_TRACK, JSON.stringify(trackRecs)); }catch(e){} trackDirty = false; }
+function runningRecs(){ return trackRecs.filter(r => r.status === 'running'); }
+
+// Setiap hasil scan otomatis dipantau. Kunci (pair|gaya|arah|model|entry) mencegah setup yang sama didaftarkan dua kali.
+function armSetups(hits){
+  const now = Date.now();
+  for(const h of hits){
+    const b = h.ev.best, p = b && b.plan;
+    if(!p || p.tp === null || p.tp === undefined || !(trkRisk(p) > 0)) continue;
+    const key = [h.symbol, h.style, b.side, b.id, Number(p.entry).toPrecision(7)].join('|');
+    if(trackRecs.some(r => r.key === key)) continue;
+    const rec = {
+      id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7), key, symbol: h.symbol, style: h.style, tf: ICT_CFG.styles[h.style].ltf,
+      side: b.side, setupId: b.id, title: ictShortTitle(b.id), grade: b.grade, passes: b.check.passes, total: b.check.total,
+      entry: p.entry, sl: p.sl, tp: p.tp, rr: p.rr, slCloseBased: !!p.slCloseBased, armedAt: now, status: 'armed',
+    };
+    trackRecs.push(rec);
+    const row = tickerData.find(d => d.symbol === h.symbol);
+    const price = row ? parseFloat(row.lastPrice) : NaN;
+    if(price > 0){
+      trkStepPrice(rec, price, now);
+      if(rec.status !== 'armed'){ rec.filledAtArm = true; onTrackTransition(rec, 'armed'); }
+    }
+  }
+  const armed = trackRecs.filter(r => r.status === 'armed').sort((a, b) => a.armedAt - b.armedAt);
+  armed.slice(0, Math.max(0, armed.length - TRACK_MAX_ARMED)).forEach(r => trkClose(r, 'expired', null, now));
+  trackDirty = true; syncTrackStreams(); renderDecisionBadge();
+}
+
+function journalFromTrack(rec){
+  const entries = loadJournal();
+  if(entries.some(e => e.trackId === rec.id)) return;
+  const dir = rec.side === 'long' ? 1 : -1;
+  entries.unshift({
+    id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), createdAt: Date.now(),
+    date: new Date(rec.closedAt || Date.now()).toISOString().slice(0, 10),
+    symbol: rec.symbol, direction: rec.side, status: rec.r > 0 ? 'win' : rec.r < 0 ? 'loss' : 'breakeven',
+    entry: rec.entry, exit: rec.exitPrice, sl: rec.sl, tp1: rec.tp,
+    pnlPct: +(((rec.exitPrice - rec.entry) / rec.entry) * dir * 100).toFixed(3),
+    setup: `${rec.title} · ${ICT_CFG.styles[rec.style].label}`,
+    notes: `Otomatis dari Decision — ${rec.outcome === 'tp' ? 'kena TP' : 'kena SL'}, ${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R. Asumsi fill limit di Entry; tanpa fee/slippage. PnL% = pergerakan harga, bukan modal.`,
+    auto: true, trackId: rec.id,
+  });
+  saveJournalEntries(entries);
+  renderJournal();
+}
+
+function onTrackTransition(rec, from){
+  const sym = rec.symbol.replace('USDT', ''), side = rec.side === 'long' ? 'LONG' : 'SHORT';
+  if(rec.status === 'running'){
+    pushAlert(`🧭 ${sym} ${side} RUNNING — harga menyentuh Entry ${fmtPrice(rec.entry)} (${rec.title}, ${ICT_CFG.styles[rec.style].label})`, rec.symbol, false);
+    pollTrackOI(); pollTrackStructure();
+  } else if(rec.status === 'closed' && (rec.outcome === 'tp' || rec.outcome === 'sl' || rec.outcome === 'slclose')){
+    journalFromTrack(rec);
+    const win = rec.r > 0;
+    pushAlert(`${win ? '✅' : '❌'} ${sym} ${side} ${win ? 'kena TP' : 'kena SL'} (${rec.r >= 0 ? '+' : ''}${rec.r.toFixed(2)}R) — keluar dari Decision, dicatat di Review`, rec.symbol, false);
+  }
+}
+
+function trackTick(){
+  const now = Date.now();
+  if(!trackRecs.length) { renderDecisionBadge(); return; }
+  let changed = false;
+  const px = new Map();
+  tickerData.forEach(d => px.set(d.symbol, parseFloat(d.lastPrice)));
+  for(const rec of trackRecs){
+    if(rec.status === 'closed') continue;
+    if(rec.status === 'armed' && now - rec.armedAt > TRACK_EXPIRE_MS[rec.style]){ trkClose(rec, 'expired', null, now); changed = true; continue; }
+    const p = px.get(rec.symbol);
+    if(!(p > 0)) continue;
+    const before = rec.status;
+    trkStepPrice(rec, p, now);
+    if(rec.status !== before){ changed = true; onTrackTransition(rec, before); }
+  }
+  for(const s in liveData){ const d = liveData[s]; const cut = now - 300000; while(d.cvdWin.length && d.cvdWin[0].t < cut) d.cvdWin.shift(); }
+  const keep = trackRecs.filter(r => r.status !== 'closed' || now - (r.closedAt || 0) < TRACK_KEEP_CLOSED_MS);
+  if(keep.length !== trackRecs.length){ trackRecs = keep; changed = true; }
+  if(changed){ trackDirty = true; syncTrackStreams(); }
+  if(trackDirty) saveTrack();
+  renderDecisionBadge();
+  if(currentWorkspace === 'wsDecision') renderDecision();
+}
+
+// ----- stream CVD (aggTrade) + orderbook (depth20) hanya untuk pair RUNNING -----
+let trackWs = null, trackWsSig = '', trackWsTimer = null, trackWsDelay = 2000;
+function liveSymbols(){
+  return [...new Set(runningRecs().sort((a, b) => b.runningAt - a.runningAt).map(r => r.symbol))].slice(0, TRACK_MAX_LIVE);
+}
+function closeTrackWs(){
+  clearTimeout(trackWsTimer);
+  if(trackWs){ const w = trackWs; trackWs = null; w.onclose = null; w.onerror = null; try{ w.close(); }catch(e){} }
+}
+function syncTrackStreams(){
+  const syms = liveSymbols(), sig = syms.join(',');
+  if(sig === trackWsSig && (trackWs || !syms.length)) return;
+  closeTrackWs(); trackWsSig = sig;
+  Object.keys(liveData).forEach(s => { if(!syms.includes(s)) liveData[s].wsOn = false; });
+  if(syms.length) openTrackWs(syms);
+}
+function openTrackWs(syms){
+  try{
+    const streams = syms.flatMap(s => [`${s.toLowerCase()}@aggTrade`, `${s.toLowerCase()}@depth20@500ms`]).join('/');
+    const w = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
+    trackWs = w;
+    w.onopen = () => { trackWsDelay = 2000; syms.forEach(s => { const d = ld(s); d.wsOn = true; if(!d.cvdSince) d.cvdSince = Date.now(); }); };
+    w.onmessage = e => { try{ const m = JSON.parse(e.data); if(m && m.stream && m.data) handleTrackMsg(m.stream, m.data); }catch(err){ /* pesan korup — abaikan */ } };
+    w.onerror = () => { try{ w.close(); }catch(err){} };
+    w.onclose = () => {
+      if(trackWs !== w) return;
+      trackWs = null; syms.forEach(s => { ld(s).wsOn = false; });
+      clearTimeout(trackWsTimer);
+      trackWsTimer = setTimeout(() => { if(!trackWs && trackWsSig) openTrackWs(trackWsSig.split(',')); }, trackWsDelay);
+      trackWsDelay = Math.min(trackWsDelay * 1.6, 30000);
+    };
+  }catch(e){ console.warn('Stream Decision gagal dibuka:', e); }
+}
+function handleTrackMsg(stream, data){
+  const sym = data.s; if(!sym) return;
+  const d = ld(sym);
+  if(stream.endsWith('@aggTrade')){
+    const q = parseFloat(data.p) * parseFloat(data.q);
+    if(!(q > 0)) return;
+    const delta = data.m ? -q : q; // m = true -> pembeli adalah maker -> agresor JUAL
+    d.cvd += delta; d.cvdWin.push({ t: data.T || Date.now(), d: delta });
+  } else if(stream.indexOf('@depth') > 0){
+    const bids = data.b || [], asks = data.a || [];
+    const sum = arr => arr.reduce((s, x) => s + parseFloat(x[0]) * parseFloat(x[1]), 0);
+    const bu = sum(bids), au = sum(asks);
+    if(bu + au > 0 && bids.length && asks.length){ d.bidUsd = bu; d.askUsd = au; d.imb = (bu - au) / (bu + au); d.bid = parseFloat(bids[0][0]); d.ask = parseFloat(asks[0][0]); }
+  }
+}
+
+// ----- OI (REST, ±15 dtk) & CHoCH/BOS (candle tutup di TF entry, ±30 dtk) -----
+async function pollTrackOI(){
+  for(const sym of liveSymbols()){
+    try{
+      const res = await safeFetch(`${FAPI}/fapi/v1/openInterest?symbol=${sym}`);
+      if(!res.ok) continue;
+      const oi = parseFloat((await res.json()).openInterest);
+      if(!(oi > 0)) continue;
+      const d = ld(sym); d.oi = oi; d.oiAt = Date.now();
+      trackRecs.forEach(r => { if(r.symbol === sym && r.status === 'running' && !(r.oiBase > 0)){ r.oiBase = oi; trackDirty = true; } });
+    }catch(e){ /* lewati — dicoba lagi di siklus berikutnya */ }
+  }
+}
+async function pollTrackStructure(){
+  for(const rec of runningRecs()){
+    try{
+      const c = await fetchKlinesFull(rec.symbol, rec.tf, ICT_CANDLES);
+      const ctx = ictContext(c);
+      if(!ctx) continue;
+      const ev = ctx.structure.event;
+      structById[rec.id] = ev ? { type: ev.type, direction: ev.direction, level: ev.level, barsAgo: ev.barsAgo, t: c[ev.idx] ? c[ev.idx].t : null } : null;
+      if(rec.slCloseBased && rec.status === 'running'){
+        const hit = trkCloseSl(rec, c, TF_MS[rec.tf]);
+        if(hit){ const before = rec.status; trkClose(rec, 'slclose', hit.price, hit.at); trackDirty = true; onTrackTransition(rec, before); syncTrackStreams(); }
+      }
+    }catch(e){ /* lewati */ }
+  }
+}
+
+// ----- rekonsiliasi candle: menutup celah saat app tertutup / tab di-background / wick di antara tick -----
+async function trackReconcile(rec){
+  const from = rec.status === 'armed' ? rec.armedAt : rec.runningAt;
+  if(!from) return;
+  const age = Date.now() - from;
+  const iv = age < 20 * 36e5 ? '1m' : age < 5 * 864e5 ? '5m' : '15m';
+  const ivMs = { '1m': 6e4, '5m': 3e5, '15m': 9e5 }[iv];
+  const res = await safeFetch(`${FAPI}/fapi/v1/klines?symbol=${rec.symbol}&interval=${iv}&startTime=${Math.floor(from)}&limit=1500`);
+  if(!res.ok) return;
+  const now = Date.now();
+  const cs = (await res.json()).map(k => ({ t: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], ct: k[6] }))
+    .filter(c => !(c.ct > now) && c.t >= from - ivMs);
+  let ltf = null;
+  if(rec.slCloseBased && rec.status !== 'closed'){ try{ ltf = await fetchKlinesFull(rec.symbol, rec.tf, ICT_CANDLES); }catch(e){ /* tanpa LTF, SL close dinilai nanti */ } }
+  const before = rec.status;
+  trkStepCandles(rec, cs, { ltfCandles: ltf, ltfMs: TF_MS[rec.tf] });
+  if(rec.status !== before){ trackDirty = true; onTrackTransition(rec, before); syncTrackStreams(); }
+}
+let trackReconBusy = false;
+async function trackReconcileAll(onlyRunning){
+  if(trackReconBusy) return;
+  trackReconBusy = true;
+  try{
+    for(const rec of trackRecs.filter(r => r.status !== 'closed' && (!onlyRunning || r.status === 'running'))){
+      try{ await trackReconcile(rec); }catch(e){ /* lewati pair ini */ }
+    }
+  } finally { trackReconBusy = false; }
+}
+
+function startTracker(){
+  trackRecs.filter(r => r.status === 'running').forEach(r => { if(!r.runningAt) r.runningAt = r.armedAt; });
+  syncTrackStreams();
+  setInterval(trackTick, 1000);
+  setInterval(pollTrackOI, 15000);
+  setInterval(pollTrackStructure, 30000);
+  let n = 0;
+  setInterval(() => { n++; trackReconcileAll(n % 5 !== 0); }, 60000); // tiap menit pair RUNNING; tiap 5 menit semuanya
+  setTimeout(() => { trackReconcileAll(false); pollTrackOI(); pollTrackStructure(); }, 4000);
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') trackReconcileAll(false); });
+}
+
+// ----- tampilan -----
+function renderDecisionBadge(){
+  const n = runningRecs().length, el = document.getElementById('decisionCount');
+  if(!el) return;
+  el.textContent = n; el.style.display = n > 0 ? 'inline-flex' : 'none';
+}
+function trkAgo(ms){
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m < 60 ? `${m} mnt` : m < 1440 ? `${Math.floor(m / 60)} jam ${m % 60} mnt` : `${Math.floor(m / 1440)} hari`;
+}
+function decisionCardHtml(rec){
+  const row = tickerData.find(d => d.symbol === rec.symbol);
+  const price = row ? parseFloat(row.lastPrice) : NaN;
+  const d = liveData[rec.symbol] || {};
+  const long = rec.side === 'long';
+  const r = price > 0 ? trkR(rec, price) : 0;
+  const span = rec.tp - rec.sl;
+  const frac = v => Math.max(0, Math.min(1, (v - rec.sl) / span)) * 100;
+  const sinceEntry = price > 0 ? (price - rec.entry) * (long ? 1 : -1) : 0;
+  const rrCls = r >= 0 ? 'chg-pos' : 'chg-neg';
+
+  // OI
+  let oiCell = `<div class="val">memuat…</div>`;
+  if(d.oi > 0 && price > 0){
+    const chg = rec.oiBase > 0 ? (d.oi / rec.oiBase - 1) * 100 : null;
+    const oiUp = chg !== null && chg > 0, pxUp = sinceEntry > 0;
+    const read = chg === null ? '' : Math.abs(chg) < 0.05 ? 'OI relatif datar' : sinceEntry === 0 ? (oiUp ? 'OI naik' : 'OI turun') : oiUp ? (pxUp === long ? 'OI naik searah posisi' : 'OI naik melawan posisi') : (pxUp === long ? 'OI turun (posisi ditutup)' : 'OI turun, harga melawan');
+    oiCell = `<div class="val">$${fmtNum(d.oi * price)}</div><div class="sub">${chg !== null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% sejak RUNNING' : ''}${read ? ' · ' + read : ''}</div>`;
+  }
+  // CVD
+  const cvd5 = (d.cvdWin || []).reduce((s, x) => s + x.d, 0);
+  const cvdCell = d.wsOn || (d.cvdWin && d.cvdWin.length)
+    ? `<div class="val ${d.cvd >= 0 ? 'chg-pos' : 'chg-neg'}">${d.cvd >= 0 ? '+' : '−'}$${fmtNum(Math.abs(d.cvd))}</div><div class="sub">5 mnt: ${cvd5 >= 0 ? '+' : '−'}$${fmtNum(Math.abs(cvd5))} · sejak dipantau ${trkAgo(Date.now() - (d.cvdSince || Date.now()))}</div>`
+    : `<div class="val">menyambung…</div><div class="sub">stream trade belum tersambung</div>`;
+  // Orderbook
+  const obCell = d.imb !== undefined
+    ? `<div class="val">Bid ${Math.round((1 + d.imb) * 50)}% · Ask ${Math.round((1 - d.imb) * 50)}%</div><div class="sub">${d.imb > 0.1 ? 'bid dominan' : d.imb < -0.1 ? 'ask dominan' : 'seimbang'} · 20 level · spread ${d.bid > 0 && d.ask > 0 ? ((d.ask - d.bid) / d.bid * 100).toFixed(3) + '%' : '-'}</div>`
+    : `<div class="val">menyambung…</div><div class="sub">stream orderbook belum tersambung</div>`;
+  // CHoCH / BOS
+  const st = structById[rec.id];
+  let chCell = `<div class="val">memuat…</div>`;
+  if(st !== undefined){
+    if(!st) chCell = `<div class="val">belum ada</div><div class="sub">${rec.tf.toUpperCase()} · tutup candle</div>`;
+    else {
+      const against = st.type === 'CHoCH' && ((long && st.direction === 'bearish') || (!long && st.direction === 'bullish'));
+      const after = st.t !== null && st.t >= (rec.runningAt || 0);
+      chCell = `<div class="val ${against && after ? 'dec-warn' : ''}">${escapeHtml(st.type)} ${escapeHtml(st.direction)}</div><div class="sub">${rec.tf.toUpperCase()} · ${st.barsAgo} candle lalu · level ${fmtPrice(st.level)}${against && after ? '<br>⚠ berlawanan arah posisi, terjadi setelah entry' : ''}</div>`;
+    }
+  }
+  return `
+  <div class="dec-card ${rec.side}" onclick="openDetail('${rec.symbol}','${rec.tf}')">
+    <div class="dec-head">
+      <span class="run-tag"><span class="run-dot"></span>RUNNING</span>
+      <span class="dec-sym">${rec.symbol.replace('USDT', '')}</span>
+      <span class="badge-pill ${long ? 'score-hi' : 'score-lo'}">${long ? 'LONG' : 'SHORT'}</span>
+      <div class="dec-meta">${escapeHtml(rec.title)} · ${escapeHtml(ICT_CFG.styles[rec.style].label)} (${rec.tf.toUpperCase()}) · grade ${escapeHtml(rec.grade)} · ${rec.passes}/${rec.total} syarat · berjalan ${trkAgo(Date.now() - rec.runningAt)}${rec.filledAtArm ? ' · Entry sudah tersentuh saat setup terdeteksi' : ''}</div>
+    </div>
+    <div class="dec-price"><span class="px">${price > 0 ? fmtPrice(price) : '-'}</span><span class="rr ${rrCls}">${r >= 0 ? '+' : ''}${r.toFixed(2)}R</span></div>
+    <div class="dec-prog"><div class="fill" style="width:${price > 0 ? frac(price) : 0}%"></div><div class="mark" style="left:${frac(rec.entry)}%" title="Entry"></div>${price > 0 ? `<div class="now" style="left:${frac(price)}%"></div>` : ''}</div>
+    <div class="dec-lv">
+      <div><span>SL</span>${fmtPrice(rec.sl)}</div><div><span>ENTRY</span>${fmtPrice(rec.entry)}</div><div><span>TP</span>${fmtPrice(rec.tp)}</div><div><span>RR</span>1:${rec.rr.toFixed(2)}</div>
+    </div>
+    <div class="dec-data">
+      <div class="dec-cell"><div class="lbl">OPEN INTEREST</div>${oiCell}</div>
+      <div class="dec-cell"><div class="lbl">CVD (TAKER)</div>${cvdCell}</div>
+      <div class="dec-cell"><div class="lbl">ORDERBOOK</div>${obCell}</div>
+      <div class="dec-cell"><div class="lbl">STRUKTUR ${rec.tf.toUpperCase()}</div>${chCell}</div>
+    </div>
+  </div>`;
+}
+function renderDecision(){
+  const listEl = document.getElementById('decisionList');
+  if(!listEl) return;
+  const run = runningRecs().sort((a, b) => b.runningAt - a.runningAt);
+  listEl.innerHTML = run.length
+    ? run.map(decisionCardHtml).join('')
+    : `<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Deep Scan</b> / <b>Intraday</b> / <b>Swing</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>`;
+  const armed = trackRecs.filter(r => r.status === 'armed').length;
+  const noteEl = document.getElementById('decisionArmedNote');
+  noteEl.textContent = armed ? `${armed} setup dari scan sedang dipantau, menunggu harga menyentuh Entry.` : '';
+  noteEl.style.display = armed ? 'block' : 'none';
 }
 
 // ===== ALERT CHECK: dijalankan otomatis tiap refresh, cuma untuk pair di Watchlist =====
@@ -3992,7 +4395,7 @@ function syncDrawerNavState(){
 }
 
 let currentWorkspace = 'wsHome';
-const WS_IDS = ['wsHome','wsScanner','wsTrading','wsReview'];
+const WS_IDS = ['wsHome','wsScanner','wsTrading','wsDecision','wsReview'];
 function showWorkspace(id){
   WS_IDS.forEach(w=>document.getElementById(w).classList.toggle('active', w===id));
   document.querySelectorAll('.sidebar-nav-item[data-ws]').forEach(b=>{
@@ -4007,7 +4410,8 @@ function showWorkspace(id){
     renderOpenPositions();
     if(!currentDetailSymbol) selectWorkspaceSymbol('BTCUSDT');
   }
-  if(id==='wsReview') renderEquityCurve();
+  if(id==='wsDecision') renderDecision();
+  if(id==='wsReview'){ renderJournal(); renderEquityCurve(); }
 }
 document.querySelectorAll('.sidebar-nav-item[data-ws]').forEach(btn=>{
   btn.addEventListener('click', ()=>showWorkspace(btn.dataset.ws));
@@ -4051,7 +4455,7 @@ document.getElementById('marketQuickBtn').addEventListener('click', ()=>{
   showWorkspace('wsScanner');
 });
 document.getElementById('decisionQuickBtn').addEventListener('click', ()=>{
-  showWorkspace('wsTrading');
+  showWorkspace('wsDecision');
 });
 function backToAksiCepat(){
   showWorkspace('wsHome');
@@ -5131,6 +5535,8 @@ refreshAll().then(()=>{
   connectBinanceWS();
   startWsRenderLoop();
 });
+startTracker();
+renderDecisionBadge();
 
 // ===== PWA: register service worker =====
 if ('serviceWorker' in navigator){

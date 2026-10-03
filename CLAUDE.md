@@ -24,6 +24,7 @@ scripts/check-cache-bump.js    enforces the CACHE_NAME rule below
 scripts/selftest.js            proves check.js actually rejects defects, so it can't rot into always-green
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
 scripts/test-ict-models.js     tests for the Unicorn & Inverse Blueprint (IFVG) models against the rules in the two guide PDFs
+scripts/test-ict-track.js      tests for the Decision tracker (armed → running → TP/SL/void, conservative candle rules)
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
 scripts/backtest-ict.js        OPTIONAL: walk-forward backtest on real Binance data (needs internet)
 scripts/analyze-features.js    OPTIONAL: feature-vs-outcome research on a backtest dump
@@ -34,7 +35,7 @@ scripts/vps-backtest.sh        OPTIONAL: one-command futures backtest for a VPS 
 ## Development workflow
 
 - Edit `index.html` directly; there's nothing to compile. Open it in a browser (or serve the folder statically) to test.
-- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js` and `node scripts/test-ict-models.js`.**
+- **Before committing, run `node scripts/check.js`, `node scripts/test-ict.js`, `node scripts/test-ict-models.js` and `node scripts/test-ict-track.js`.**
   - `check.js` catches the class of mistake this single-file app is most prone to: a function called but never defined, a `getElementById` pointing at a missing id, a duplicate id, an inline `onclick` naming a missing function, or a syntax error. It checks *calls by name* only — it does **not** catch a reference to a deleted constant/variable.
   - `test-ict.js` extracts the block between the `/* ICT-ENGINE-START */` and `/* ICT-ENGINE-END */` markers in `index.html` and runs it in Node: a known bullish sweep+MSS scenario must give LONG with exact entry/SL/TP, its price-mirror must give SHORT with mirrored levels, an opposing HTF bias must give SKIP, plus a random-walk fuzz (no crashes, consistent plans, rare signals) and a ban on classic-indicator calls inside the engine block.
 - For anything touching UI/flow, also run `node scripts/smoke-browser.js --shots=<folder>` (needs Chrome or Edge) and look at the screenshots. It mocks the Binance API with synthetic candles, so it is deterministic and offline. It fails on any exception or `console.error`.
@@ -102,6 +103,16 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - **Back peramban/HP** ditangani `closeTopLayer()` + `popstate` + entri riwayat "penjaga" (`BACK_GUARD`): back menutup lapisan teratas (modal → sidebar → panel → workspace non-Home) lalu memasang penjaga lagi; tanpa lapisan terbuka, back dibiarkan keluar. Lapisan UI baru (modal/panel) harus didaftarkan di `closeTopLayer()`. Tombol tutup di layar tidak menyentuh riwayat.
 - **Hasil scan = keputusan Decision.** Baris/kartu hasil scan memanggil `openDetail(symbol, tf)` dengan TF entry gayanya (`ICT_CFG.styles[style].ltf`: Intraday 1h, Swing 4h). Jangan buka detail tanpa `tf` dari hasil scan — itu pernah membuat pair hasil Intraday terbuka di 4H (Swing) dan tampil SKIP. Smoke test membandingkan keduanya.
 - **Deep Scan:** satu baris per pair (setup terbaik antar gaya), maksimal 20, urut siap-entry → `ictQuality()` (grade + rasio syarat lulus) → syarat lulus → likuiditas. **RR bukan kunci urut.** `ictQuality` adalah kualitas setup, BUKAN probabilitas menang — jangan menampilkan "% peluang" selama edge belum terbukti.
+
+## Decision (pelacak setup RUNNING)
+
+- Workspace `wsDecision` (tombol Decision di Home + sidebar) berisi pair yang harganya SUDAH menyentuh Entry. Tombol itu tidak lagi membuka Trading Workspace.
+- Siklus: `armSetups()` (dipanggil `runIctScan` untuk setiap hasil scan) → `armed` → harga menyentuh Entry → `running` → TP / SL → `closed` dan hilang dari Decision. `void` (TP tercapai tanpa menyentuh Entry) dan `expired` (Intraday 24 jam, Swing 7 hari) bukan trade dan tidak dicatat.
+- **Logika status ada di blok `ICT-TRACK-START/END` (murni, tanpa DOM/jaringan), diuji `scripts/test-ict-track.js`.** Aturan konservatif sama dengan backtest: di candle fill hanya SL yang dihitung; SL dan TP satu candle → SL. SL "pelanggaran IFVG" (`slCloseBased`) hanya dinilai dari penutupan candle LTF, bukan tick.
+- Data RUNNING: OI (REST `openInterest`, ±15 dtk), CVD + orderbook (WebSocket `aggTrade` + `depth20@500ms`, maks `TRACK_MAX_LIVE` pair), struktur CHoCH/BOS (candle tutup TF entry, ±30 dtk). **Hanya tampilan — jangan pernah memasukkannya ke `ictEvaluate`/penilaian setup** (engine tetap bebas indikator, lihat "Hard rules"). Semua lewat `safeFetch` / WebSocket publik, tanpa API key.
+- Pemantauan hanya jalan selama app terbuka; saat dibuka lagi atau tab kembali aktif, `trackReconcile` menutup celah dari candle 1m/5m/15m. Asumsi fill = order limit di Entry; tanpa fee/slippage.
+- Hasil TP/SL otomatis masuk Jurnal (Review) dengan `auto:true` + `trackId` — ini catatan forward-test; jangan dicampur dengan klaim edge.
+- Catatan tersimpan di `localStorage` kunci `ict_track_v1`.
 
 ## Hard rules
 
