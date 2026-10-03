@@ -138,6 +138,7 @@ scripts/selftest.js            memastikan pemeriksanya sendiri masih bisa menola
 scripts/test-ict.js            uji perilaku engine ICT dengan candle sintetis (skenario + cermin + fuzz)
 scripts/test-ict-models.js     uji model Unicorn & IFVG terhadap aturan di kedua berkas panduan (angka eksak, cermin, fuzz)
 scripts/test-ict-track.js      uji pelacak Decision (armed → RUNNING → TP/SL/void, candle konservatif, SL close-based, cermin)
+scripts/e2e-binance.js         uji end-to-end aplikasi asli terhadap Binance sungguhan (butuh Chrome + jaringan; opsional BINANCE_PROXY; tidak di CI)
 scripts/smoke-browser.js       OPSIONAL: smoke test di Chrome/Edge headless dengan API Binance palsu
 scripts/backtest-ict.js        OPSIONAL: backtest walk-forward di data Binance nyata (futures atau spot; butuh internet)
 scripts/vps-backtest.sh        OPSIONAL: satu perintah untuk menjalankan backtest + analisis di VPS (tanpa API key)

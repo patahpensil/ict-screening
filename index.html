@@ -2123,9 +2123,12 @@ async function loadExchangeInfo(){
   const res = await safeFetch(FAPI + "/fapi/v1/exchangeInfo");
   if(!res.ok) throw new Error("exchangeInfo gagal: " + res.status);
   const j = await res.json();
-  return j.symbols
-    .filter(s => s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING")
-    .map(s => s.symbol);
+  return j.symbols.filter(isTradableUsdtPerp).map(s => s.symbol);
+}
+// Hanya simbol ASCII (A-Z, 0-9). Binance punya pair berhuruf Mandarin (mis. 币安人生USDT); enrichTicker() menghapus karakter
+// non-ASCII sehingga namanya jadi "USDT" dan semua request klines-nya ditolak (HTTP 400). Pair seperti itu dilewati.
+function isTradableUsdtPerp(s){
+  return !!s && s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING" && /^[A-Z0-9]+$/.test(String(s.symbol));
 }
 
 async function loadTicker24h(){
@@ -2196,25 +2199,32 @@ function setWsStatus(connected){
   }
 }
 
+// Binance memecah endpoint WebSocket futures: ticker/markPrice/aggTrade ada di /market, depth di /public. Endpoint lama /stream
+// kini MENGIRIM NOL pesan untuk !ticker@arr & !markPrice (koneksinya tetap "open" — dulu itu membuat status "Live" bohong).
+// Karena itu: /market/stream dulu, /stream (lama) sebagai cadangan, dan "Live" baru dinyatakan setelah PESAN PERTAMA datang.
+const WS_MAIN_URLS = [
+  'wss://fstream.binance.com/market/stream?streams=!ticker@arr/!markPrice@arr@1s',
+  'wss://fstream.binance.com/stream?streams=!ticker@arr/!markPrice@arr@1s',
+];
+let wsUrlIdx = 0, wsOpenedAt = 0, wsLastMsg = 0;
 function connectBinanceWS(){
   if(wsConn && (wsConn.readyState === WebSocket.OPEN || wsConn.readyState === WebSocket.CONNECTING)) return;
   try{
-    wsConn = new WebSocket('wss://fstream.binance.com/stream?streams=!ticker@arr/!markPrice@arr@1s');
-    wsConn.onopen = () => {
-      wsReconnectDelay = 2000;
-      setWsStatus(true);
-      console.log('Binance WebSocket tersambung — real-time aktif');
-    };
-    wsConn.onmessage = (evt) => {
+    const w = new WebSocket(WS_MAIN_URLS[wsUrlIdx % WS_MAIN_URLS.length]);
+    wsConn = w; wsOpenedAt = Date.now(); wsLastMsg = 0;
+    w.onmessage = (evt) => {
       try{
         const msg = JSON.parse(evt.data);
         if(!msg || !msg.stream || !msg.data) return;
+        if(!wsLastMsg){ wsReconnectDelay = 2000; setWsStatus(true); console.log('Binance WebSocket menerima data — real-time aktif'); }
+        wsLastMsg = Date.now();
         if(msg.stream === '!ticker@arr') applyTickerStream(msg.data);
         else if(msg.stream === '!markPrice@arr@1s') applyMarkPriceStream(msg.data);
       }catch(e){ /* pesan korup/nggak lengkap — abaikan, tunggu pesan berikutnya */ }
     };
-    wsConn.onerror = () => { try{ wsConn.close(); }catch(e){} };
-    wsConn.onclose = () => {
+    w.onerror = () => { try{ w.close(); }catch(e){} };
+    w.onclose = () => {
+      if(wsConn !== w) return;
       setWsStatus(false);
       scheduleWsReconnect();
     };
@@ -2223,6 +2233,14 @@ function connectBinanceWS(){
     scheduleWsReconnect();
   }
 }
+// Watchdog: koneksi terbuka tapi tidak ada data (endpoint salah/macet) -> putus, ganti endpoint, sambung ulang.
+setInterval(()=>{
+  const w = wsConn;
+  if(!w || w.readyState !== 1) return;
+  const now = Date.now();
+  if(!wsLastMsg && now - wsOpenedAt > 15000){ wsUrlIdx++; try{ w.close(); }catch(e){} }
+  else if(wsLastMsg && now - wsLastMsg > 20000){ try{ w.close(); }catch(e){} }
+}, 5000);
 function scheduleWsReconnect(){
   clearTimeout(wsReconnectTimer);
   wsReconnectTimer = setTimeout(connectBinanceWS, wsReconnectDelay);
@@ -3735,6 +3753,16 @@ const ICT_CANDLES = 200; // jumlah candle yang ditarik per timeframe — sama di
 
 const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit' };
 function ictShortTitle(id){ return ICT_SHORT_TITLES[id] || String(id); }
+// Engine membaca harga dari close candle TUTUP terakhir (bisa berumur hingga satu TF), sedangkan harga live bisa sudah melewati
+// rencana. true = setup sudah tidak berlaku: harga live melewati SL (kecuali SL berbasis penutupan candle) atau TP1 (target sudah
+// diambil tanpa retrace). Dipakai daftar scan dan pendaftaran pelacak supaya konsisten.
+function ictPlanBeyondLive(plan, side, px){
+  if(!plan || !(px > 0)) return false;
+  const long = side === 'long';
+  const slHit = !plan.slCloseBased && (long ? px <= plan.sl : px >= plan.sl);
+  const tpHit = plan.tp !== null && plan.tp !== undefined && (long ? px >= plan.tp : px <= plan.tp);
+  return slHit || tpHit;
+}
 // Kualitas setup = seberapa lengkap checklist ICT lolos (grade, lalu rasio syarat lulus). BUKAN probabilitas menang:
 // backtest belum membuktikan edge, jadi tidak ada angka peluang. RR sengaja tidak dipakai untuk mengurutkan — RR besar
 // berarti target jauh, bukan setup lebih bagus.
@@ -3878,6 +3906,12 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   if(btn) btn.disabled = false;
   if(myToken !== modeScanToken) return; // scan ini sudah usang pas semua worker kelar — jangan render ke layar
 
+  // Buang setup yang harga LIVE-nya sudah melewati SL/TP1 (engine memakai close candle tutup, bisa basi).
+  const livePx = new Map(tickerData.map(d => [d.symbol, parseFloat(d.lastPrice)]));
+  const hitsAll = hits.slice();
+  hits.length = 0;
+  hitsAll.forEach(h => { if(!ictPlanBeyondLive(h.ev.best.plan, h.ev.best.side, livePx.get(h.symbol))) hits.push(h); });
+  const staleDropped = hitsAll.length - hits.length;
   // Urutan: siap entry (harga di zona) dulu, lalu kualitas setup, lalu jumlah syarat lulus, lalu likuiditas pair.
   const volOf = new Map(candidates.map(c => [c.symbol, c.quoteVolume]));
   const better = (x, y) => {
@@ -3895,7 +3929,7 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   renderTopSignals();
   armSetups(shown); // setiap hasil scan otomatis dipantau; pindah ke Decision begitu harga menyentuh Entry
 
-  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid — diurutkan menurut kualitas setup (bukan peluang menang)`;
+  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid — diurutkan menurut kualitas setup (bukan peluang menang)${staleDropped ? ` · ${staleDropped} setup dibuang karena harga live sudah melewati SL/TP1` : ''}`;
   if(unique.length === 0){
     listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang. Coba scan ulang nanti.</div>`;
     return;
@@ -3964,6 +3998,10 @@ const TRACK_KEEP_CLOSED_MS = 60 * 864e5;
 const TRACK_EXPIRE_MS = { intraday: 24 * 36e5, swing: 7 * 864e5 }; // setup yang tak kunjung menyentuh Entry dianggap basi
 const TF_MS = { '1h': 36e5, '4h': 144e5 };
 let trackDirty = false;
+// Selama trackReady=false, tick harga TIDAK memutuskan apa pun: saat app baru dibuka / tab lama di-background, harga sekarang bisa
+// sudah jauh dari harga saat setup didaftarkan, jadi riwayat candle harus diproses lebih dulu (tanpa ini setup yang sebenarnya sudah
+// terisi lalu kena TP bisa salah dicap void hanya karena harga sekarang di atas TP).
+let trackReady = false, lastTickAt = 0;
 let trackRecs = (function(){
   try{ const a = JSON.parse(localStorage.getItem(LS_TRACK) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
 })();
@@ -3984,7 +4022,7 @@ function armSetups(hits){
     // Harga sekarang sudah melewati SL atau TP1: setup sudah tidak berlaku — jangan didaftarkan (kalau tidak, tercatat sebagai
     // "terisi lalu SL/TP" padahal tidak pernah dipantau masuk).
     const px0 = parseFloat((tickerData.find(d => d.symbol === h.symbol) || {}).lastPrice);
-    if(px0 > 0 && ((b.side === 'long' ? px0 <= p.sl : px0 >= p.sl) || (b.side === 'long' ? px0 >= p.tp : px0 <= p.tp))) continue;
+    if(ictPlanBeyondLive(p, b.side, px0)) continue;
     const rec = {
       id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7), key, symbol: h.symbol, style: h.style, tf: ICT_CFG.styles[h.style].ltf,
       side: b.side, setupId: b.id, title: ictShortTitle(b.id), grade: b.grade, passes: b.check.passes, total: b.check.total,
@@ -4044,6 +4082,9 @@ function onTrackTransition(rec, from, tpBefore){
 
 function trackTick(){
   const now = Date.now();
+  if(lastTickAt && now - lastTickAt > 15000 && trackReady) trackCatchUp(); // tab di-background/komputer tidur: ada celah, susul dari candle dulu
+  lastTickAt = now;
+  if(!trackReady){ renderDecisionBadge(); if(currentWorkspace === 'wsDecision') renderDecision(); return; }
   if(!trackRecs.length) { renderDecisionBadge(); return; }
   let changed = false;
   const px = new Map();
@@ -4057,6 +4098,7 @@ function trackTick(){
     trkStepPrice(rec, p, now);
     if(rec.status !== before || (rec.tpHit || 0) !== tpb){ changed = true; onTrackTransition(rec, before, tpb); }
   }
+  watchTrackSockets();
   for(const s in liveData){ const d = liveData[s]; const cut = now - 300000; while(d.cvdWin.length && d.cvdWin[0].t < cut) d.cvdWin.shift(); }
   const keep = trackRecs.filter(r => r.status !== 'closed' || now - (r.closedAt || 0) < TRACK_KEEP_CLOSED_MS);
   if(keep.length !== trackRecs.length){ trackRecs = keep; changed = true; }
@@ -4067,37 +4109,66 @@ function trackTick(){
 }
 
 // ----- stream CVD (aggTrade) + orderbook (depth20) hanya untuk pair RUNNING -----
-let trackWs = null, trackWsSig = '', trackWsTimer = null, trackWsDelay = 2000;
+// Dua koneksi terpisah sesuai endpoint baru Binance: aggTrade di /market, depth di /public (endpoint lama /stream tidak lagi
+// mengirim aggTrade — CVD selalu 0). Penanda per pair (wsOn = trade mengalir, depthOn = orderbook mengalir) baru menyala
+// setelah PESAN PERTAMA diterima, bukan saat koneksi terbuka.
+const TRACK_SOCKS = {
+  market: { path: 'market', stream: s => `${s}@aggTrade`, flag: 'wsOn' },
+  public: { path: 'public', stream: s => `${s}@depth20@500ms`, flag: 'depthOn' },
+};
+let trackSocks = {}, trackWsSig = '', trackWsTimers = {}, trackWsDelay = 2000;
 function liveSymbols(){
   return [...new Set(runningRecs().sort((a, b) => b.runningAt - a.runningAt).map(r => r.symbol))].slice(0, TRACK_MAX_LIVE);
 }
 function closeTrackWs(){
-  clearTimeout(trackWsTimer);
-  if(trackWs){ const w = trackWs; trackWs = null; w.onclose = null; w.onerror = null; try{ w.close(); }catch(e){} }
+  for(const k in trackWsTimers) clearTimeout(trackWsTimers[k]);
+  trackWsTimers = {};
+  for(const k in trackSocks){ const w = trackSocks[k]; w.onclose = null; w.onerror = null; try{ w.close(); }catch(e){} }
+  trackSocks = {};
 }
 function syncTrackStreams(){
   const syms = liveSymbols(), sig = syms.join(',');
-  if(sig === trackWsSig && (trackWs || !syms.length)) return;
+  if(sig === trackWsSig && (Object.keys(trackSocks).length || !syms.length)) return;
   closeTrackWs(); trackWsSig = sig;
-  Object.keys(liveData).forEach(s => { if(!syms.includes(s)) liveData[s].wsOn = false; });
-  if(syms.length) openTrackWs(syms);
+  Object.keys(liveData).forEach(s => { if(!syms.includes(s)){ liveData[s].wsOn = false; liveData[s].depthOn = false; } });
+  if(syms.length) for(const kind in TRACK_SOCKS) openTrackSocket(kind, syms);
 }
-function openTrackWs(syms){
+function openTrackSocket(kind, syms){
+  const cfg = TRACK_SOCKS[kind];
   try{
-    const streams = syms.flatMap(s => [`${s.toLowerCase()}@aggTrade`, `${s.toLowerCase()}@depth20@500ms`]).join('/');
-    const w = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
-    trackWs = w;
-    w.onopen = () => { trackWsDelay = 2000; syms.forEach(s => { const d = ld(s); d.wsOn = true; if(!d.cvdSince) d.cvdSince = Date.now(); }); };
-    w.onmessage = e => { try{ const m = JSON.parse(e.data); if(m && m.stream && m.data) handleTrackMsg(m.stream, m.data); }catch(err){ /* pesan korup — abaikan */ } };
+    const streams = syms.map(s => cfg.stream(s.toLowerCase())).join('/');
+    const w = new WebSocket(`wss://fstream.binance.com/${cfg.path}/stream?streams=${streams}`);
+    w._last = 0; w._t0 = Date.now();
+    trackSocks[kind] = w;
+    w.onopen = () => { trackWsDelay = 2000; };
+    w.onmessage = e => {
+      try{
+        const m = JSON.parse(e.data);
+        if(!m || !m.stream || !m.data) return;
+        if(!w._last) syms.forEach(s => { const d = ld(s); d[cfg.flag] = true; if(kind === 'market' && !d.cvdSince) d.cvdSince = Date.now(); });
+        w._last = Date.now();
+        handleTrackMsg(m.stream, m.data);
+      }catch(err){ /* pesan korup — abaikan */ }
+    };
     w.onerror = () => { try{ w.close(); }catch(err){} };
     w.onclose = () => {
-      if(trackWs !== w) return;
-      trackWs = null; syms.forEach(s => { ld(s).wsOn = false; });
-      clearTimeout(trackWsTimer);
-      trackWsTimer = setTimeout(() => { if(!trackWs && trackWsSig) openTrackWs(trackWsSig.split(',')); }, trackWsDelay);
+      if(trackSocks[kind] !== w) return;
+      delete trackSocks[kind];
+      syms.forEach(s => { ld(s)[cfg.flag] = false; });
+      clearTimeout(trackWsTimers[kind]);
+      trackWsTimers[kind] = setTimeout(() => { if(!trackSocks[kind] && trackWsSig) openTrackSocket(kind, trackWsSig.split(',')); }, trackWsDelay);
       trackWsDelay = Math.min(trackWsDelay * 1.6, 30000);
     };
   }catch(e){ console.warn('Stream Decision gagal dibuka:', e); }
+}
+// Koneksi terbuka tapi tidak ada data (depth selalu mengalir; aggTrade bisa sepi, jadi hanya diperiksa sebelum pesan pertama).
+function watchTrackSockets(){
+  const now = Date.now();
+  for(const kind in trackSocks){
+    const w = trackSocks[kind];
+    if(w.readyState !== 1) continue;
+    if((!w._last && now - w._t0 > 20000) || (kind === 'public' && w._last && now - w._last > 20000)){ try{ w.close(); }catch(e){} }
+  }
 }
 function handleTrackMsg(stream, data){
   const sym = data.s; if(!sym) return;
@@ -4162,15 +4233,26 @@ async function trackReconcile(rec){
   trkStepCandles(rec, cs, { ltfCandles: ltf, ltfMs: TF_MS[rec.tf] });
   if(rec.status !== before || (rec.tpHit || 0) !== tpb){ trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams(); }
 }
-let trackReconBusy = false;
-async function trackReconcileAll(onlyRunning){
-  if(trackReconBusy) return;
-  trackReconBusy = true;
-  try{
-    for(const rec of trackRecs.filter(r => r.status !== 'closed' && (!onlyRunning || r.status === 'running'))){
-      try{ await trackReconcile(rec); }catch(e){ /* lewati pair ini */ }
-    }
-  } finally { trackReconBusy = false; }
+let trackReconPromise = null;
+function trackReconcileAll(onlyRunning){
+  if(trackReconPromise) return trackReconPromise;
+  trackReconPromise = (async () => {
+    const list = trackRecs.filter(r => r.status !== 'closed' && (!onlyRunning || r.status === 'running'));
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(4, list.length) }, async () => {
+      while(i < list.length){
+        const rec = list[i++];
+        try{ await trackReconcile(rec); }catch(e){ /* lewati pair ini */ }
+      }
+    }));
+  })().finally(() => { trackReconPromise = null; });
+  return trackReconPromise;
+}
+// Susul semua catatan dari candle, baru izinkan tick harga memutuskan. Batas 30 dtk supaya jaringan macet tidak menahan pemantauan.
+async function trackCatchUp(){
+  trackReady = false;
+  const guard = setTimeout(() => { trackReady = true; }, 30000);
+  try{ await trackReconcileAll(false); } finally { clearTimeout(guard); trackReady = true; }
 }
 
 function startTracker(){
@@ -4181,8 +4263,8 @@ function startTracker(){
   setInterval(pollTrackStructure, 30000);
   let n = 0;
   setInterval(() => { n++; trackReconcileAll(n % 5 !== 0); }, 60000); // tiap menit pair RUNNING; tiap 5 menit semuanya
-  setTimeout(() => { trackReconcileAll(false); pollTrackOI(); pollTrackStructure(); }, 4000);
-  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') trackReconcileAll(false); });
+  trackCatchUp().then(() => { pollTrackOI(); pollTrackStructure(); });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') trackCatchUp(); });
 }
 
 // ----- tampilan -----
@@ -4219,11 +4301,11 @@ function decisionCardHtml(rec){
   const cvd5 = (d.cvdWin || []).reduce((s, x) => s + x.d, 0);
   const cvdCell = d.wsOn || (d.cvdWin && d.cvdWin.length)
     ? `<div class="val ${d.cvd >= 0 ? 'chg-pos' : 'chg-neg'}">${d.cvd >= 0 ? '+' : '−'}$${fmtNum(Math.abs(d.cvd))}</div><div class="sub">5 mnt: ${cvd5 >= 0 ? '+' : '−'}$${fmtNum(Math.abs(cvd5))} · sejak dipantau ${trkAgo(Date.now() - (d.cvdSince || Date.now()))}</div>`
-    : `<div class="val">menyambung…</div><div class="sub">stream trade belum tersambung</div>`;
+    : `<div class="val">menyambung…</div><div class="sub">menunggu trade pertama dari stream</div>`;
   // Orderbook
   const obCell = d.imb !== undefined
     ? `<div class="val">Bid ${Math.round((1 + d.imb) * 50)}% · Ask ${Math.round((1 - d.imb) * 50)}%</div><div class="sub">${d.imb > 0.1 ? 'bid dominan' : d.imb < -0.1 ? 'ask dominan' : 'seimbang'} · 20 level · spread ${d.bid > 0 && d.ask > 0 ? ((d.ask - d.bid) / d.bid * 100).toFixed(3) + '%' : '-'}</div>`
-    : `<div class="val">menyambung…</div><div class="sub">stream orderbook belum tersambung</div>`;
+    : `<div class="val">menyambung…</div><div class="sub">menunggu snapshot orderbook</div>`;
   // CHoCH / BOS
   const st = structById[rec.id];
   let chCell = `<div class="val">memuat…</div>`;

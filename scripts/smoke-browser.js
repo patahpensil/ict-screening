@@ -35,6 +35,11 @@ if (!CHROME) { console.error('Chrome/Edge tidak ditemukan. Set CHROME_PATH.'); p
 
 // ---------- API Binance palsu (disuntik sebelum script halaman jalan) ----------
 const MOCK = `
+// Jam dibekukan di 2025-01-15 21:00Z lalu terus berjalan. Level sesi (Asian high/low) dan killzone bergantung jam dinding, jadi RR
+// target terdekat (low hanging fruit) di skenario mock berubah menurut jam test dijalankan; 21:00Z dipilih karena semua skenario valid di jam ini.
+(function(){ const RD = Date, START = RD.now(), FIXED = RD.parse('2025-01-15T21:00:00Z');
+  class FD extends RD { constructor(...a){ if(a.length === 0) super(FIXED + (RD.now() - START)); else super(...a); } static now(){ return FIXED + (RD.now() - START); } }
+  window.Date = FD; })();
 (() => {
   const SYMS = ['BTCUSDT','ETHUSDT','SOLUSDT','DOGEUSDT','XRPUSDT','BNBUSDT','ADAUSDT','AVAXUSDT','LINKUSDT','TRXUSDT'];
   let seed = 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -193,6 +198,9 @@ async function main() {
   check(deep.length > 0 && deep.length <= 20, `Deep Scan menampilkan 1-20 pair (${deep.length})`);
   check(new Set(deep.map(h => h.s)).size === deep.length, 'Deep Scan: tiap pair hanya muncul sekali (TRX tidak dobel Swing+Intraday)');
   check(deep.every((h, i) => i === 0 || (deep[i-1].inz ? 1 : 0) > (h.inz ? 1 : 0) || ((deep[i-1].inz ? 1 : 0) === (h.inz ? 1 : 0) && deep[i-1].q >= h.q)), 'Deep Scan: urut siap-entry dulu, lalu kualitas setup menurun');
+  // harga LIVE tidak boleh sudah melewati SL/TP1 setup yang ditampilkan (engine memakai close candle tutup yang bisa basi)
+  check(await evaluate("lastScanResults.hits.every(h => !ictPlanBeyondLive(h.ev.best.plan, h.ev.best.side, parseFloat(tickerData.find(d => d.symbol === h.symbol).lastPrice)))") === true, "tidak ada hasil scan yang harga live-nya sudah melewati SL/TP1");
+  check(await evaluate("ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",89) && ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",121) && !ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",100) && ictPlanBeyondLive({sl:110,tp:80,slCloseBased:false},\"short\",111) && ictPlanBeyondLive({sl:110,tp:80,slCloseBased:false},\"short\",79) && !ictPlanBeyondLive({sl:90,tp:120,slCloseBased:true},\"long\",89)") === true, "ictPlanBeyondLive: long/short, SL, TP1, dan SL berbasis close (tidak dinilai dari harga)");
   // konsistensi: tiap hasil scan harus sama dengan keputusan halaman Decision di gaya/timeframe yang membawanya
   const mismatch = await evaluate(`(async()=>{ const bad=[]; for(const h of lastScanResults.hits){ const tf=ICT_CFG.styles[h.style].ltf; await loadDetail(h.symbol, tf); const f=lastDetailFull; const want=h.ev.best.side==='long'?'LONG':'SHORT'; if(!f||f.ev.decision!==want||f.ev.best.id!==h.ev.best.id) bad.push(h.symbol+'@'+tf+' scan='+want+'/'+h.ev.best.id+' decision='+(f?f.ev.decision+'/'+(f.ev.best&&f.ev.best.id):'null')); } return bad; })()`);
   check(mismatch.length === 0, 'hasil scan = keputusan Decision di gaya yang sama untuk semua pair' + (mismatch.length ? ' — beda: ' + mismatch.join('; ') : ''));
@@ -301,6 +309,13 @@ async function main() {
   check(!(await evaluate('document.getElementById("alertLog").innerText')).includes('undefined'), 'riwayat alert ter-render tanpa "undefined"');
   await shot('08-alert', 430, 900);
 
+  // simbol non-ASCII (mis. 币安人生USDT) tidak boleh lolos jadi "USDT"
+  check(await evaluate('isTradableUsdtPerp({symbol:"BTCUSDT",quoteAsset:"USDT",contractType:"PERPETUAL",status:"TRADING"}) && !isTradableUsdtPerp({symbol:"币安人生USDT",quoteAsset:"USDT",contractType:"PERPETUAL",status:"TRADING"}) && !isTradableUsdtPerp({symbol:"BTCUSDT_261225",quoteAsset:"USDT",contractType:"CURRENT_QUARTER",status:"TRADING"})') === true, 'pair berhuruf Mandarin dan kontrak non-perpetual dilewati (tidak jadi simbol "USDT")');
+  check(await evaluate('!tickerData.some(d => d.symbol === "USDT")') === true, 'tidak ada baris bersimbol "USDT" di data');
+  // status "WebSocket Live" hanya setelah data datang
+  check(await evaluate('WS_MAIN_URLS[0].includes("/market/stream") && WS_MAIN_URLS[1].includes("/stream?")') === true, 'WebSocket utama memakai /market/stream dengan cadangan endpoint lama');
+  await evaluate('wsConn = { readyState: 1, close(){} }; wsLastMsg = 0; setWsStatus(false)');
+  check(await evaluate('wsConnected') === false, 'status WebSocket tidak "Live" selama belum ada pesan');
   // 7a. Decision: pair RUNNING (Entry tersentuh) + data real-time, hilang saat kena TP/SL, tercatat di Review
   await evaluate('showWorkspace("wsHome")');
   await evaluate('document.getElementById("decisionQuickBtn").click()');
@@ -324,14 +339,19 @@ async function main() {
   await evaluate(`__px("SOLUSDT", ${ent}); trackTick()`);
   check(await evaluate('trackRecs[0].status') === 'running', 'harga menyentuh Entry -> status RUNNING');
   await waitFor('liveData.SOLUSDT && liveData.SOLUSDT.oi > 0', 'OI SOL terambil', 8000);
-  const wsUrl = await evaluate('(__wsList[__wsList.length-1]||{}).url || ""');
-  check(/solusdt@aggTrade/.test(wsUrl) && /solusdt@depth20@500ms/.test(wsUrl), 'stream CVD (aggTrade) + orderbook (depth20) dibuka untuk pair RUNNING');
+  const mkUrl = await evaluate('(__wsList.filter(w => w.url.includes("solusdt@aggTrade")).pop()||{}).url || ""');
+  const pubUrl = await evaluate('(__wsList.filter(w => w.url.includes("solusdt@depth20@500ms")).pop()||{}).url || ""');
+  check(mkUrl.includes("/market/stream?streams=solusdt@aggTrade"), 'aggTrade dibuka di endpoint /market/stream (endpoint lama /stream tidak lagi mengirim aggTrade)', mkUrl.slice(0, 80));
+  check(pubUrl.includes("/public/stream?streams=solusdt@depth20@500ms"), 'depth20 dibuka di endpoint /public/stream', pubUrl.slice(0, 80));
+  check(await evaluate('liveData.SOLUSDT.wsOn !== true && liveData.SOLUSDT.depthOn !== true') === true, 'penanda stream BELUM menyala saat koneksi baru terbuka (menunggu pesan pertama)');
   check(await evaluate('__oiCalls.length >= 1 && __oiCalls.every(u => u.includes("SOLUSDT"))') === true, 'OI hanya diminta untuk pair RUNNING');
-  await evaluate(`(()=>{ const w = __wsList[__wsList.length-1]; const send = (s, d) => w.onmessage({ data: JSON.stringify({ stream: s, data: d }) });
-    send('solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '10', m: false, T: Date.now() });   // beli agresif +1000
-    send('solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '4', m: true, T: Date.now() });     // jual agresif -400
-    send('solusdt@depth20@500ms', { s: 'SOLUSDT', b: [['99','10']], a: [['101','5']] });      // bid 990 vs ask 505
+  await evaluate(`(()=>{ const mk = __wsList.filter(w => w.url.includes("solusdt@aggTrade")).pop(), pub = __wsList.filter(w => w.url.includes("solusdt@depth20@500ms")).pop();
+    const sendTo = (w, s, d) => w.onmessage({ data: JSON.stringify({ stream: s, data: d }) });
+    sendTo(mk, 'solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '10', m: false, T: Date.now() });   // beli agresif +1000
+    sendTo(mk, 'solusdt@aggTrade', { s: 'SOLUSDT', p: '100', q: '4', m: true, T: Date.now() });     // jual agresif -400
+    sendTo(pub, 'solusdt@depth20@500ms', { s: 'SOLUSDT', b: [['99','10']], a: [['101','5']] });      // bid 990 vs ask 505
     __oi = 1100; })()`);
+  check(await evaluate('liveData.SOLUSDT.wsOn === true && liveData.SOLUSDT.depthOn === true') === true, 'penanda stream menyala setelah pesan pertama diterima');
   await evaluate('pollTrackOI()'); await waitFor('liveData.SOLUSDT.oi === 1100', 'OI naik 10%', 5000);
   await evaluate('pollTrackStructure()'); await waitFor('structById[trackRecs[0].id] !== undefined', 'CHoCH/struktur terambil', 8000);
   await evaluate('renderDecision()');
@@ -348,7 +368,7 @@ async function main() {
   await evaluate(`__px("SOLUSDT", ${tpL}); trackTick()`);
   check(await evaluate('trackRecs[0].status === "closed" && trackRecs[0].outcome === "tp"') === true, 'harga mencapai TP -> catatan ditutup (tp)');
   await evaluate('renderDecision()');
-  check(!/SOL/.test(await evaluate('document.getElementById("decisionList").innerText')) && await evaluate('__wsList[__wsList.length-1].closed === true') === true, 'pair hilang dari Decision dan stream ditutup setelah TP');
+  check(!/SOL/.test(await evaluate('document.getElementById("decisionList").innerText')) && await evaluate('__wsList.filter(w => w.url.includes("solusdt")).every(w => w.closed === true)') === true, 'pair hilang dari Decision dan kedua stream ditutup setelah TP');
   const j1 = await evaluate('loadJournal().find(e => e.trackId === trackRecs[0].id)');
   check(j1 && j1.status === 'win' && j1.symbol === 'SOLUSDT' && j1.auto === true, 'hasil TP otomatis tercatat di Review sebagai WIN');
   // SHORT keluar di SL
@@ -373,6 +393,17 @@ async function main() {
   const nBefore = await evaluate("trackRecs.length");
   await evaluate(`armSetups([__mkHit("LINKUSDT","long",${L0*1.02},${L0*1.01},${L0*1.06})])`);
   check(await evaluate("trackRecs.length") === nBefore, "setup yang harga sekarang sudah di bawah SL tidak dipantau (tidak jadi entri histori palsu)");
+  // saat app baru dibuka / setelah celah waktu, tick harga TIDAK boleh memutuskan sebelum riwayat candle diproses
+  const Lp = await evaluate("parseFloat(tickerData.find(d=>d.symbol===\"LINKUSDT\").lastPrice)");
+  await evaluate(`trackRecs.push({ id: "t_gap", key: "gap", symbol: "LINKUSDT", style: "intraday", tf: "1h", side: "long", entry: ${Lp * 0.9}, sl: ${Lp * 0.8}, tp: ${Lp * 0.95}, tp2: null, tp3: null, rr: 1, armedAt: Date.now() - 3600e3, status: "armed", title: "x", grade: "A", passes: 1, total: 1 }); trackReady = false; trackTick()`);
+  check(await evaluate("trackRecs.find(r => r.id === \"t_gap\").status") === "armed", "trackReady=false: tick tidak memutuskan (harga sudah di atas TP tapi catatan tetap armed menunggu riwayat candle)");
+  await evaluate("trackReady = true; trackTick()");
+  check(await evaluate("trackRecs.find(r => r.id === \"t_gap\").status") === "closed", "trackReady=true: tick kembali memutuskan");
+  await evaluate("trackRecs.splice(trackRecs.findIndex(r => r.id === \"t_gap\"), 1)");
+  await evaluate("lastTickAt = Date.now() - 20000; trackReady = true; trackTick()");
+  await waitFor("trackReady === true", "trackReady kembali true setelah penyusulan", 40000);
+  check(await evaluate("trackReady") === true, "celah waktu >15 dtk memicu penyusulan dari candle lalu pemantauan lanjut");
+
   // multi-TP: ADA long, TP1 -> TP2 -> TP3 bertahap, tetap RUNNING sampai TP3
   const A0 = await evaluate("parseFloat(tickerData.find(d=>d.symbol===\"ADAUSDT\").lastPrice)");
   const aE = A0 * 0.99, aSl = A0 * 0.97, aT1 = A0 * 1.01, aT2 = A0 * 1.03, aT3 = A0 * 1.05;

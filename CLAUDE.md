@@ -25,6 +25,7 @@ scripts/selftest.js            proves check.js actually rejects defects, so it c
 scripts/test-ict.js            behaviour tests for the ICT engine (synthetic candles with known answers)
 scripts/test-ict-models.js     tests for the Unicorn & Inverse Blueprint (IFVG) models against the rules in the two guide PDFs
 scripts/test-ict-track.js      tests for the Decision tracker (armed → running → TP/SL/void, conservative candle rules)
+scripts/e2e-binance.js         end-to-end test of the REAL app against REAL Binance (needs Chrome + network; optional BINANCE_PROXY; not in CI)
 scripts/smoke-browser.js       OPTIONAL: drives index.html in headless Chrome/Edge against a fake Binance API
 scripts/backtest-ict.js        OPTIONAL: walk-forward backtest on real Binance data (needs internet)
 scripts/analyze-features.js    OPTIONAL: feature-vs-outcome research on a backtest dump
@@ -113,6 +114,14 @@ Candidates also carry `features` (`ictFeatures`) for research only — never rea
 - Pemantauan hanya jalan selama app terbuka; saat dibuka lagi atau tab kembali aktif, `trackReconcile` menutup celah dari candle 1m/5m/15m. Asumsi fill = order limit di Entry; tanpa fee/slippage.
 - **Setiap pair yang keluar wajib tercatat otomatis di Histori Setup** (`historyFromTrack`, entri `auto:true` + `trackId`, WIN/LOSE, label TP1/TP2/TP3/SL, R, ringkasan kondisi saat keluar dari `trackAutoNote`). Entri SL WAJIB diberi keterangan oleh pengguna (`needsNote` sampai `saveHistoryNote` diisi; lencana di sidebar + panel terbuka otomatis saat app dibuka). Jurnal (Review) juga menerima entri otomatis. Ini catatan forward-test; jangan dicampur dengan klaim edge dan jangan masukkan hasil auto ke `computeSetupHistoryStats` akurasi manual (sudah dipisah).
 - Catatan tersimpan di `localStorage` kunci `ict_track_v1`.
+
+## Binance live-API gotchas (dari uji nyata — jangan dilupakan)
+
+- **Endpoint WebSocket futures dipecah:** ticker/markPrice/aggTrade di `wss://fstream.binance.com/market/stream`, depth di `/public/stream`. Endpoint lama `/stream` kini mengirim NOL pesan untuk `!ticker@arr`/`!markPrice` dan tidak mengirim `aggTrade` sama sekali (koneksinya tetap "open"). WS utama memakai `WS_MAIN_URLS` (market dulu, lama sebagai cadangan); stream Decision memakai dua koneksi (`TRACK_SOCKS`). **Status "Live" baru dinyatakan setelah PESAN PERTAMA datang, bukan saat `onopen`**, dan ada watchdog untuk koneksi bisu.
+- **Simbol non-ASCII dilewati** (`isTradableUsdtPerp`, mis. `币安人生USDT`): `enrichTicker` menghapus karakter non-ASCII sehingga namanya jadi "USDT" dan semua request klines-nya HTTP 400.
+- **Engine memakai close candle TUTUP**, harga live bisa sudah melewati rencana: daftar scan membuang setup yang harga live-nya melewati SL/TP1 (`ictPlanBeyondLive`), dan `armSetups` tidak mendaftarkannya.
+- **Tick harga ditahan (`trackReady`) sampai riwayat candle diproses** saat app dibuka / setelah celah >15 dtk, supaya setup yang sebenarnya sudah terisi lalu kena TP tidak salah dicap void.
+- Uji nyata: `BINANCE_PROXY=socks5://127.0.0.1:1080 node scripts/e2e-binance.js` (ISP Indonesia memblokir Binance; pakai terowongan SSH ke VPS). Smoke test (mock) memakai jam beku 21:00Z karena hasil scan bergantung jam dinding (level Asian/killzone).
 
 ## Hard rules
 
