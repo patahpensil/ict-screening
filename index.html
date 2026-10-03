@@ -3933,7 +3933,7 @@ function ictAreaLayer(style, bias, tfCtx){
     for(const zt of zoneTfs){
       const c = tfCtx[zt];
       [...(c.obs || []), ...(c.fvgs || [])].filter(z => z.type === typ && z.barsAgo <= ICT_CFG.maxPoiAge && z.ce >= band.lo && z.ce <= band.hi).forEach(z => {
-        const a = { tf: zt, legTf: lt, kind: z.kind, low: Math.max(z.low, band.lo), high: Math.min(z.high, band.hi), poiLow: z.low, poiHigh: z.high, ce: z.ce, age: z.barsAgo, legTier: leg.tier, legMult: leg.mult, band };
+        const a = { tf: zt, legTf: lt, kind: z.kind, low: Math.max(z.low, band.lo), high: Math.min(z.high, band.hi), poiLow: z.low, poiHigh: z.high, ce: z.ce, age: z.barsAgo, legTier: leg.tier, legMult: leg.mult, legR: leg.R, band };
         if(long ? last < a.low : last > a.high){ out.skipped.tembus++; return; }
         if(eq !== null){
           const mid = (a.low + a.high) / 2;
@@ -3961,6 +3961,103 @@ function ictAreaLayer(style, bias, tfCtx){
   return out;
 }
 /* ICT-AREA-END */
+
+/* ICT-TRIGGER-START */
+// ===== LAPIS TRIGGER (H1) — murni, diuji scripts/test-ict-trigger.js =====
+// TRIGGER = bukti di grafik 1 jam bahwa harga di dalam AREA mulai berbalik searah bias. Urutan WAJIB:
+//   1) harga masuk AREA  2) CHoCH/BOS H1 searah bias (close menembus swing)  3) satu konfirmasi momentum pada candle penembus (atau
+//   sebelumnya): displacement ATAU volume spike, searah  4) FVG atau IFVG H1 yang ditinggalkan penembusan  -> entry = retrace ke CE zona itu.
+// Trigger kedaluwarsa bila dalam `expiryBars` candle H1 sesudah lengkap harga tak menyentuh entry; batal bila close menembus ekstrem pullback.
+// IFVG (FVG berlawanan yang ditembus close searah bias) lebih kuat dan diutamakan atas FVG biasa.
+// Bergantung pada engine (ictContext, ictBuildPlan, ictBuffer), blok filter (flMomentum), lapis BIAS dan lapis AREA.
+const TRIG_CFG = { lookback: 48, expiryBars: 12, minZoneBodyFrac: 0.3 }; // minZoneBodyFrac: tinggi zona FVG/IFVG >= 0,3 x rata-rata body 20 candle (celah lebih kecil = noise)
+function trigTouches(c, z){ return c.low <= z.high && c.high >= z.low; }
+// Satu AREA (z) pada konteks H1. side: 'long' | 'short'.
+function ictTriggerForArea(side, z, ctx){
+  const out = { status: 'none', side, area: z, enteredIdx: null, choch: null, momentum: null, zone: null, completeIdx: null, barsSince: null, entryTouched: null, touchedIdx: null, slBase: null, missing: [], reasons: [] };
+  const cs = ctx.candles, n = cs.length, long = side === 'long';
+  const dir = long ? 'up' : 'down', evDir = long ? 'bullish' : 'bearish', typ = long ? 'bull' : 'bear', opp = long ? 'bear' : 'bull';
+  const from = Math.max(0, n - TRIG_CFG.lookback);
+  let j0 = -1;
+  for(let i = from; i < n; i++){ if(trigTouches(cs[i], z)){ j0 = i; break; } }
+  if(j0 < 0){ out.missing.push('harga masuk AREA'); out.reasons.push('Harga belum masuk AREA'); return out; }
+  out.enteredIdx = j0; out.status = 'pending';
+  const evs = ((ctx.structure && ctx.structure.events) || []).filter(e => e.direction === evDir && e.idx >= j0);
+  if(!evs.length){ out.missing.push('CHoCH/BOS H1'); out.reasons.push('Harga di AREA tetapi belum ada penembusan struktur H1 searah bias'); return out; }
+  let best = null, pend = null;
+  for(let k = evs.length - 1; k >= 0 && !best; k--){          // penembusan terbaru dulu
+    const e = evs[k];
+    let mom = null;
+    [e.idx, e.idx - 1].forEach(i => { if(!mom && i >= j0 && i >= 0){ const m = flMomentum(cs, i, dir); if(m.ok) mom = { idx: i, kind: m.kind, volumeRatio: m.volumeRatio, bodyRatio: m.bodyRatio }; } });
+    // Ekstrem pullback antara masuk AREA dan penembusan: dasar SL, dan batas letak zona trigger yang masuk akal.
+    const pbExt = long ? Math.min(...cs.slice(j0, e.idx + 1).map(c => c.low)) : Math.max(...cs.slice(j0, e.idx + 1).map(c => c.high));
+    let ifvg = null, fvg = null;
+    (ctx.fvgsAll || []).forEach(f => {
+      if((f.high - f.low) < TRIG_CFG.minZoneBodyFrac * ictAvgBodyAt(cs, f.midIdx, 20)) return; // celah terlalu kecil: bukan zona entry
+      // IFVG: FVG berlawanan yang terbentuk saat harga turun ke AREA (bukan yang tua dan jauh) dan berada di bawah level swing yang ditembus
+      if(f.type === opp && f.violIdx >= 0 && f.violIdx >= e.idx - 1 && f.violIdx <= e.idx + 2 && f.violIdx >= j0 && f.idx >= Math.max(from, j0 - 8) && (long ? f.high <= e.level : f.low >= e.level)){ if(!ifvg || f.violIdx > ifvg.violIdx) ifvg = f; }
+      // FVG searah: ditinggalkan penembusan dan tidak berada di luar ekstrem pullback
+      if(f.type === typ && f.midIdx >= e.idx - 2 && f.midIdx <= e.idx + 1 && f.midIdx >= j0 - 1 && (long ? f.low >= pbExt : f.high <= pbExt)){ if(!fvg || (f.displacement && !fvg.displacement) || (f.displacement === fvg.displacement && Math.abs(f.midIdx - e.idx) < Math.abs(fvg.midIdx - e.idx))) fvg = f; }
+    });
+    const z2 = ifvg ? { kind: 'ifvg', low: ifvg.low, high: ifvg.high, ce: ifvg.ce, idx: ifvg.violIdx } : fvg ? { kind: 'fvg', low: fvg.low, high: fvg.high, ce: fvg.ce, idx: fvg.idx, violIdx: fvg.violIdx } : null;
+    const cand = { e, mom, zone: z2 };
+    if(mom && z2) best = cand; else if(!pend) pend = cand;
+  }
+  const use = best || pend;
+  out.choch = { idx: use.e.idx, type: use.e.type, level: use.e.level, barsAgo: n - 1 - use.e.idx };
+  out.momentum = use.mom; out.zone = use.zone;
+  if(!best){
+    if(!use.mom) out.missing.push('momentum (displacement atau volume spike)');
+    if(!use.zone) out.missing.push('FVG/IFVG H1');
+    out.reasons.push(`${use.e.type} ${evDir} H1 ada, tetapi belum lengkap: ${out.missing.join(', ')}`);
+    return out;
+  }
+  const t = Math.max(use.e.idx, use.mom.idx, use.zone.idx);
+  out.completeIdx = t; out.barsSince = n - 1 - t;
+  out.slBase = long ? Math.min(...cs.slice(j0, use.e.idx + 1).map(c => c.low)) : Math.max(...cs.slice(j0, use.e.idx + 1).map(c => c.high));
+  const entry = use.zone.ce;
+  for(let i = t + 1; i < n; i++){ if(long ? cs[i].low <= entry : cs[i].high >= entry){ out.touchedIdx = i; break; } }
+  out.entryTouched = out.touchedIdx !== null;
+  // FVG yang dilanggar close setelah terbentuk = zona entry gugur (FVG searah yang dilanggar bukan IFVG searah bias)
+  if(use.zone.kind === 'fvg' && use.zone.violIdx >= 0){ out.status = 'invalid'; out.reasons.push(`FVG H1 ${fmtPriceSafe(use.zone.low)}–${fmtPriceSafe(use.zone.high)} ditembus close setelah terbentuk — zona entry gugur, setup batal`); return out; }
+  for(let i = t + 1; i < n; i++){ if(long ? cs[i].close < out.slBase : cs[i].close > out.slBase){ out.status = 'invalid'; out.reasons.push(`Close menembus ekstrem pullback ${fmtPriceSafe(out.slBase)} setelah trigger — setup batal`); return out; } }
+  if(!out.entryTouched && out.barsSince > TRIG_CFG.expiryBars){ out.status = 'expired'; out.reasons.push(`Trigger lengkap ${out.barsSince} candle lalu tanpa retrace ke ${use.zone.kind === 'ifvg' ? 'IFVG' : 'FVG'} — kedaluwarsa (> ${TRIG_CFG.expiryBars})`); return out; }
+  out.status = 'ready';
+  out.reasons.push(`${use.e.type} ${evDir} H1 + ${use.mom.kind} + ${use.zone.kind === 'ifvg' ? 'IFVG' : 'FVG'} ${fmtPriceSafe(use.zone.low)}–${fmtPriceSafe(use.zone.high)}; entry di CE ${fmtPriceSafe(entry)}${out.entryTouched ? ' (sudah tersentuh setelah trigger lengkap)' : ' (menunggu retrace)'}`);
+  return out;
+}
+// Lapis TRIGGER untuk satu gaya: evaluasi semua AREA yang lolos, ambil yang paling maju. tfCtx['1h'] = konteks engine H1.
+function ictTriggerLayer(style, bias, area, tfCtx){
+  const out = { style, ok: false, status: 'none', side: bias ? bias.side : null, best: null, all: [], reasons: [] };
+  if(!bias || !bias.ok){ out.reasons.push('Tidak ada bias — trigger tidak dicari'); return out; }
+  if(!area || !area.ok || !area.areas.length){ out.reasons.push('Belum ada AREA — trigger tidak dicari'); return out; }
+  const ctx = tfCtx[BIAS_CFG.triggerTf];
+  if(!ctx || !ctx.candles || ctx.candles.length < 20){ out.reasons.push('Data H1 belum cukup'); return out; }
+  const rank = { ready: 5, pending: 3, none: 2, expired: 1, invalid: 0 };
+  out.all = area.areas.map(z => ictTriggerForArea(bias.side, z, ctx));
+  out.best = out.all.slice().sort((x, y) => (rank[y.status] - rank[x.status]) || ((y.entryTouched ? 0 : 1) - (x.entryTouched ? 0 : 1)) || ((y.completeIdx || -1) - (x.completeIdx || -1)))[0];
+  out.status = out.best.status; out.ok = out.status === 'ready'; out.reasons = out.best.reasons.slice();
+  return out;
+}
+// Kandidat model kelima (AREA -> TRIGGER H1) dalam format kandidat engine. Entry = CE FVG/IFVG trigger; SL di luar ekstrem pullback + buffer;
+// TP = likuiditas terdekat yang memberi RR >= minRR gaya. Mengembalikan { cand, reason }; cand = null bila belum layak.
+function ictTriggerCandidate(style, bias, area, trig, tfCtx){
+  if(!trig || !trig.ok || !trig.best) return { cand: null, reason: 'trigger belum lengkap' };
+  const cfg = ICT_CFG.styles[style], b = trig.best, long = b.side === 'long', z = b.zone;
+  const ctxs = [{ ctx: tfCtx[BIAS_CFG.triggerTf], tag: 'H1' }, { ctx: tfCtx[cfg.ltf], tag: String(cfg.ltf).toUpperCase() }, { ctx: tfCtx[cfg.htf], tag: String(cfg.htf).toUpperCase() }, { ctx: tfCtx[cfg.htf2], tag: String(cfg.htf2).toUpperCase() }]
+    .filter((x, i, arr) => x.ctx && arr.findIndex(y => y.ctx === x.ctx) === i);
+  const last = tfCtx[BIAS_CFG.triggerTf].last, legR = b.area.legR || Math.abs(b.area.high - b.area.low);
+  const plan = ictBuildPlan(b.side, z.ce, b.slBase, long ? 'Di bawah ekstrem pullback H1' : 'Di atas ekstrem pullback H1', `${z.kind === 'ifvg' ? 'IFVG' : 'FVG'} H1 (CE)`, ictBuffer(legR, last), cfg.minRR, ctxs);
+  if(plan.tp === null) return { cand: null, reason: 'tidak ada target likuiditas di depan' };
+  if(!(plan.rr >= cfg.minRR)) return { cand: null, reason: `RR 1:${plan.rr.toFixed(2)} < minimum gaya 1:${cfg.minRR}` };
+  return { cand: {
+    id: 'AREA_TRIGGER', title: 'AREA → Trigger H1', side: b.side, status: b.entryTouched ? 'in_zone' : 'waiting', plan,
+    poi: { kind: z.kind, low: z.low, high: z.high, ce: z.ce, label: `${z.kind === 'ifvg' ? 'IFVG' : 'FVG'} H1`, age: tfCtx[BIAS_CFG.triggerTf].candles.length - 1 - z.idx, touched: !!b.entryTouched },
+    reasons: [`BIAS ${b.side === 'long' ? 'LONG' : 'SHORT'} (${bias.tf.bias.toUpperCase()}), AREA ${b.area.kind === 'fvg' ? 'FVG' : 'OB'} ${b.area.tf.toUpperCase()} ${fmtPriceSafe(b.area.low)}–${fmtPriceSafe(b.area.high)}`, ...b.reasons],
+    trigger: b, model: 'AREA_TRIGGER',
+  }, reason: null };
+}
+/* ICT-TRIGGER-END */
 
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
@@ -4130,6 +4227,8 @@ async function scanPairIct(symbol, style){
   const ctxMap = ictCtxMap(rawMap, ICT_CANDLES);
   ev.bias = ictBiasFromCandles(style, rawMap, { bars: ICT_CANDLES, ctxMap }); // lapis BIAS (belum menjadi gerbang)
   ev.area = ictAreaLayer(style, ev.bias, ctxMap);                              // lapis AREA (belum menjadi gerbang)
+  ev.trigger = ictTriggerLayer(style, ev.bias, ev.area, ctxMap);               // lapis TRIGGER H1 (belum menjadi gerbang)
+  ev.triggerModel = ictTriggerCandidate(style, ev.bias, ev.area, ev.trigger, ctxMap); // model kelima: { cand, reason }
   return ev;
 }
 
@@ -5173,7 +5272,9 @@ async function loadDetail(symbol, tf){
     const ctxMapD = ictCtxMap(rawByTf, ICT_CANDLES);
     const biasLayer = ictBiasFromCandles(map.style, rawByTf, { bars: ICT_CANDLES, ctxMap: ctxMapD }); // gaya kanonik (Intraday: H4/D1, Swing: D1/W1), bukan TF yang sedang dilihat
     const areaLayer = ictAreaLayer(map.style, biasLayer, ctxMapD);
-    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer, area: areaLayer });
+    const triggerLayer = ictTriggerLayer(map.style, biasLayer, areaLayer, ctxMapD);
+    const triggerModel = ictTriggerCandidate(map.style, biasLayer, areaLayer, triggerLayer, ctxMapD);
+    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer, area: areaLayer, trigger: triggerLayer, triggerModel });
   }catch(err){
     console.error(err);
     // Kegagalan dari permintaan basi juga nggak boleh nimpa layar yang sekarang.
@@ -5370,6 +5471,28 @@ function ictAreaHtml(a){
   return head + `<div class="bd-block" style="margin-top:8px;">${legs}${areas}</div><div class="sop-note" style="margin-top:8px;">Band retracement memakai OTE ICT (studi: OTE ≥ golden pocket; tidak ada level Fibonacci yang istimewa). Leg harus ≥3x rata-rata range candle agar tidak noise; ≥5x jadi bonus peringkat. SNR hanya bonus.</div>`;
 }
 
+// Panel TRIGGER H1: harga masuk AREA -> CHoCH/BOS H1 -> momentum -> FVG/IFVG -> entry di retrace.
+function ictTriggerHtml(t, tm){
+  if(!t) return '';
+  const TFU = x => String(x || '').toUpperCase();
+  const stLabel = { ready: 'TRIGGER LENGKAP', pending: 'TRIGGER BELUM LENGKAP', none: 'BELUM ADA TRIGGER', expired: 'TRIGGER KEDALUWARSA', invalid: 'TRIGGER BATAL' };
+  const b = t.best;
+  const step = (ok, label, note) => `<div class="bd-row2"><span class="bd-factor2">${ok ? '✓' : '○'} ${escapeHtml(label)}</span><span class="bd-reason2">${escapeHtml(note || '')}</span></div>`;
+  const rows = b ? [
+    step(b.enteredIdx !== null, 'Harga masuk AREA', b.enteredIdx !== null ? `${b.area.kind === 'fvg' ? 'FVG' : 'OB'} ${TFU(b.area.tf)} ${fmtPrice(b.area.low)}–${fmtPrice(b.area.high)}` : 'belum'),
+    step(!!b.choch, 'CHoCH/BOS H1 searah bias', b.choch ? `${b.choch.type} · ${b.choch.barsAgo} candle lalu · level ${fmtPrice(b.choch.level)}` : 'belum'),
+    step(!!b.momentum, 'Momentum (displacement atau volume spike)', b.momentum ? `${b.momentum.kind}${b.momentum.bodyRatio ? ' · body ' + b.momentum.bodyRatio.toFixed(1) + 'x' : ''}${b.momentum.volumeRatio ? ' · volume ' + b.momentum.volumeRatio.toFixed(1) + 'x' : ''}` : 'belum'),
+    step(!!b.zone, 'FVG / IFVG H1', b.zone ? `${b.zone.kind === 'ifvg' ? 'IFVG' : 'FVG'} ${fmtPrice(b.zone.low)}–${fmtPrice(b.zone.high)} · CE ${fmtPrice(b.zone.ce)}` : 'belum'),
+  ].join('') : '';
+  const head = t.ok
+    ? `<div class="trend-banner ${t.side === 'long' ? 'score-hi' : 'score-lo'}" style="margin-top:0;"><div class="tb-title">${stLabel.ready} — ${b.entryTouched ? 'entry sudah tersentuh setelah trigger lengkap' : 'menunggu retrace ke CE'}</div><div class="tb-sub">${escapeHtml(t.reasons[0] || '')}</div></div>`
+    : `<div class="sop-note"><b>${escapeHtml(stLabel[t.status] || 'TRIGGER')}.</b> ${escapeHtml(t.reasons[0] || '')}</div>`;
+  const model = tm && tm.cand
+    ? `<div class="sop-note" style="margin-top:8px;"><b>Model AREA → Trigger H1:</b> entry ${fmtPrice(tm.cand.plan.entry)} · SL ${fmtPrice(tm.cand.plan.sl)} · TP ${fmtPrice(tm.cand.plan.tp)} · RR 1:${tm.cand.plan.rr.toFixed(2)}</div>`
+    : (tm && t.ok ? `<div class="sop-note" style="margin-top:8px;">Model AREA → Trigger H1 belum layak: ${escapeHtml(tm.reason || '')}</div>` : '');
+  return head + (rows ? `<div class="bd-block" style="margin-top:8px;">${rows}</div>` : '') + model + `<div class="sop-note" style="margin-top:8px;">Trigger memakai candle H1 yang sudah tutup. Urutan wajib: harga masuk AREA → CHoCH/BOS H1 → momentum → FVG/IFVG → entry di retrace. Kedaluwarsa bila ${TRIG_CFG.expiryBars} candle H1 tanpa retrace.</div>`;
+}
+
 function ictTimingHtml(ev){
   const kz = ev.killzone, mc = ev.macro;
   return `
@@ -5491,6 +5614,8 @@ function renderDetail(d){
     ${ictBiasHtml(d.bias)}
     <div class="ind-section-title">AREA — ZONA ENTRY LOGIS</div>
     ${ictAreaHtml(d.area)}
+    <div class="ind-section-title">TRIGGER H1 — KAPAN MASUK</div>
+    ${ictTriggerHtml(d.trigger, d.triggerModel)}
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>

@@ -65,6 +65,10 @@ jobs:
       - name: Uji lapis AREA
         run: node scripts/test-ict-area.js
 
+      # Uji lapis TRIGGER H1: masuk AREA -> CHoCH/BOS -> momentum -> FVG/IFVG -> entry; kedaluwarsa/batal; cermin; model kelima; fuzz.
+      - name: Uji lapis TRIGGER
+        run: node scripts/test-ict-trigger.js
+
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

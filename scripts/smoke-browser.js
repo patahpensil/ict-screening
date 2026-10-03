@@ -318,6 +318,10 @@ async function main() {
   check(await evaluate('WS_MAIN_URLS[0].includes("/market/stream") && WS_MAIN_URLS[1].includes("/stream?")') === true, 'WebSocket utama memakai /market/stream dengan cadangan endpoint lama');
   await evaluate('wsConn = { readyState: 1, close(){} }; wsLastMsg = 0; setWsStatus(false)');
   check(await evaluate('wsConnected') === false, 'status WebSocket tidak "Live" selama belum ada pesan');
+  // langkah 4b: lapis TRIGGER dan model kelima ikut di hasil scan (belum menjadi gerbang) dan tampil di panel detail
+  check(await evaluate('lastScanResults.hits.length > 0 && lastScanResults.hits.every(h => h.ev.trigger && ["none","pending","ready","expired","invalid"].includes(h.ev.trigger.status) && h.ev.triggerModel && "cand" in h.ev.triggerModel)') === true, 'tiap hasil scan membawa lapis TRIGGER (status valid) dan model kelima ({cand, reason})');
+  check(await evaluate('(()=>{ const t = lastDetailFull && lastDetailFull.d && lastDetailFull.d.trigger; return !!t && typeof t.ok === "boolean" && Array.isArray(t.reasons) && t.reasons.length > 0; })()') === true, 'detail SOL: lapis TRIGGER ada dengan alasan tercatat');
+  check(/TRIGGER H1 — KAPAN MASUK/i.test(modal) && /(TRIGGER LENGKAP|TRIGGER BELUM LENGKAP|BELUM ADA TRIGGER|TRIGGER KEDALUWARSA|TRIGGER BATAL)/i.test(modal) && /candle H1 yang sudah tutup/.test(modal), 'detail SOL: panel TRIGGER H1 tampil (status, urutan wajib, catatan)');
   // langkah 4a: lapis AREA ikut di hasil scan (belum menjadi gerbang) dan tampil di panel detail
   check(await evaluate('lastScanResults.hits.length > 0 && lastScanResults.hits.every(h => h.ev.area && typeof h.ev.area.ok === "boolean" && Array.isArray(h.ev.area.areas) && Array.isArray(h.ev.area.legs))') === true, 'tiap hasil scan membawa lapis AREA (ok, areas, legs)');
   check(await evaluate('(()=>{ const a = lastDetailFull && lastDetailFull.d && lastDetailFull.d.area; return !!a && typeof a.ok === "boolean" && a.style === "intraday" && Array.isArray(a.reasons) && a.reasons.length > 0; })()') === true, 'detail SOL: lapis AREA ada dengan alasan tercatat');
