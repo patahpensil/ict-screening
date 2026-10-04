@@ -13,7 +13,7 @@ const text = fs.readFileSync(process.env.ICT_SRC || path.resolve(__dirname, '..'
 const a = text.indexOf('/* ICT-TRACK-START */'), b = text.indexOf('/* ICT-TRACK-END */');
 if (a < 0 || b < 0) { console.error('Marker ICT-TRACK tidak ditemukan'); process.exit(1); }
 const ctx = vm.createContext({ Math, Number, isFinite });
-vm.runInContext(text.slice(a, b) + ';this.T={trkR,trkStepPrice,trkStepCandles,trkCloseSl,trkClose,trkLevels,trkFinalLevel};', ctx);
+vm.runInContext(text.slice(a, b) + ';this.T={trkR,trkStepPrice,trkStepCandles,trkCloseSl,trkClose,trkLevels,trkFinalLevel,trkTriggerDone};', ctx);
 const T = ctx.T;
 
 let failed = 0;
@@ -131,6 +131,69 @@ for (let n = 0; n < 400; n++) {
 }
 ok(bad === 0, 'fuzz 400 deret candle: long dan cermin short selalu menghasilkan status/hasil/waktu/R yang sama');
 ok(outcomes.tp > 5 && outcomes.sl > 5 && outcomes.void > 0, 'fuzz mencakup tp/sl/void (' + JSON.stringify(outcomes) + ')');
+
+// ---- WAIT AND SEE: gerbang TRIGGER belum lengkap (trigDone = false) ----
+console.log('\n[WAIT AND SEE: trigDone = false]');
+for (const side of ['long', 'short']) {
+  const up = side === 'long' ? 1 : -1, P = d => 100 + up * d, W = o => mk(side, Object.assign({ trigDone: false }, o || {}));
+  console.log('[waitsee ' + side + ']');
+  let r = W(); T.trkStepPrice(r, P(5), 2000);
+  ok(r.status === 'armed', 'trigDone=false: harga di sisi profit Entry (belum menyentuh) tetap armed');
+  T.trkStepPrice(r, P(0), 3000);
+  ok(r.status === 'waitsee' && r.waitAt === 3000 && !r.runningAt, 'Entry tersentuh sebelum trigger lengkap -> WAIT AND SEE (bukan running, tanpa runningAt)');
+  T.trkStepPrice(r, P(-2), 4000);
+  ok(r.status === 'closed' && r.outcome === 'batal' && r.exitPrice === null && r.r === 0, 'waitsee: SL tersentuh -> batal (bukan trade; R 0; tanpa harga keluar)');
+  r = W(); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(6), 3000);
+  ok(r.status === 'closed' && r.outcome === 'void' && r.r === 0, 'waitsee: TP1 tercapai tanpa trigger -> void (tidak jadi trade)');
+  r = W(); T.trkStepPrice(r, P(-3), 2000);
+  ok(r.status === 'closed' && r.outcome === 'batal', 'gap menembus Entry dan SL sekaligus tanpa trigger: batal');
+  r = W(); T.trkStepPrice(r, P(0), 2000); T.trkTriggerDone(r, P(2), 3000);
+  ok(r.status === 'armed' && r.trigDone === true && r.rearmedAt === 3000 && r.waitEnd === 3000 && r.trigAt === 3000, 'trigger lengkap saat waitsee, harga sudah menjauh dari Entry: kembali armed dengan level sama');
+  T.trkStepPrice(r, P(0), 4000);
+  ok(r.status === 'running' && r.runningAt === 4000, 'retest Entry sesudah trigger lengkap -> running');
+  r = W(); T.trkStepPrice(r, P(0), 2000); T.trkTriggerDone(r, P(0), 3000);
+  ok(r.status === 'running' && r.runningAt === 3000, 'trigger lengkap tepat saat harga masih di Entry: langsung running');
+  r = W(); T.trkStepPrice(r, P(0), 2000); T.trkTriggerDone(r, P(-1), 3000);
+  ok(r.status === 'armed' || r.status === 'running', 'trigger lengkap saat harga sudah melewati Entry ke arah SL (belum SL): dinilai ulang terhadap harga');
+  r = W(); T.trkTriggerDone(r, P(5), 2000);
+  ok(r.status === 'armed' && r.trigDone === true, 'trigger lengkap pada catatan armed (pantau): berlaku sebagai siap');
+  T.trkStepPrice(r, P(0), 3000);
+  ok(r.status === 'running', 'pantau -> siap -> Entry tersentuh: running (bukan waitsee)');
+  r = mk(side); T.trkTriggerDone(r, P(0), 1);
+  ok(r.trigDone === undefined && r.status === 'armed', 'catatan lama (tanpa trigDone): trkTriggerDone tidak mengubah apa pun (kompatibel)');
+  r = mk(side, { trigDone: true }); T.trkStepPrice(r, P(0), 2000);
+  ok(r.status === 'running', 'trigDone=true berperilaku seperti sebelumnya (running saat Entry tersentuh)');
+  r = W(); T.trkStepPrice(r, P(0), 2000); T.trkStepPrice(r, P(-2), 3000); const snap = JSON.stringify(r); T.trkTriggerDone(r, P(0), 4000);
+  ok(JSON.stringify(r) === snap, 'catatan yang sudah closed tidak berubah oleh trkTriggerDone');
+  // candle
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(0), P(1)), KS(side, 3000, P(1), P(2), P(0.5), P(1))]);
+  ok(r.status === 'waitsee' && r.waitAt === 2000, 'candle: Entry tersentuh tanpa trigger -> waitsee di candle itu');
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(0), P(1)), KS(side, 3000, P(1), P(2), P(-2.5), P(1))]);
+  ok(r.status === 'closed' && r.outcome === 'batal' && r.closedAt === 3000, 'candle: waitsee lalu SL -> batal');
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(7), P(0), P(5))]);
+  ok(r.status === 'waitsee', 'candle sentuh yang juga mencapai TP1: TP tidak dihitung (konservatif), tetap waitsee');
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(0), P(1)), KS(side, 3000, P(1), P(7), P(0.5), P(6))]);
+  ok(r.status === 'closed' && r.outcome === 'void' && r.closedAt === 3000, 'candle: waitsee lalu TP1 -> void');
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(4), P(-2.5), P(0))]);
+  ok(r.status === 'closed' && r.outcome === 'batal', 'candle sentuh yang juga menembus SL: batal');
+  r = W(); T.trkStepCandles(r, [KS(side, 2000, P(3), P(7), P(2), P(6))]);
+  ok(r.status === 'closed' && r.outcome === 'void', 'candle: TP1 tercapai sebelum Entry tersentuh: void (sama seperti sebelumnya)');
+}
+{
+  let seedW = 5; const rndW = () => { seedW = (seedW * 1664525 + 1013904223) % 4294967296; return seedW / 4294967296; };
+  let badW = 0, sawWait = 0, sawBatal = 0, sawVoid = 0;
+  for (let n = 0; n < 400; n++) {
+    const cs = []; let pz = 100 + (rndW() - 0.5) * 6;
+    for (let i = 0; i < 40; i++) { const o = pz, c = pz + (rndW() - 0.5) * 3, h = Math.max(o, c) + rndW() * 1.5, l = Math.min(o, c) - rndW() * 1.5; cs.push(K(2000 + i * 1000, o, h, l, c)); pz = c; }
+    const Lr = mk('long', { trigDone: false }), Sr = mk('short', { trigDone: false });
+    T.trkStepCandles(Lr, cs); T.trkStepCandles(Sr, cs.map(mir));
+    if (Lr.status !== Sr.status || Lr.outcome !== Sr.outcome || Lr.waitAt !== Sr.waitAt || Lr.closedAt !== Sr.closedAt) badW++;
+    if (Lr.status === 'waitsee') sawWait++; if (Lr.outcome === 'batal') sawBatal++; if (Lr.outcome === 'void') sawVoid++;
+    if (Lr.status === 'running' || Lr.outcome === 'tp' || Lr.outcome === 'sl') badW++;     // tanpa trigger tidak boleh pernah menjadi trade
+  }
+  ok(badW === 0, 'fuzz 400 deret: dengan trigDone=false long dan cermin short identik, dan TIDAK PERNAH menjadi running/tp/sl (tanpa trigger bukan trade)');
+  ok(sawWait > 5 && sawBatal > 5 && sawVoid > 0, `fuzz mencakup waitsee (${sawWait}), batal (${sawBatal}), void (${sawVoid})`);
+}
 
 if (failed) { console.log('\n' + failed + ' uji pelacak GAGAL'); process.exit(1); }
 console.log('\nSemua uji pelacak lulus.');

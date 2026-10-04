@@ -1,4 +1,4 @@
-const CACHE_NAME = "ict-screening-v84";
+const CACHE_NAME = "ict-screening-v85";
 const SHELL_FILES = [
   "./index.html",
   "./manifest.json",

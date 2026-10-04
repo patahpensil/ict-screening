@@ -162,7 +162,9 @@ async function main() {
   check((await evaluate('document.getElementById("scStrongCount").textContent')) === '10', 'stat "Lolos Filter Likuiditas" = 10');
   await shot('02-scanner', 430, 1000);
 
-  // 3. scan intraday
+  // 3. scan intraday — ekspektasi di bagian 3-6 ditulis untuk perilaku tanpa gerbang konsep, jadi mode gerbang MATI (bagian 7b menguji ketat/longgar)
+  check(await evaluate('loadGateMode()') === 'ketat' && await evaluate('document.getElementById("gateModeSel").value') === 'ketat', 'mode gerbang bawaan = KETAT dan terlihat di Pengaturan');
+  await evaluate('localStorage.setItem("ict_gate_mode", "mati")');
   await evaluate('showWorkspace("wsHome")');
   await evaluate('runModeScan("intraday")');
   await waitFor('document.getElementById("heroModeStatus").textContent.startsWith("✓")', 'scan Intraday selesai', 30000);
@@ -461,6 +463,68 @@ async function main() {
   check(await evaluate('document.getElementById("decisionCount").style.display') === 'none', 'lencana Decision tersembunyi saat tidak ada pair RUNNING');
   // simpan ke localStorage & muat ulang berhasil (catatan bertahan)
   check(await evaluate('(()=>{ saveTrack(); return JSON.parse(localStorage.getItem(LS_TRACK)).length === 4; })()') === true, 'catatan pelacak tersimpan di localStorage');
+
+  // 7b. Gerbang konsep: pengaturan, WAIT AND SEE, catatan bayangan, mode ketat/longgar pada scan
+  await evaluate(`(()=>{
+    const gate = (mode, state) => ({ mode, state, rank: 2, pass: true, entryTouched: false, reasons: [], gates: { bias: { pass: true, reason: '' }, area: { pass: true, zone: null, reason: '' }, trigger: { pass: state === 'siap', kind: 'h1', reason: 'belum lengkap' } } });
+    window.__mkGateHit = (sym, side, entry, sl, tp, mode, state) => { const h = __mkHit(sym, side, entry, sl, tp); h.ev.bias = { ok: true, side, tf: { bias: side === 'long' ? 'bullish' : 'bearish' } }; h.ev.area = null; h.gate = gate(mode, state); return h; };
+    saveShadow([]);
+  })()`);
+  await evaluate('(()=>{ const el = document.getElementById("gateModeSel"); el.value = "longgar"; el.dispatchEvent(new Event("change")); })()');
+  check(await evaluate('loadGateMode()') === 'longgar', 'Pengaturan: memilih Longgar tersimpan di localStorage');
+  await evaluate('(()=>{ const el = document.getElementById("gateModeSel"); el.value = "ketat"; el.dispatchEvent(new Event("change")); })()');
+  check(await evaluate('loadGateMode()') === 'ketat', 'Pengaturan: memilih Ketat tersimpan di localStorage');
+  // ketat: trigger belum lengkap, Entry tersentuh -> WAIT AND SEE (bukan RUNNING), SL tersentuh -> batal + catatan bayangan
+  const B0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="BTCUSDT").lastPrice)');
+  const bE = B0 * 0.99, bSl = B0 * 0.97, bTp = B0 * 1.03;
+  await evaluate(`armSetups([__mkGateHit("BTCUSDT","long",${bE},${bSl},${bTp},"ketat","pantau")])`);
+  const bRec = () => evaluate('trackRecs.find(r => r.symbol === "BTCUSDT")');
+  check((await bRec()).status === 'armed' && (await bRec()).trigDone === false && (await bRec()).gates.mode === 'ketat', 'ketat + trigger belum lengkap: setup dipantau (armed) dengan trigDone=false dan snapshot gerbang');
+  await evaluate(`__px("BTCUSDT", ${bE}); trackTick(); renderDecision()`);
+  check((await bRec()).status === 'waitsee', 'ketat: Entry tersentuh sebelum trigger lengkap -> status WAIT AND SEE (bukan running)');
+  const dtxt = await evaluate('document.getElementById("decisionList").innerText');
+  check(/WAIT AND SEE/.test(dtxt) && /BTC/.test(dtxt) && !/RUNNING/.test(dtxt) && await evaluate('document.getElementById("decisionCount").style.display') === 'none', 'Decision menampilkan banner WAIT AND SEE dan TIDAK menghitungnya sebagai RUNNING');
+  await evaluate(`__px("BTCUSDT", ${bSl * 0.999}); trackTick()`);
+  check((await bRec()).status === 'closed' && (await bRec()).outcome === 'batal', 'WAIT AND SEE: SL tersentuh sebelum trigger -> batal (bukan trade)');
+  check(await evaluate('loadSetupHistory().filter(e => e.symbol === "BTCUSDT").length') === 0 && await evaluate('loadJournal().filter(e => e.symbol === "BTCUSDT").length') === 0, 'WAIT AND SEE yang batal tidak masuk Histori Setup maupun Jurnal sebagai trade');
+  check(await evaluate('loadShadow().length === 1 && loadShadow()[0].symbol === "BTCUSDT" && loadShadow()[0].becameTrade === false') === true, 'WAIT AND SEE yang batal tercatat sebagai kasus bayangan');
+  // trigger lengkap saat WAIT AND SEE -> kembali ke jalur trade (harga masih di Entry -> running), lalu TP -> histori memuat gerbang
+  const E0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="ETHUSDT").lastPrice)');
+  const eE = E0 * 0.99, eSl = E0 * 0.97, eTp = E0 * 1.03;
+  await evaluate(`armSetups([__mkGateHit("ETHUSDT","long",${eE},${eSl},${eTp},"ketat","pantau")]); __px("ETHUSDT", ${eE}); trackTick()`);
+  check(await evaluate('trackRecs.find(r => r.symbol === "ETHUSDT").status') === 'waitsee', 'ETH: WAIT AND SEE setelah Entry tersentuh');
+  await evaluate('(()=>{ const r = trackRecs.find(x => x.symbol === "ETHUSDT"), b = r.status; trkTriggerDone(r, parseFloat(tickerData.find(d => d.symbol === "ETHUSDT").lastPrice), Date.now()); onTrackTransition(r, b, 0); })()');
+  const eRec = await evaluate('trackRecs.find(r => r.symbol === "ETHUSDT")');
+  check(eRec.status === 'running' && eRec.trigDone === true && eRec.trigAt > 0 && eRec.waitAt > 0, 'trigger lengkap saat WAIT AND SEE dan harga masih di Entry -> RUNNING (waktu trigger tercatat)');
+  check(await evaluate('loadShadow().some(e => e.symbol === "ETHUSDT" && e.becameTrade === true)') === true, 'kasus ETH tercatat di bayangan dengan becameTrade=true');
+  await evaluate(`__px("ETHUSDT", ${eTp}); trackTick()`);
+  const hEth = await evaluate('loadSetupHistory().find(e => e.symbol === "ETHUSDT" && e.auto)');
+  check(hEth && hEth.outcome === 'win' && hEth.afterWait === true && hEth.gates && hEth.gates.mode === 'ketat', 'histori trade yang sempat WAIT AND SEE memuat afterWait dan snapshot gerbang');
+  // longgar/mati: perilaku lama, Entry tersentuh langsung RUNNING
+  const X1 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="XRPUSDT").lastPrice)');
+  await evaluate(`armSetups([__mkGateHit("XRPUSDT","long",${X1 * 0.99},${X1 * 0.97},${X1 * 1.03},"longgar","pantau")]); __px("XRPUSDT", ${X1 * 0.99}); trackTick()`);
+  check(await evaluate('trackRecs.find(r => r.symbol === "XRPUSDT").status') === 'running', 'longgar: Entry tersentuh -> langsung RUNNING (tanpa WAIT AND SEE)');
+  await evaluate('closeOtherFullscreenPanels("historyPanel"); document.getElementById("historyPanel").classList.add("show"); renderSetupHistory()');
+  const hp2 = await evaluate('document.getElementById("historyPanel").innerText');
+  check(/Catatan bayangan WAIT AND SEE/.test(hp2) && /Gerbang KETAT: BIAS lolos/.test(hp2) && /sempat WAIT AND SEE/.test(hp2) && !/NaN|undefined|Infinity/.test(hp2), 'Histori: ringkasan bayangan + baris gerbang + penanda sempat WAIT AND SEE, tanpa NaN/undefined');
+  await evaluate('document.getElementById("historyPanelClose").click()');
+  // scan di mode ketat dan longgar: status menyebut mode, tiap hasil punya status gerbang yang sah
+  for(const mode of ['ketat', 'longgar']){
+    await evaluate(`localStorage.setItem("ict_gate_mode", "${mode}")`);
+    await evaluate('showWorkspace("wsHome"); runModeScan("intraday")');
+    await waitFor('document.getElementById("heroModeStatus").textContent.startsWith("✓")', 'scan Intraday mode ' + mode, 30000);
+    const stt = await evaluate('document.getElementById("heroModeStatus").textContent'), lst = await evaluate('document.getElementById("modeResultsList").innerText');
+    console.log('        ' + stt);
+    check(stt.includes('gerbang ' + mode.toUpperCase()) && !/undefined|NaN/.test(stt + lst), 'scan Intraday mode ' + mode + ': status menyebut mode, tanpa undefined/NaN');
+    check(await evaluate('lastScanResults.hits.every(h => h.gate && ["siap","waitsee","pantau"].includes(h.gate.state) && h.gate.pass && h.gate.mode === "' + mode + '")') === true, 'mode ' + mode + ': setiap hasil lolos gerbang dan punya status siap/waitsee/pantau');
+    await evaluate('document.getElementById("modeResultsClose").click()');
+  }
+  await evaluate('currentDetailTf = "1h"; loadDetail("SOLUSDT", "1h")');
+  await waitFor('/GERBANG KONSEP/.test(document.getElementById("modalBody").innerText)', 'panel GERBANG KONSEP di detail', 10000);
+  check(/GERBANG KONSEP/.test(await evaluate('document.getElementById("modalBody").innerText')) && await evaluate('lastDetailFull.d.gateMode') === 'longgar', 'detail pair memuat panel GERBANG KONSEP sesuai mode');
+
+  // model kelima harus bisa tampil di detail/ringkasan AI (e2e Binance asli menemukan scan AREA_TRIGGER vs detail model lama)
+  check(await evaluate(`(()=>{ const ev = { cfg: { minRR: 1.5 }, bias: { ok: true, side: 'long', tf: { bias: 'bullish' } } }; const c = ictFinishConceptCandidate({ id: 'AREA_TRIGGER', model: 'AREA_TRIGGER', title: 'AREA → Trigger H1', side: 'long', status: 'waiting', plan: { entry: 1, sl: 0.9, tp: 1.3, rr: 3 }, poi: { label: 'FVG H1', low: 1, high: 1.01 }, reasons: ['x'], trigger: { area: { kind: 'fvg', tf: '4h', low: 1, high: 1.1, legTier: 'bonus' } } }, ev); const t = ictModelText(c); const pair = ictConceptEv({ decision: 'SKIP', best: null, candidates: [] }, c); return Array.isArray(c.check.checks) && c.check.checks.length === 4 && c.grade === 'A' && /MODEL TERDETEKSI/.test(t) && !/undefined|NaN/.test(t + JSON.stringify(c.check)) && pair.decision === 'LONG' && pair.best === c && pair.candidates[0] === c; })()`) === true, 'model kelima: checklist berbentuk engine, ringkasan AI tidak crash, pseudo-ev menjadikannya keputusan');
 
   // 7. tombol back peramban/HP: harus menutup lapisan teratas (bukan keluar app), lapis demi lapis
   await evaluate('showWorkspace("wsHome")');

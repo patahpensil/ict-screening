@@ -1248,6 +1248,12 @@
           <div class="setting-field"><label>Breakeven (IFVG)</label><select id="ictPrefBe"><option value="rule50">Rule of 50</option><option value="lhf">Low hanging fruit</option><option value="none">Tidak dipakai</option></select></div>
         </div>
 
+        <div class="drawer-title" style="margin-top:20px;">🚦 Gerbang Konsep (BIAS → AREA → TRIGGER)</div>
+        <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Menentukan setup mana yang masuk daftar scan dan Decision. <b>Ketat</b> = spesifikasi asli: BIAS dan AREA wajib, TRIGGER H1 menentukan SIAP ENTRY. <b>Longgar</b> = hanya BIAS wajib; AREA dan TRIGGER hanya menambah peringkat. <b>Mati</b> = tanpa gerbang (perilaku lama). Backtest 49 pair × 548 hari: mode ketat meloloskan hanya ±1% sinyal dan hasilnya tidak lebih baik dari tanpa gerbang.</div>
+        <div class="settings-grid">
+          <div class="setting-field"><label>Mode gerbang</label><select id="gateModeSel"><option value="ketat">Ketat — BIAS + AREA wajib, TRIGGER menentukan siap</option><option value="longgar">Longgar — hanya BIAS wajib</option><option value="mati">Mati — tanpa gerbang</option></select></div>
+        </div>
+
         <div class="drawer-title" style="margin-top:20px;">📨 Notifikasi Telegram</div>
         <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Kirim alarm (🚨) ke Telegram kamu juga, biar tetap kedapetan walau app lagi nggak dibuka di HP. Token &amp; Chat ID cuma disimpan lokal di browser ini (localStorage) — <b>tidak pernah</b> ikut ke-push ke GitHub atau server manapun.</div>
         <div class="settings-grid">
@@ -1277,6 +1283,7 @@
       <div class="fsp-body-inner">
         <div class="sop-note" style="margin-top:0;">Tiap kamu tap "📌 Simpan ke Histori Setup" di detail pair, setup ICT-nya (arah, entry, SL, TP) kesimpen di sini. Tap "Cek Sekarang" buat lihat apakah harga sekarang sudah ke TP (cocok), ke SL (meleset), atau searah/berlawanan. Catatan: pengecekan membandingkan harga SEKARANG dengan level setup, bukan menelusuri jalur harga candle demi candle.</div>
         <div class="journal-stats" id="historyStats"></div>
+        <div class="ws-note" id="shadowSummary" style="display:none; margin-bottom:10px;"></div>
         <div class="journal-list" id="historyList"></div>
       </div>
     </div>
@@ -1544,6 +1551,7 @@ function historyFromTrack(rec){
     auto: true, trackId: rec.id, outcome: win ? 'win' : 'lose',
     exit: { label: win ? `TP${rec.tpLevel}` : (rec.outcome === 'slclose' ? 'SL (close)' : 'SL'), price: rec.exitPrice, r: rec.r, tpHit: rec.tpLevel || 0, runningAt: rec.runningAt || null },
     noteAuto: trackAutoNote(rec), note: '', needsNote: !win,
+    gates: rec.gates || null, afterWait: !!rec.waitAt, trigAt: rec.trigAt || null,
   });
   saveSetupHistory(list);
   updateHistoryBadge();
@@ -1641,6 +1649,7 @@ function renderSetupHistory(){
     <div class="sb-cell"><div class="lbl">DECISION WIN / LOSE</div><div class="val">${stats.decTotal > 0 ? `<span style="color:var(--mint)">${stats.decWins}</span> / <span style="color:var(--crimson)">${stats.decLoses}</span>` : '-'}</div></div>
     <div class="sb-cell"><div class="lbl">PERLU KETERANGAN</div><div class="val" style="color:${stats.pending > 0 ? 'var(--amber)' : 'inherit'}">${stats.pending}</div></div>
   `;
+  renderShadowSummary();
   const listEl = document.getElementById('historyList');
   if(entries.length === 0){
     listEl.innerHTML = `<div class="empty-state">Belum ada setup yang disimpan. Buka detail pair yang punya setup ICT, scroll ke Rencana Entry, lalu tap "📌 Simpan ke Histori Setup".</div>`;
@@ -1665,6 +1674,7 @@ function renderSetupHistory(){
       </div>
       <div class="je-row"><span>Entry: <b>${fmtPrice(e.entry)}</b></span><span>SL: <b>${fmtPrice(e.sl)}</b></span><span>Keluar: <b>${ex.price != null ? fmtPrice(ex.price) : '-'}</b></span></div>
       <div class="je-row"><span>${tps}</span></div>
+      ${e.gates ? `<div style="margin-top:6px; font-size:10.5px; color:var(--text-3);">${escapeHtml(gateLineText(e.gates))}${e.afterWait ? ' · sempat WAIT AND SEE sebelum trigger lengkap' : ''}</div>` : ''}
       <div style="margin-top:8px; font-size:11.5px; color:var(--text-2); white-space:pre-line;">${escapeHtml(e.noteAuto || '')}</div>
       <div style="margin-top:8px;">
         ${e.needsNote ? `<div class="dec-warn" style="font-size:11px; font-weight:700; margin-bottom:4px;">⚠ PERLU KETERANGAN — tulis kenapa SL kena (wajib)</div>` : `<div style="font-size:10.5px; color:var(--text-3); margin-bottom:4px;">KETERANGAN ANDA</div>`}
@@ -3607,6 +3617,9 @@ function ictQuickBias(candles){
 /* ICT-TRACK-START */
 // ===== PELACAK SETUP — murni (tanpa DOM/jaringan), diuji scripts/test-ict-track.js =====
 // Siklus satu catatan: armed (menunggu harga menyentuh Entry) -> running (Entry tersentuh) -> closed (TP terakhir / SL).
+// Catatan dengan trigDone === false (gerbang TRIGGER belum lengkap): Entry tersentuh -> 'waitsee' (WAIT AND SEE), BUKAN running. waitsee berakhir bila
+// trigger lengkap (trkTriggerDone: kembali armed, atau langsung running bila harga masih di Entry), SL tersentuh ('batal'), TP1 tercapai ('void'), atau
+// kedaluwarsa (diatur pemanggil). Catatan tanpa trigDone (lama) atau trigDone true berperilaku seperti sebelumnya.
 // Closed juga bisa 'void' (TP1 tercapai tanpa pernah menyentuh Entry) atau 'expired' (kedaluwarsa) — keduanya tidak dihitung sebagai trade.
 // Multi-TP: tiap TP yang tercapai dicatat di rec.tpHit (1..3) dan trade tetap running; closed 'tp' saat TP TERAKHIR (tertinggi yang
 // ada) tercapai. SL tetap di level awal, tanpa partial close/breakeven: SL setelah TP1 tetap -1R (tpHit mencatat TP yang sempat tercapai).
@@ -3647,13 +3660,29 @@ function trkAdvanceTp(rec, lo, hi, at){
 // Satu harga terakhir (tick real-time). SL berbasis penutupan candle (slCloseBased) tidak dinilai dari tick.
 function trkStepPrice(rec, price, now){
   if(rec.status === 'armed'){
-    if(trkEntryTouched(rec, price, price)){ rec.status = 'running'; rec.runningAt = now; }
+    if(trkEntryTouched(rec, price, price)){
+      if(rec.trigDone === false){ rec.status = 'waitsee'; rec.waitAt = now; }   // entry tersentuh sebelum trigger lengkap
+      else { rec.status = 'running'; rec.runningAt = now; }
+    }
     else if(trkHitTp(rec, price, price)) return trkClose(rec, 'void', null, now);
+  }
+  if(rec.status === 'waitsee'){
+    if(trkHitSl(rec, price, price)) return trkClose(rec, 'batal', null, now);   // SL tersentuh tanpa trigger: setup batal (bukan trade)
+    if(trkHitTp(rec, price, price)) return trkClose(rec, 'void', null, now);    // target tercapai tanpa trigger: tidak jadi trade
+    return rec;
   }
   if(rec.status === 'running'){
     if(!rec.slCloseBased && trkHitSl(rec, price, price)) return trkClose(rec, 'sl', rec.sl, now);
     if(trkAdvanceTp(rec, price, price, now)) return trkClose(rec, 'tp', trkFinalLevel(rec).price, now);
   }
+  return rec;
+}
+// Trigger H1 menjadi lengkap pada catatan dengan trigDone === false. armed -> berlaku seperti 'siap'; waitsee -> kembali armed dengan level yang sama
+// lalu langsung dinilai terhadap harga (bila harga masih di sisi Entry yang tersentuh, limit dianggap terisi -> running).
+function trkTriggerDone(rec, price, now){
+  if(rec.trigDone !== false || rec.status === 'closed') return rec;
+  rec.trigDone = true; rec.trigAt = now;
+  if(rec.status === 'waitsee'){ rec.status = 'armed'; rec.rearmedAt = now; rec.waitEnd = now; return trkStepPrice(rec, price, now); }
   return rec;
 }
 // Penutupan candle LTF pertama (setelah fill) di luar SL — hanya untuk SL "pelanggaran IFVG" (berbasis close).
@@ -3676,9 +3705,19 @@ function trkStepCandles(rec, candles, opts){
         if(trkHitTp(rec, k.low, k.high)) trkClose(rec, 'void', null, k.t);
         continue;
       }
+      if(rec.trigDone === false){                                   // entry tersentuh sebelum trigger lengkap: WAIT AND SEE (bukan trade)
+        rec.status = 'waitsee'; rec.waitAt = k.t;
+        if(trkHitSl(rec, k.low, k.high)) trkClose(rec, 'batal', null, k.t);
+        continue;                                                   // candle sentuh: TP tidak dihitung
+      }
       rec.status = 'running'; rec.runningAt = k.t;
       if(!rec.slCloseBased && trkHitSl(rec, k.low, k.high)) trkClose(rec, 'sl', rec.sl, k.t);
       continue; // candle fill: TP tidak dihitung
+    }
+    if(rec.status === 'waitsee'){
+      if(trkHitSl(rec, k.low, k.high)){ trkClose(rec, 'batal', null, k.t); break; }
+      if(trkHitTp(rec, k.low, k.high)){ trkClose(rec, 'void', null, k.t); break; }
+      continue;
     }
     if(closeSl === undefined) closeSl = trkCloseSl(rec, opts.ltfCandles, opts.ltfMs);
     if(closeSl && k.t >= closeSl.at){ trkClose(rec, 'slclose', closeSl.price, closeSl.at); break; }
@@ -4059,6 +4098,67 @@ function ictTriggerCandidate(style, bias, area, trig, tfCtx){
 }
 /* ICT-TRIGGER-END */
 
+/* ICT-GATE-START */
+// ===== GERBANG KONSEP BIAS → AREA → TRIGGER (cara B) — murni, diuji scripts/test-ict-gate.js =====
+// Menilai satu kandidat setup (model lama atau model kelima) terhadap tiga lapis, lalu memberi STATUS:
+//   siap    = lolos semua gerbang yang berlaku  -> "ZONA SIAP ENTRY"
+//   pantau  = bias (dan area) lolos, trigger belum lengkap, entry belum tersentuh -> "ZONA PANTAU"
+//   waitsee = entry SUDAH tersentuh sebelum trigger lengkap -> banner "WAIT AND SEE" (bukan trade)
+//   tolak   = gagal gerbang wajib -> tidak masuk universe
+// Mode (pengaturan pengguna; hasil backtest: gerbang AREA/TRIGGER membuang ±98% sinyal tanpa manfaat terukur, jadi bisa dilonggarkan):
+//   ketat   = BIAS dan AREA wajib; TRIGGER menentukan siap vs pantau/waitsee  (spesifikasi asli)
+//   longgar = hanya BIAS wajib; AREA dan TRIGGER hanya menambah peringkat; status mengikuti status engine (in_zone = siap, waiting = pantau)
+//   mati    = tanpa gerbang (perilaku lama)
+// Cara B untuk trigger: trigger bawaan model diakui bila setara — hanya Intraday (model itu sudah di H1) dan bukan Retest POI (tidak punya
+// trigger) — dengan syarat momentum (displacement/volume spike searah) pada beberapa candle LTF terakhir. Swing dan Retest POI butuh trigger H1
+// yang lengkap pada AREA yang beririsan dengan zona kandidat. Model kelima sudah memuat ketiganya. Entry/SL/TP model tidak diubah (aturan PDF utuh).
+const GATE_CFG = { modes: ['ketat', 'longgar', 'mati'], builtinIds: ['SWEEP_MSS', 'UNICORN', 'IFVG_POI', 'IFVG_SWEEP', 'IFVG_FAV'], momBars: 8, rank: { area: 1, trigger: 1 } };
+function gateOverlap(aLo, aHi, bLo, bHi){ return aLo <= bHi && aHi >= bLo; }
+// Apakah harga sekarang sudah melewati level entry (limit sudah akan terisi)? long: harga <= entry; short: harga >= entry.
+function gateEntryTouched(side, entry, price){ return price > 0 && (side === 'long' ? price <= entry : price >= entry); }
+// Trigger untuk satu kandidat. ev: { bias, area, trigger, ltf (konteks engine TF masuk) }, cand: { id, side, poi, plan }.
+function ictGateTrigger(style, ev, cand){
+  if(cand.id === 'AREA_TRIGGER') return { pass: true, kind: 'model', reason: 'trigger H1 lengkap (model AREA → Trigger)' };
+  const poi = cand.poi || { low: cand.plan.entry, high: cand.plan.entry };
+  const builtin = style === 'intraday' && GATE_CFG.builtinIds.includes(cand.id);
+  if(builtin){
+    const cs = ev.ltf ? ev.ltf.candles : null, dir = cand.side === 'long' ? 'up' : 'down';
+    if(cs){ for(let k = Math.max(0, cs.length - GATE_CFG.momBars); k < cs.length; k++){ const m = flMomentum(cs, k, dir); if(m.ok) return { pass: true, kind: 'bawaan', reason: `trigger bawaan model (${cand.id}) diakui; momentum ${m.kind} pada ${cs.length - 1 - k} candle lalu` }; } }
+    return { pass: false, kind: 'bawaan', reason: `trigger bawaan ${cand.id} ada, tetapi tidak ada momentum searah (displacement/volume spike) di ${GATE_CFG.momBars} candle LTF terakhir` };
+  }
+  const t = ev.trigger;
+  if(!t || !t.all) return { pass: false, kind: 'h1', reason: 'belum ada evaluasi trigger H1' };
+  const hit = t.all.find(x => x.status === 'ready' && x.side === cand.side && x.area && gateOverlap(poi.low, poi.high, x.area.low, x.area.high));
+  if(hit) return { pass: true, kind: 'h1', reason: `trigger H1 lengkap pada AREA yang beririsan dengan zona setup (${hit.zone.kind === 'ifvg' ? 'IFVG' : 'FVG'} H1)` };
+  const prog = t.all.filter(x => x.side === cand.side && x.area && gateOverlap(poi.low, poi.high, x.area.low, x.area.high)).sort((a, b) => b.missing.length - a.missing.length)[0];
+  return { pass: false, kind: 'h1', reason: prog ? `trigger H1 belum lengkap (${prog.status}${prog.missing.length ? ': kurang ' + prog.missing.join(', ') : ''})` : 'trigger H1 belum ada pada AREA yang beririsan dengan zona setup' };
+}
+function ictGateEval(style, ev, cand, mode, price){
+  const m = GATE_CFG.modes.includes(mode) ? mode : 'ketat';
+  const px = price > 0 ? price : (ev.ltf ? ev.ltf.last : 0);
+  const out = { mode: m, state: 'tolak', pass: false, rank: 0, entryTouched: gateEntryTouched(cand.side, cand.plan.entry, px), gates: { bias: { pass: false, reason: '' }, area: { pass: false, reason: '', zone: null }, trigger: { pass: false, kind: null, reason: '' } }, reasons: [] };
+  const engineState = cand.status === 'in_zone' ? 'siap' : 'pantau';
+  if(m === 'mati'){ out.state = engineState; out.pass = true; out.reasons.push('gerbang konsep nonaktif (mode mati)'); return out; }
+  const b = ev.bias, bOk = !!(b && b.ok && b.side === cand.side);
+  out.gates.bias = { pass: bOk, reason: !b || !b.ok ? 'tidak ada bias (struktur TF bias belum jelas)' : bOk ? `bias ${b.side === 'long' ? 'LONG' : 'SHORT'} dari struktur ${String(b.tf.bias).toUpperCase()}` : `arah setup ${cand.side} berlawanan dengan bias ${b.side} (${String(b.tf.bias).toUpperCase()})` };
+  const poi = cand.poi || { low: cand.plan.entry, high: cand.plan.entry };
+  const zone = bOk && ev.area && ev.area.ok ? ev.area.areas.find(z => gateOverlap(poi.low, poi.high, z.low, z.high)) || null : null;
+  const aOk = cand.id === 'AREA_TRIGGER' ? bOk : !!zone;
+  out.gates.area = { pass: aOk, zone, reason: !bOk ? 'bias belum lolos' : cand.id === 'AREA_TRIGGER' ? 'model kelima dibangun dari AREA' : zone ? `zona setup beririsan dengan AREA ${zone.kind === 'fvg' ? 'FVG' : 'OB'} ${String(zone.tf).toUpperCase()} ${fmtPriceSafe(zone.low)}–${fmtPriceSafe(zone.high)}` : (ev.area && ev.area.ok ? 'zona setup tidak beririsan dengan AREA mana pun' : 'belum ada AREA (' + ((ev.area && ev.area.reasons[0]) || 'tidak dievaluasi') + ')') };
+  const t = ictGateTrigger(style, ev, cand);
+  out.gates.trigger = t;
+  out.rank = (bOk && b.rankDelta ? b.rankDelta : 0) + (aOk ? GATE_CFG.rank.area + (zone ? zone.rankDelta : 0) : 0) + (t.pass ? GATE_CFG.rank.trigger : 0);
+  if(!bOk){ out.reasons.push('DITOLAK: ' + out.gates.bias.reason); return out; }
+  if(m === 'longgar'){ out.state = engineState; out.pass = true; out.reasons.push('mode longgar: hanya BIAS wajib; AREA dan TRIGGER menambah peringkat'); return out; }
+  if(!aOk){ out.reasons.push('DITOLAK: ' + out.gates.area.reason); return out; }
+  out.pass = true;
+  if(t.pass){ out.state = 'siap'; out.reasons.push('BIAS, AREA, dan TRIGGER lolos'); }
+  else if(out.entryTouched){ out.state = 'waitsee'; out.reasons.push('WAIT AND SEE: entry sudah tersentuh sebelum trigger lengkap — ' + t.reason); }
+  else { out.state = 'pantau'; out.reasons.push('PANTAU: BIAS dan AREA lolos, menunggu trigger — ' + t.reason); }
+  return out;
+}
+/* ICT-GATE-END */
+
 
 // ===== DEDUPLIKASI REQUEST KLINES =====
 // Beberapa fitur (scan Intraday/Swing, Deep Scan, modal detail, alert watchlist) sering minta candle
@@ -4124,7 +4224,7 @@ const ICT_FETCH = 400;   // candle yang DITARIK per timeframe, sama di semua tem
                          // Bobot request Binance tetap sama (limit 100-499 = bobot 2). Engine hanya melihat ictWindow(); filter melihat semuanya.
 function ictWindow(c){ return c && c.length > ICT_CANDLES ? c.slice(-ICT_CANDLES) : c; }
 
-const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit' };
+const ICT_SHORT_TITLES = { SWEEP_MSS: 'Sweep+MSS', POI_RETEST: 'Retest POI', UNICORN: 'Unicorn', IFVG_POI: 'POI→IFVG', IFVG_SWEEP: 'Sweep→IFVG', IFVG_FAV: 'IFVG Favorit', AREA_TRIGGER: 'Area→Trigger' };
 function ictShortTitle(id){ return ICT_SHORT_TITLES[id] || String(id); }
 // Engine membaca harga dari close candle TUTUP terakhir (bisa berumur hingga satu TF), sedangkan harga live bisa sudah melewati
 // rencana. true = setup sudah tidak berlaku: harga live melewati SL (kecuali SL berbasis penutupan candle) atau TP1 (target sudah
@@ -4136,6 +4236,95 @@ function ictPlanBeyondLive(plan, side, px){
   const tpHit = plan.tp !== null && plan.tp !== undefined && (long ? px >= plan.tp : px <= plan.tp);
   return slHit || tpHit;
 }
+// ===== GERBANG KONSEP: mode (pengaturan), model kelima sebagai kandidat penuh, snapshot untuk histori =====
+const LS_GATE_MODE = 'ict_gate_mode';
+function loadGateMode(){ try{ const m = localStorage.getItem(LS_GATE_MODE); return GATE_CFG.modes.includes(m) ? m : 'ketat'; }catch(e){ return 'ketat'; } }
+function saveGateMode(m){ try{ localStorage.setItem(LS_GATE_MODE, m); }catch(e){} }
+const GATE_STATE_LABEL = { siap: 'ZONA SIAP ENTRY', pantau: 'ZONA PANTAU', waitsee: 'WAIT AND SEE', tolak: 'DITOLAK' };
+// Model kelima (AREA → Trigger H1) belum punya checklist engine; ia lolos tiga gerbang by construction. Grade A bila leg ≥5x atau ada SNR.
+function ictFinishConceptCandidate(c, ev){
+  if(c.check) return c;
+  const a = c.trigger && c.trigger.area, bonus = !!(a && (a.legTier === 'bonus' || a.snr));
+  const mk = (name, note) => ({ name, result: 'pass', blocking: true, note });
+  const bs = ev.bias && ev.bias.ok ? ev.bias : null;
+  c.check = { checks: [
+    mk('BIAS searah struktur', bs ? `Struktur ${String(bs.tf.bias).toUpperCase()}: ${bs.side === 'long' ? 'bullish' : 'bearish'}` : 'bias struktur'),
+    mk('AREA: zona di band OTE leg impuls', a ? `${a.kind === 'fvg' ? 'FVG' : 'OB'} ${String(a.tf).toUpperCase()} ${fmtPriceSafe(a.low)}–${fmtPriceSafe(a.high)}${bonus ? ' (leg ≥5x / SNR: bonus)' : ''}` : 'zona AREA'),
+    mk('TRIGGER H1 lengkap', 'CHoCH/BOS H1 → momentum → FVG/IFVG H1'),
+    mk('RR >= ' + ev.cfg.minRR, `RR 1:${c.plan.rr.toFixed(2)}`),
+  ], passes: 4, total: 4, grade: bonus ? 'A' : 'B', blockingFail: null };
+  c.grade = c.check.grade; c.valid = true;
+  return c;
+}
+function ictConceptEv(ev, c){ return Object.assign({}, ev, { decision: c.side === 'long' ? 'LONG' : 'SHORT', best: c, candidates: [c, ...(ev.candidates || []).filter(x => x !== c)] }); }
+// Kandidat satu pair/gaya (setup model lama yang valid + model kelima kecuali mode mati), masing-masing dinilai gerbang. Dipakai BERSAMA oleh scan dan
+// detail supaya keduanya selalu memilih setup yang sama. Urutan: status gerbang → peringkat gerbang → kualitas → jumlah syarat lulus.
+function ictGatedCandidates(style, ev, mode, price){
+  const cands = [];
+  if(ev.decision !== 'SKIP' && ev.best) cands.push(ev.best);
+  if(mode !== 'mati' && ev.triggerModel && ev.triggerModel.cand) cands.push(ictFinishConceptCandidate(ev.triggerModel.cand, ev));
+  return cands.map(c => ({ cand: c, gate: ictGateEval(style, ev, c, mode, price), evHit: c === ev.best ? ev : ictConceptEv(ev, c) }));
+}
+const GATE_STATE_ORD = { siap: 0, waitsee: 1, pantau: 2 };
+function ictGateBetter(x, y){ // x, y: { gate, ev (yang membawa .best) }
+  return (GATE_STATE_ORD[x.gate.state] - GATE_STATE_ORD[y.gate.state]) || (y.gate.rank - x.gate.rank) || (ictQuality(y.ev.best) - ictQuality(x.ev.best)) || (y.ev.best.check.passes - x.ev.best.check.passes);
+}
+function gateLineText(g){
+  const t = (v, yes, no) => v ? yes : no;
+  return 'Gerbang ' + String(g.mode).toUpperCase() + ': BIAS ' + t(g.bias.pass, 'lolos' + (g.bias.tf ? ' (' + String(g.bias.tf).toUpperCase() + (g.bias.counter ? ', counter-konteks' : '') + ')' : ''), 'gagal')
+    + ' · AREA ' + t(g.area.pass, 'lolos' + (g.area.tf ? ' (' + String(g.area.tf).toUpperCase() + (g.area.legTier === 'bonus' ? ', leg ≥5x' : '') + (g.area.snr ? ', SNR' : '') + ')' : ''), 'tidak lolos')
+    + ' · TRIGGER ' + t(g.trigger.pass, 'lolos' + (g.trigger.kind ? ' (' + g.trigger.kind + ')' : ''), 'belum lengkap');
+}
+function gateSnap(h){
+  const g = h.gate, ev = h.ev, z = g.gates.area.zone, b = ev.bias;
+  return { mode: g.mode, state: g.state, rank: g.rank,
+    bias: { pass: g.gates.bias.pass, side: b && b.ok ? b.side : null, tf: b && b.tf ? b.tf.bias : null, counter: !!(b && b.counterContext), phase: b && b.phase ? b.phase.value : null },
+    area: { pass: g.gates.area.pass, tf: z ? z.tf : null, legTier: z ? z.legTier : null, snr: z ? !!z.snr : null, depth: ev.area ? ev.area.depth : null, strict: ev.area ? !!ev.area.strict : null },
+    trigger: { pass: g.gates.trigger.pass, kind: g.gates.trigger.kind } };
+}
+
+// ===== CATATAN BAYANGAN WAIT AND SEE: andai entry diambil saat tersentuh (sebelum trigger lengkap), apa hasilnya? Tidak ditampilkan sebagai trade. =====
+const LS_SHADOW = 'ict_shadow_v1';
+function loadShadow(){ try{ const a = JSON.parse(localStorage.getItem(LS_SHADOW) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+function saveShadow(a){ try{ localStorage.setItem(LS_SHADOW, JSON.stringify(a.slice(0, 300))); }catch(e){} }
+async function shadowSimulate(e){
+  const age = Date.now() - e.waitAt, iv = age < 20 * 36e5 ? '1m' : age < 5 * 864e5 ? '5m' : '15m', ivMs = { '1m': 6e4, '5m': 3e5, '15m': 9e5 }[iv];
+  const res = await safeFetch(`${FAPI}/fapi/v1/klines?symbol=${e.symbol}&interval=${iv}&startTime=${Math.floor(e.waitAt)}&limit=1500`);
+  if(!res.ok) return;
+  const now = Date.now();
+  const cs = (await res.json()).map(k => ({ t: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], ct: k[6] })).filter(c => !(c.ct > now) && c.t >= e.waitAt - ivMs);
+  const sh = { side: e.side, entry: e.entry, sl: e.sl, tp: e.tp, tp2: e.tp2 ?? null, tp3: e.tp3 ?? null, slCloseBased: false, status: 'running', runningAt: e.waitAt, trigDone: true };
+  trkStepCandles(sh, cs);
+  e.result = sh.status === 'closed' ? sh.outcome : 'open'; e.r = sh.status === 'closed' ? sh.r : 0; e.resolvedAt = Date.now();
+}
+function shadowFromWait(rec){
+  const list = loadShadow();
+  if(list.some(x => x.trackId === rec.id)) return;
+  const e = { id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), trackId: rec.id, symbol: rec.symbol, style: rec.style, side: rec.side, setupId: rec.setupId, title: rec.title,
+    entry: rec.entry, sl: rec.sl, tp: rec.tp, tp2: rec.tp2 ?? null, tp3: rec.tp3 ?? null, waitAt: rec.waitAt, waitEnd: Date.now(),
+    endedBy: rec.status === 'closed' ? rec.outcome : rec.status, becameTrade: rec.status === 'running' || rec.status === 'armed', result: null, r: null };
+  list.unshift(e); saveShadow(list);
+  shadowSimulate(e).then(() => { const l2 = loadShadow(), i = l2.findIndex(x => x.id === e.id); if(i >= 0){ l2[i] = e; saveShadow(l2); } }).catch(() => {});
+}
+async function shadowRefresh(){
+  const list = loadShadow(); let changed = false;
+  for(const e of list){
+    if(e.result !== 'open' && e.result !== null) continue;
+    if(Date.now() - e.waitAt > 7 * 864e5){ if(e.result === null) e.result = 'open'; continue; }
+    try{ await shadowSimulate(e); changed = true; }catch(err){ /* coba lagi nanti */ }
+  }
+  if(changed) saveShadow(list);
+}
+function renderShadowSummary(){
+  const el = document.getElementById('shadowSummary'); if(!el) return;
+  const l = loadShadow();
+  if(!l.length){ el.style.display = 'none'; return; }
+  const done = l.filter(x => x.result && x.result !== 'open'), tp = done.filter(x => x.result === 'tp').length, sl = done.filter(x => x.result === 'sl' || x.result === 'slclose').length;
+  const avg = done.length ? done.reduce((a, x) => a + (x.r || 0), 0) / done.length : null, trade = l.filter(x => x.becameTrade).length;
+  el.style.display = 'block';
+  el.innerHTML = `<b>Catatan bayangan WAIT AND SEE</b> — ${l.length} kasus entry tersentuh sebelum trigger H1 lengkap (bukan trade). Andai entry diambil saat tersentuh: ${tp} kena TP, ${sl} kena SL, ${l.length - done.length} masih terbuka${avg !== null ? ', rata-rata R ' + (avg >= 0 ? '+' : '') + avg.toFixed(2) + ' (n=' + done.length + (done.length < 30 ? ', sampel kecil' : '') + ')' : ''}. ${trade} kasus akhirnya jadi trade setelah trigger lengkap. Dipakai untuk mengukur apakah menunggu trigger memang lebih baik.`;
+}
+
 // Kualitas setup = seberapa lengkap checklist ICT lolos (grade, lalu rasio syarat lulus). BUKAN probabilitas menang:
 // backtest belum membuktikan edge, jadi tidak ada angka peluang. RR sengaja tidak dipakai untuk mengurutkan — RR besar
 // berarti target jauh, bukan setup lebih bagus.
@@ -4236,7 +4425,8 @@ function ictHitBadgeHtml(h){
   const b = h.ev.best;
   const cls = b.side === 'long' ? 'score-hi' : 'score-lo';
   const tip = escapeHtml((b.reasons || []).join(' • '));
-  return `<span class="badge-pill ${cls}" title="${tip}">${b.side==='long'?'LONG':'SHORT'} · ${escapeHtml(ictShortTitle(b.id))} · ${escapeHtml(b.grade)} · ${b.check.passes}/${b.check.total} syarat · RR 1:${b.plan.rr.toFixed(1)}${h.showStyle ? ' · ' + escapeHtml(h.ev.cfg.label) : ''}</span>`;
+  const ws = h.gate && h.gate.state === 'waitsee' ? ' <span class="badge-pill score-mid" title="Entry sudah tersentuh, trigger H1 belum lengkap — bukan trade, ditunggu trigger">⏳ WAIT AND SEE</span>' : '';
+  return `<span class="badge-pill ${cls}" title="${tip}">${b.side==='long'?'LONG':'SHORT'} · ${escapeHtml(ictShortTitle(b.id))} · ${escapeHtml(b.grade)} · ${b.check.passes}/${b.check.total} syarat · RR 1:${b.plan.rr.toFixed(1)}${h.showStyle ? ' · ' + escapeHtml(h.ev.cfg.label) : ''}</span>${ws}`;
 }
 
 // Satu mesin scan dipakai bersama oleh tombol Mode Trading (Intraday/Swing) dan Deep Scan Top 20.
@@ -4264,6 +4454,8 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
     .slice(0, pool);
 
   const hits = [];
+  const gateMode = loadGateMode(), rej = { bias: 0, area: 0 };
+  const pxNow = sym => { const t = tickerData.find(d => d.symbol === sym); return t ? parseFloat(t.lastPrice) : NaN; };
   let done = 0;
   const progress = ()=>{ statusEl.textContent = `Scan ICT ${label}: ${done}/${candidates.length} pair (volume 24H ≥ $${fmtNum(ICT_MIN_QUOTE_VOL)}, ${candidates.length} paling likuid)…`; };
   progress();
@@ -4277,7 +4469,11 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
         try{
           const ev = await scanPairIct(item.symbol, style);
           if(myToken !== modeScanToken) return; // sudah disusul scan yang lebih baru — berhenti, jangan tulis hasil basi
-          if(ev.decision !== 'SKIP' && ev.best) hits.push({ symbol:item.symbol, style, ev, showStyle:!!showStyle });
+          // Kandidat = setup model lama yang valid + model kelima (AREA → Trigger H1, kecuali mode mati). Tiap kandidat dinilai gerbang konsep.
+          for(const { gate, evHit } of ictGatedCandidates(style, ev, gateMode, pxNow(item.symbol))){
+            if(!gate.pass){ if(!gate.gates.bias.pass) rej.bias++; else rej.area++; continue; }
+            hits.push({ symbol:item.symbol, style, ev: evHit, gate, showStyle:!!showStyle });
+          }
         }catch(e){ /* skip pair/gaya ini kalau fetch gagal */ }
       }
       done++;
@@ -4294,26 +4490,26 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   hits.length = 0;
   hitsAll.forEach(h => { if(!ictPlanBeyondLive(h.ev.best.plan, h.ev.best.side, livePx.get(h.symbol))) hits.push(h); });
   const staleDropped = hitsAll.length - hits.length;
-  // Urutan: siap entry (harga di zona) dulu, lalu kualitas setup, lalu jumlah syarat lulus, lalu likuiditas pair.
+  // Urutan: status gerbang (siap, wait and see, pantau), lalu peringkat gerbang (BIAS/AREA/TRIGGER yang lolos), lalu kualitas setup,
+  // lalu jumlah syarat lulus, lalu likuiditas pair. Di mode mati peringkat gerbang selalu 0 (urutan lama tetap).
   const volOf = new Map(candidates.map(c => [c.symbol, c.quoteVolume]));
-  const better = (x, y) => {
-    const bx = x.ev.best, by = y.ev.best;
-    return ((by.status==='in_zone') - (bx.status==='in_zone')) || (ictQuality(by) - ictQuality(bx)) || (by.check.passes - bx.check.passes) || ((volOf.get(y.symbol) || 0) - (volOf.get(x.symbol) || 0));
-  };
+  const better = (x, y) => ictGateBetter(x, y) || ((volOf.get(y.symbol) || 0) - (volOf.get(x.symbol) || 0));
   // Satu baris per pair: kalau lolos di dua gaya (Deep Scan), cukup setup terbaiknya — jangan memakan slot dua kali.
   const bestPerSymbol = new Map();
   hits.forEach(h => { const cur = bestPerSymbol.get(h.symbol); if(!cur || better(h, cur) < 0) bestPerSymbol.set(h.symbol, h); });
   const unique = [...bestPerSymbol.values()].sort(better);
   const shown = unique.slice(0, 20);
-  const ready = unique.filter(h => h.ev.best.status === 'in_zone');
-  const waiting = unique.filter(h => h.ev.best.status !== 'in_zone');
+  const ready = unique.filter(h => h.gate.state === 'siap');
+  const watchWs = unique.filter(h => h.gate.state === 'waitsee');
+  const waiting = unique.filter(h => h.gate.state === 'pantau');
   lastScanResults = { at: Date.now(), label, hits: shown };
   renderTopSignals();
   armSetups(shown); // setiap hasil scan otomatis dipantau; pindah ke Decision begitu harga menyentuh Entry
 
-  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry (harga di zona) + ${waiting.length} pantau (tunggu retrace) dari ${candidates.length} pair likuid — diurutkan menurut kualitas setup (bukan peluang menang)${staleDropped ? ` · ${staleDropped} setup dibuang karena harga live sudah melewati SL/TP1` : ''}`;
+  const rejTotal = rej.bias + rej.area, modeLbl = { ketat: 'gerbang KETAT', longgar: 'gerbang LONGGAR', mati: 'gerbang MATI' }[gateMode];
+  statusEl.textContent = `✓ ${label}: ${ready.length} siap entry + ${watchWs.length} wait and see + ${waiting.length} pantau dari ${candidates.length} pair likuid — ${modeLbl}${rejTotal ? `, ${rejTotal} setup ditolak (${rej.bias} bias, ${rej.area} area)` : ''}; diurutkan menurut kualitas setup (bukan peluang menang)${staleDropped ? ` · ${staleDropped} setup dibuang karena harga live sudah melewati SL/TP1` : ''}`;
   if(unique.length === 0){
-    listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang. Coba scan ulang nanti.</div>`;
+    listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang.${gateMode === 'ketat' && rejTotal ? ` Mode gerbang KETAT menolak ${rejTotal} setup (BIAS dan AREA wajib); backtest menunjukkan gerbang ini membuang ±98% sinyal tanpa memperbaiki hasil — ubah di Pengaturan → Gerbang Konsep bila ingin melonggarkan.` : ''} Coba scan ulang nanti.</div>`;
     return;
   }
 
@@ -4324,8 +4520,10 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
       const row = tickerData.find(x=>x.symbol===h.symbol);
       return row ? coinRowHtml(row, wl, ictHitBadgeHtml(h), ICT_CFG.styles[h.style].ltf) : '';
     }).join('');
-  listEl.innerHTML = group(shown.filter(h=>h.ev.best.status==='in_zone'), '✅ ZONA SIAP ENTRY — harga sudah di zona')
-    + group(shown.filter(h=>h.ev.best.status!=='in_zone'), '👀 ZONA PANTAU — setup valid, tunggu retrace ke zona');
+  const ketat = gateMode === 'ketat';
+  listEl.innerHTML = group(shown.filter(h=>h.gate.state==='siap'), ketat ? '✅ ZONA SIAP ENTRY — BIAS, AREA, dan TRIGGER H1 lolos' : '✅ ZONA SIAP ENTRY — harga sudah di zona')
+    + group(shown.filter(h=>h.gate.state==='waitsee'), '⏳ WAIT AND SEE — entry sudah tersentuh, trigger H1 belum lengkap (bukan trade)')
+    + group(shown.filter(h=>h.gate.state==='pantau'), ketat ? '👀 ZONA PANTAU — BIAS dan AREA lolos, menunggu trigger H1' : '👀 ZONA PANTAU — setup valid, tunggu retrace ke zona');
   observeVisibleRows();
 
   // ===== Notifikasi: cuma buat setup SIAP ENTRY yang baru (atau sudah lewat masa cooldown) =====
@@ -4378,6 +4576,7 @@ const TRACK_MAX_ARMED = 60;                          // setup menunggu entry yan
 const TRACK_MAX_LIVE = 8;                            // pair RUNNING yang mendapat stream CVD/orderbook sekaligus
 const TRACK_KEEP_CLOSED_MS = 60 * 864e5;
 const TRACK_EXPIRE_MS = { intraday: 24 * 36e5, swing: 7 * 864e5 }; // setup yang tak kunjung menyentuh Entry dianggap basi
+const TRACK_WAIT_EXPIRE_MS = 12 * 36e5;               // WAIT AND SEE yang trigger H1-nya tak kunjung lengkap
 const TF_MS = { '1h': 36e5, '4h': 144e5 };
 let trackDirty = false;
 // Selama trackReady=false, tick harga TIDAK memutuskan apa pun: saat app baru dibuka / tab lama di-background, harga sekarang bisa
@@ -4405,17 +4604,23 @@ function armSetups(hits){
     // "terisi lalu SL/TP" padahal tidak pernah dipantau masuk).
     const px0 = parseFloat((tickerData.find(d => d.symbol === h.symbol) || {}).lastPrice);
     if(ictPlanBeyondLive(p, b.side, px0)) continue;
+    const gate = h.gate || null;
     const rec = {
       id: 't_' + now + '_' + Math.random().toString(36).slice(2, 7), key, symbol: h.symbol, style: h.style, tf: ICT_CFG.styles[h.style].ltf,
       side: b.side, setupId: b.id, title: ictShortTitle(b.id), grade: b.grade, passes: b.check.passes, total: b.check.total,
       entry: p.entry, sl: p.sl, tp: p.tp, tp2: p.tp2 ?? null, tp3: p.tp3 ?? null, rr: p.rr, slCloseBased: !!p.slCloseBased, armedAt: now, status: 'armed',
     };
+    if(gate && gate.mode !== 'mati'){
+      rec.gates = gateSnap(h); rec.poiLow = b.poi ? b.poi.low : p.entry; rec.poiHigh = b.poi ? b.poi.high : p.entry;
+      // Mode ketat: selama TRIGGER belum lengkap, tersentuhnya Entry = WAIT AND SEE (bukan trade). Mode lain: perilaku lama.
+      rec.trigDone = !(gate.mode === 'ketat' && gate.state !== 'siap');
+    }
     trackRecs.push(rec);
     const row = tickerData.find(d => d.symbol === h.symbol);
     const price = row ? parseFloat(row.lastPrice) : NaN;
     if(price > 0){
       trkStepPrice(rec, price, now);
-      if(rec.status !== 'armed'){ rec.filledAtArm = true; onTrackTransition(rec, 'armed', 0); }
+      if(rec.status !== 'armed'){ if(rec.status === 'running') rec.filledAtArm = true; onTrackTransition(rec, 'armed', 0); }
     }
   }
   const armed = trackRecs.filter(r => r.status === 'armed').sort((a, b) => a.armedAt - b.armedAt);
@@ -4444,6 +4649,16 @@ function journalFromTrack(rec){
 // from = status sebelum langkah, tpBefore = tpHit sebelum langkah. Dipanggil kalau status ATAU tpHit berubah.
 function onTrackTransition(rec, from, tpBefore){
   const sym = rec.symbol.replace('USDT', ''), side = rec.side === 'long' ? 'LONG' : 'SHORT';
+  if(from === 'waitsee' && rec.status !== 'waitsee'){   // WAIT AND SEE berakhir: catat kasus bayangannya
+    shadowFromWait(rec);
+    if(rec.status === 'armed') pushAlert(`✔ ${sym} ${side} trigger H1 lengkap — kembali ke daftar pantau, menunggu harga ke Entry ${fmtPrice(rec.entry)}`, rec.symbol, false);
+    if(rec.status === 'closed' && rec.outcome === 'batal') pushAlert(`⛔ ${sym} ${side} WAIT AND SEE batal — SL tersentuh sebelum trigger H1 lengkap (bukan trade)`, rec.symbol, false);
+    if(rec.status === 'closed' && rec.outcome === 'void') pushAlert(`⛔ ${sym} ${side} WAIT AND SEE selesai tanpa trade — TP1 tercapai sebelum trigger H1 lengkap`, rec.symbol, false);
+  }
+  if(rec.status === 'waitsee'){
+    pushAlert(`⏳ ${sym} ${side} WAIT AND SEE — Entry ${fmtPrice(rec.entry)} tersentuh, tetapi trigger H1 belum lengkap (bukan trade, ditunggu trigger)`, rec.symbol, false);
+    return;
+  }
   if(rec.status === 'running' && from === 'running'){
     const lv = trkLevels(rec).find(l => l.n === rec.tpHit);
     if(lv) pushAlert(`🎯 ${sym} ${side} TP${rec.tpHit} tercapai @ ${fmtPrice(lv.price)} — masih RUNNING menuju target berikutnya`, rec.symbol, false);
@@ -4473,7 +4688,8 @@ function trackTick(){
   tickerData.forEach(d => px.set(d.symbol, parseFloat(d.lastPrice)));
   for(const rec of trackRecs){
     if(rec.status === 'closed') continue;
-    if(rec.status === 'armed' && now - rec.armedAt > TRACK_EXPIRE_MS[rec.style]){ trkClose(rec, 'expired', null, now); changed = true; continue; }
+    if(rec.status === 'armed' && now - (rec.rearmedAt || rec.armedAt) > TRACK_EXPIRE_MS[rec.style]){ trkClose(rec, 'expired', null, now); changed = true; continue; }
+    if(rec.status === 'waitsee' && now - rec.waitAt > TRACK_WAIT_EXPIRE_MS){ trkClose(rec, 'expired', null, now); changed = true; onTrackTransition(rec, 'waitsee', 0); continue; }
     const p = px.get(rec.symbol);
     if(!(p > 0)) continue;
     const before = rec.status, tpb = rec.tpHit || 0;
@@ -4600,7 +4816,7 @@ async function pollTrackStructure(){
 
 // ----- rekonsiliasi candle: menutup celah saat app tertutup / tab di-background / wick di antara tick -----
 async function trackReconcile(rec){
-  const from = rec.status === 'armed' ? rec.armedAt : rec.runningAt;
+  const from = rec.status === 'armed' ? (rec.rearmedAt || rec.armedAt) : rec.status === 'waitsee' ? rec.waitAt : rec.runningAt;
   if(!from) return;
   const age = Date.now() - from;
   const iv = age < 20 * 36e5 ? '1m' : age < 5 * 864e5 ? '5m' : '15m';
@@ -4638,6 +4854,42 @@ async function trackCatchUp(){
   try{ await trackReconcileAll(false); } finally { clearTimeout(guard); trackReady = true; }
 }
 
+// Trigger H1 diperiksa ulang untuk catatan yang gerbang TRIGGER-nya belum lengkap (trigDone === false): WAIT AND SEE tiap menit, armed tiap 5 menit.
+let trigCheckBusy = false;
+async function trackCheckTriggers(){
+  if(trigCheckBusy || !trackReady) return;
+  trigCheckBusy = true;
+  try{
+    const now = Date.now();
+    const list = trackRecs.filter(r => r.trigDone === false && (r.status === 'waitsee' || (r.status === 'armed' && now - (r.lastTrigCheck || 0) > 300000)));
+    const groups = new Map();
+    list.forEach(r => { const k = r.symbol + '|' + r.style; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+    const keys = [...groups.keys()]; let i = 0;
+    await Promise.all(Array.from({ length: Math.min(3, keys.length) }, async () => {
+      while(i < keys.length){
+        const recs = groups.get(keys[i++]), first = recs[0];
+        try{
+          const ev = await scanPairIct(first.symbol, first.style);
+          for(const rec of recs){
+            rec.lastTrigCheck = Date.now();
+            if(rec.trigDone !== false || rec.status === 'closed') continue;
+            const cand = { id: rec.setupId, side: rec.side, poi: { low: rec.poiLow ?? rec.entry, high: rec.poiHigh ?? rec.entry }, plan: { entry: rec.entry } };
+            const t = ictGateTrigger(rec.style, ev, cand);
+            if(!t.pass) continue;
+            const row = tickerData.find(d => d.symbol === rec.symbol), price = row ? parseFloat(row.lastPrice) : NaN;
+            if(!(price > 0)) continue;
+            const before = rec.status, tpb = rec.tpHit || 0;
+            trkTriggerDone(rec, price, Date.now());
+            if(rec.gates) rec.gates.trigger = { pass: true, kind: t.kind };
+            trackDirty = true; onTrackTransition(rec, before, tpb); syncTrackStreams();
+          }
+        }catch(e){ /* coba lagi pada putaran berikut */ }
+      }
+    }));
+    if(trackDirty) saveTrack();
+  } finally { trigCheckBusy = false; }
+}
+
 function startTracker(){
   trackRecs.filter(r => r.status === 'running').forEach(r => { if(!r.runningAt) r.runningAt = r.armedAt; });
   syncTrackStreams();
@@ -4646,7 +4898,9 @@ function startTracker(){
   setInterval(pollTrackStructure, 30000);
   let n = 0;
   setInterval(() => { n++; trackReconcileAll(n % 5 !== 0); }, 60000); // tiap menit pair RUNNING; tiap 5 menit semuanya
-  trackCatchUp().then(() => { pollTrackOI(); pollTrackStructure(); });
+  setInterval(trackCheckTriggers, 60000);
+  setInterval(shadowRefresh, 300000);
+  trackCatchUp().then(() => { pollTrackOI(); pollTrackStructure(); shadowRefresh(); renderShadowSummary(); });
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') trackCatchUp(); });
 }
 
@@ -4721,6 +4975,20 @@ function decisionCardHtml(rec){
     </div>
   </div>`;
 }
+function waitCardHtml(rec){
+  const row = tickerData.find(d => d.symbol === rec.symbol), price = row ? parseFloat(row.lastPrice) : NaN;
+  const long = rec.side === 'long', g = rec.gates;
+  return `
+  <div class="dec-card ${rec.side}" style="border-left:3px solid var(--amber);" onclick="openDetail('${rec.symbol}','${rec.tf}')">
+    <div class="dec-head">
+      <span class="badge-pill score-mid">⏳ WAIT AND SEE</span>
+      <span class="dec-sym">${rec.symbol.replace('USDT', '')}</span>
+      <span class="badge-pill ${long ? 'score-hi' : 'score-lo'}">${long ? 'LONG' : 'SHORT'}</span>
+      <div class="dec-meta">${escapeHtml(rec.title)} · ${escapeHtml(ICT_CFG.styles[rec.style].label)} · Entry ${fmtPrice(rec.entry)} tersentuh ${trkAgo(Date.now() - rec.waitAt)} lalu · harga ${price > 0 ? fmtPrice(price) : '-'}</div>
+    </div>
+    <div class="dec-meta" style="margin-top:6px;">Belum dihitung sebagai trade: trigger H1 (FVG/IFVG + CHoCH + momentum) belum lengkap. Begitu lengkap, setup kembali dipantau; bila SL tersentuh lebih dulu, setup batal. Kasus ini dicatat sebagai bayangan di Histori untuk mengukur apakah menunggu trigger memang lebih baik.${g ? '<br>' + escapeHtml(gateLineText(g)) : ''}</div>
+  </div>`;
+}
 function renderDecision(){
   const listEl = document.getElementById('decisionList');
   if(!listEl) return;
@@ -4728,6 +4996,8 @@ function renderDecision(){
   listEl.innerHTML = run.length
     ? run.map(decisionCardHtml).join('')
     : `<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Deep Scan</b> / <b>Intraday</b> / <b>Swing</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>`;
+  const waitRecs = trackRecs.filter(r => r.status === 'waitsee').sort((a, b) => b.waitAt - a.waitAt);
+  if(waitRecs.length) listEl.innerHTML += `<div class="ws-card-title" style="margin:14px 2px 8px;">⏳ WAIT AND SEE (${waitRecs.length}) — entry tersentuh, trigger belum lengkap</div>` + waitRecs.map(waitCardHtml).join('');
   const armed = trackRecs.filter(r => r.status === 'armed').length;
   const noteEl = document.getElementById('decisionArmedNote');
   noteEl.textContent = armed ? `${armed} setup dari scan sedang dipantau, menunggu harga menyentuh Entry.` : '';
@@ -5274,7 +5544,18 @@ async function loadDetail(symbol, tf){
     const areaLayer = ictAreaLayer(map.style, biasLayer, ctxMapD);
     const triggerLayer = ictTriggerLayer(map.style, biasLayer, areaLayer, ctxMapD);
     const triggerModel = ictTriggerCandidate(map.style, biasLayer, areaLayer, triggerLayer, ctxMapD);
-    renderDetail({ symbol, tf, lastPrice, candles, ev, mtf, fundingRate, rawByTf, bias: biasLayer, area: areaLayer, trigger: triggerLayer, triggerModel });
+    const gateMode = loadGateMode();
+    let gateList = [], evShow = ev;
+    if(ev.ltf){
+      const gev = Object.assign({}, ev, { bias: biasLayer, area: areaLayer, trigger: triggerLayer, triggerModel });
+      const liveRow = tickerData.find(x => x.symbol === symbol), livePx = liveRow ? parseFloat(liveRow.lastPrice) : NaN;
+      const gc = ictGatedCandidates(map.style, gev, gateMode, livePx > 0 ? livePx : lastPrice);
+      gateList = gc.map(x => ({ cand: x.cand, gate: x.gate }));
+      // Sama dengan scan: kandidat yang lolos gerbang dan terbaik menjadi keputusan halaman (bisa model kelima, bukan hanya engine lama).
+      const win = gc.filter(x => x.gate.pass).sort((x, y) => ictGateBetter({ gate: x.gate, ev: x.evHit }, { gate: y.gate, ev: y.evHit }))[0];
+      if(win && win.cand !== ev.best) evShow = win.evHit;
+    }
+    renderDetail({ symbol, tf, lastPrice, candles, ev: evShow, mtf, fundingRate, rawByTf, bias: biasLayer, area: areaLayer, trigger: triggerLayer, triggerModel, gateList, gateMode });
   }catch(err){
     console.error(err);
     // Kegagalan dari permintaan basi juga nggak boleh nimpa layar yang sekarang.
@@ -5327,6 +5608,16 @@ function refreshIctPrefsUI(){
   });
 });
 refreshIctPrefsUI();
+(function(){
+  const el = document.getElementById('gateModeSel');
+  if(!el) return;
+  el.value = loadGateMode();
+  el.addEventListener('change', ()=>{
+    saveGateMode(el.value);
+    setStatus('✓ Mode gerbang konsep: ' + el.value.toUpperCase() + ' — berlaku di scan berikutnya & detail pair. Setup yang sudah dipantau tidak berubah.', 'ok');
+    if(currentDetailSymbol && currentWorkspace === 'wsTrading') selectWorkspaceSymbol(currentDetailSymbol);
+  });
+})();
 
 // ===== Detail model dari berkas "ICT Unicorn" & "The Inverse Blueprint" =====
 // Pro & kontra tiap cara entry/SL persis dari berkas Inverse Blueprint.
@@ -5417,6 +5708,11 @@ function ictModelText(c){
   if(!c || !c.model) return '';
   const p = c.plan;
   const fp = fmtPrice;
+  if(c.model === 'AREA_TRIGGER'){
+    return `=== MODEL TERDETEKSI: ${c.title} (${c.side.toUpperCase()}, ${ictStatusLabel(c.status)}) ===
+${(c.reasons || []).join(' | ')}
+Entry (CE ${c.poi.label}): ${fp(p.entry)} | SL: ${fp(p.sl)} | TP: ${p.tp !== null && p.tp !== undefined ? fp(p.tp) : 'n/a'} | RR 1:${p.rr.toFixed(2)}`;
+  }
   if(c.model === 'UNICORN'){
     const u = c.unicorn;
     return `=== MODEL TERDETEKSI: ${c.title} (${c.side.toUpperCase()}, ${ictStatusLabel(c.status)}) ===
@@ -5491,6 +5787,24 @@ function ictTriggerHtml(t, tm){
     ? `<div class="sop-note" style="margin-top:8px;"><b>Model AREA → Trigger H1:</b> entry ${fmtPrice(tm.cand.plan.entry)} · SL ${fmtPrice(tm.cand.plan.sl)} · TP ${fmtPrice(tm.cand.plan.tp)} · RR 1:${tm.cand.plan.rr.toFixed(2)}</div>`
     : (tm && t.ok ? `<div class="sop-note" style="margin-top:8px;">Model AREA → Trigger H1 belum layak: ${escapeHtml(tm.reason || '')}</div>` : '');
   return head + (rows ? `<div class="bd-block" style="margin-top:8px;">${rows}</div>` : '') + model + `<div class="sop-note" style="margin-top:8px;">Trigger memakai candle H1 yang sudah tutup. Urutan wajib: harga masuk AREA → CHoCH/BOS H1 → momentum → FVG/IFVG → entry di retrace. Kedaluwarsa bila ${TRIG_CFG.expiryBars} candle H1 tanpa retrace.</div>`;
+}
+
+// Panel GERBANG KONSEP: status tiap setup (siap / pantau / wait and see / ditolak) dan alasan per gerbang.
+function ictGateHtml(list, mode){
+  if(!list || !mode) return '';
+  const modeNote = { ketat: 'Mode KETAT: BIAS dan AREA wajib, TRIGGER H1 menentukan SIAP ENTRY.', longgar: 'Mode LONGGAR: hanya BIAS wajib; AREA dan TRIGGER menambah peringkat.', mati: 'Mode MATI: tanpa gerbang konsep.' }[mode];
+  const cls = { siap: 'score-hi', waitsee: 'score-mid', pantau: 'score-mid', tolak: 'score-lo' };
+  const mark = g => g.pass ? '✓' : '✕';
+  const body = list.length ? list.map(({ cand, gate }) => {
+    const g = gate.gates;
+    return `<div class="trend-banner ${cls[gate.state]}" style="margin-top:8px;"><div class="tb-title">${escapeHtml(GATE_STATE_LABEL[gate.state])} — ${cand.side === 'long' ? 'LONG' : 'SHORT'} · ${escapeHtml(ictShortTitle(cand.id))}</div><div class="tb-sub">${escapeHtml(gate.reasons[0] || '')}</div></div>
+      <div class="bd-block" style="margin-top:6px;">
+        <div class="bd-row2"><span class="bd-factor2">${mark(g.bias)} BIAS</span><span class="bd-reason2">${escapeHtml(g.bias.reason)}</span></div>
+        <div class="bd-row2"><span class="bd-factor2">${mark(g.area)} AREA</span><span class="bd-reason2">${escapeHtml(g.area.reason)}</span></div>
+        <div class="bd-row2"><span class="bd-factor2">${mark(g.trigger)} TRIGGER</span><span class="bd-reason2">${escapeHtml(g.trigger.reason)}</span></div>
+      </div>`;
+  }).join('') : '<div class="sop-note">Tidak ada setup untuk dinilai gerbang pada pair ini sekarang.</div>';
+  return body + `<div class="sop-note" style="margin-top:8px;">${modeNote} Ubah di Pengaturan → Gerbang Konsep. Backtest 49 pair: gerbang tidak memperbaiki hasil model lama dan membuang ±98% sinyal — gerbang adalah alat disiplin, bukan jaminan keunggulan.</div>`;
 }
 
 function ictTimingHtml(ev){
@@ -5616,6 +5930,8 @@ function renderDetail(d){
     ${ictAreaHtml(d.area)}
     <div class="ind-section-title">TRIGGER H1 — KAPAN MASUK</div>
     ${ictTriggerHtml(d.trigger, d.triggerModel)}
+    <div class="ind-section-title">GERBANG KONSEP — STATUS SETUP</div>
+    ${ictGateHtml(d.gateList, d.gateMode)}
     <div class="ind-section-title">BIAS &amp; LIKUIDITAS — SETIAP TIMEFRAME (1H → 1W)</div>
     <div class="mtf-zone-grid">${mtfCards}</div>
     <div class="ind-section-title">STRUKTUR MARKET &amp; PREMIUM / DISCOUNT (${d.tf.toUpperCase()})</div>

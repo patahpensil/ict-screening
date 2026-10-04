@@ -69,6 +69,10 @@ jobs:
       - name: Uji lapis TRIGGER
         run: node scripts/test-ict-trigger.js
 
+      # Uji GERBANG konsep: mode ketat/longgar/mati, status siap/pantau/wait and see/tolak, trigger bawaan (cara B), peringkat.
+      - name: Uji gerbang konsep
+        run: node scripts/test-ict-gate.js
+
       # Hitungan alat backtest konsep penuh (riset): simulasi eksak, entri acak, tanpa look-ahead, walk-forward sintetis.
       - name: Uji alat backtest konsep
         run: node scripts/test-backtest-concept.js
