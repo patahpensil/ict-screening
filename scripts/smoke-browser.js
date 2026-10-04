@@ -94,6 +94,7 @@ const MOCK = `
 
 // ---------- klien CDP minimal ----------
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const AUDIT_PLAN = require('./audit-plan.js');
 async function main() {
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-smoke-'));
   const port = 9300 + Math.floor(Math.random() * 500);
@@ -163,8 +164,8 @@ async function main() {
   await shot('02-scanner', 430, 1000);
 
   // 3. scan intraday — ekspektasi di bagian 3-6 ditulis untuk perilaku tanpa gerbang konsep, jadi mode gerbang MATI (bagian 7b menguji ketat/longgar)
-  check(await evaluate('loadGateMode()') === 'ketat' && await evaluate('document.getElementById("gateModeSel").value') === 'ketat', 'mode gerbang bawaan = KETAT dan terlihat di Pengaturan');
-  await evaluate('localStorage.setItem("ict_gate_mode", "mati")');
+  check(await evaluate('loadGateMode()') === 'longgar' && await evaluate('!document.getElementById("gateModeSel") && localStorage.getItem("ict_gate_mode") === null') === true, 'gerbang terkunci LONGGAR: tidak ada pengaturan mode dan tidak ada yang disimpan di localStorage');
+  await evaluate('GATE_MODE_ACTIVE = "mati"'); // hook uji: bagian 3-6 menguji perilaku tanpa gerbang
   await evaluate('showWorkspace("wsHome")');
   await evaluate('runModeScan("intraday")');
   await waitFor('document.getElementById("heroModeStatus").textContent.startsWith("✓")', 'scan Intraday selesai', 30000);
@@ -203,6 +204,8 @@ async function main() {
   // harga LIVE tidak boleh sudah melewati SL/TP1 setup yang ditampilkan (engine memakai close candle tutup yang bisa basi)
   check(await evaluate("lastScanResults.hits.every(h => !ictPlanBeyondLive(h.ev.best.plan, h.ev.best.side, parseFloat(tickerData.find(d => d.symbol === h.symbol).lastPrice)))") === true, "tidak ada hasil scan yang harga live-nya sudah melewati SL/TP1");
   check(await evaluate("ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",89) && ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",121) && !ictPlanBeyondLive({sl:90,tp:120,slCloseBased:false},\"long\",100) && ictPlanBeyondLive({sl:110,tp:80,slCloseBased:false},\"short\",111) && ictPlanBeyondLive({sl:110,tp:80,slCloseBased:false},\"short\",79) && !ictPlanBeyondLive({sl:90,tp:120,slCloseBased:true},\"long\",89)") === true, "ictPlanBeyondLive: long/short, SL, TP1, dan SL berbasis close (tidak dinilai dari harga)");
+  const audit = await evaluate(AUDIT_PLAN);
+  check(audit.length === 0, 'audit rumus semua hasil scan konsisten (SL/TP searah, rr = |TP1-entry|/risiko, R pelacak = rr, status gerbang)' + (audit.length ? ' — ' + audit.slice(0, 4).join('; ') : ''));
   // konsistensi: tiap hasil scan harus sama dengan keputusan halaman Decision di gaya/timeframe yang membawanya
   const mismatch = await evaluate(`(async()=>{ const bad=[]; for(const h of lastScanResults.hits){ const tf=ICT_CFG.styles[h.style].ltf; await loadDetail(h.symbol, tf); const f=lastDetailFull; const want=h.ev.best.side==='long'?'LONG':'SHORT'; if(!f||f.ev.decision!==want||f.ev.best.id!==h.ev.best.id) bad.push(h.symbol+'@'+tf+' scan='+want+'/'+h.ev.best.id+' decision='+(f?f.ev.decision+'/'+(f.ev.best&&f.ev.best.id):'null')); } return bad; })()`);
   check(mismatch.length === 0, 'hasil scan = keputusan Decision di gaya yang sama untuk semua pair' + (mismatch.length ? ' — beda: ' + mismatch.join('; ') : ''));
@@ -470,10 +473,6 @@ async function main() {
     window.__mkGateHit = (sym, side, entry, sl, tp, mode, state) => { const h = __mkHit(sym, side, entry, sl, tp); h.ev.bias = { ok: true, side, tf: { bias: side === 'long' ? 'bullish' : 'bearish' } }; h.ev.area = null; h.gate = gate(mode, state); return h; };
     saveShadow([]);
   })()`);
-  await evaluate('(()=>{ const el = document.getElementById("gateModeSel"); el.value = "longgar"; el.dispatchEvent(new Event("change")); })()');
-  check(await evaluate('loadGateMode()') === 'longgar', 'Pengaturan: memilih Longgar tersimpan di localStorage');
-  await evaluate('(()=>{ const el = document.getElementById("gateModeSel"); el.value = "ketat"; el.dispatchEvent(new Event("change")); })()');
-  check(await evaluate('loadGateMode()') === 'ketat', 'Pengaturan: memilih Ketat tersimpan di localStorage');
   // ketat: trigger belum lengkap, Entry tersentuh -> WAIT AND SEE (bukan RUNNING), SL tersentuh -> batal + catatan bayangan
   const B0 = await evaluate('parseFloat(tickerData.find(d=>d.symbol==="BTCUSDT").lastPrice)');
   const bE = B0 * 0.99, bSl = B0 * 0.97, bTp = B0 * 1.03;
@@ -510,13 +509,14 @@ async function main() {
   await evaluate('document.getElementById("historyPanelClose").click()');
   // scan di mode ketat dan longgar: status menyebut mode, tiap hasil punya status gerbang yang sah
   for(const mode of ['ketat', 'longgar']){
-    await evaluate(`localStorage.setItem("ict_gate_mode", "${mode}")`);
+    await evaluate(`GATE_MODE_ACTIVE = "${mode}"`);
     await evaluate('showWorkspace("wsHome"); runModeScan("intraday")');
     await waitFor('document.getElementById("heroModeStatus").textContent.startsWith("✓")', 'scan Intraday mode ' + mode, 30000);
     const stt = await evaluate('document.getElementById("heroModeStatus").textContent'), lst = await evaluate('document.getElementById("modeResultsList").innerText');
     console.log('        ' + stt);
-    check(stt.includes('gerbang ' + mode.toUpperCase()) && !/undefined|NaN/.test(stt + lst), 'scan Intraday mode ' + mode + ': status menyebut mode, tanpa undefined/NaN');
+    check(stt.includes(mode === 'ketat' ? 'gerbang KETAT' : 'gerbang longgar') && !/undefined|NaN/.test(stt + lst), 'scan Intraday mode ' + mode + ': status menyebut mode, tanpa undefined/NaN');
     check(await evaluate('lastScanResults.hits.every(h => h.gate && ["siap","waitsee","pantau"].includes(h.gate.state) && h.gate.pass && h.gate.mode === "' + mode + '")') === true, 'mode ' + mode + ': setiap hasil lolos gerbang dan punya status siap/waitsee/pantau');
+    { const au = await evaluate(AUDIT_PLAN); check(au.length === 0, 'audit rumus hasil scan mode ' + mode + ' konsisten' + (au.length ? ' — ' + au.slice(0, 4).join('; ') : '')); }
     await evaluate('document.getElementById("modeResultsClose").click()');
   }
   await evaluate('currentDetailTf = "1h"; loadDetail("SOLUSDT", "1h")');

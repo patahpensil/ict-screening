@@ -143,6 +143,8 @@ const INIT = `(()=>{
     // konsistensi scan vs Decision
     const mism = await ev(`(async()=>{ const bad=[]; for(const h of lastScanResults.hits){ const tf=ICT_CFG.styles[h.style].ltf; await loadDetail(h.symbol, tf); const f=lastDetailFull; const want=h.ev.best.side==="long"?"LONG":"SHORT"; if(!f||f.ev.decision!==want||f.ev.best.id!==h.ev.best.id) bad.push(h.symbol+"@"+tf+" scan="+want+"/"+h.ev.best.id+" decision="+(f?f.ev.decision+"/"+(f.ev.best&&f.ev.best.id):"null")); } return bad; })()`, 300000);
     check(mism.length === 0, 'hasil scan = keputusan halaman Decision/detail untuk semua pair (rumus tidak tumpang tindih)', mism.slice(0, 3).join(' | '));
+    const audit = await ev(require('./audit-plan.js'));
+    check(audit.length === 0, 'audit rumus semua hasil scan (data asli) konsisten: SL/TP searah, rr, R pelacak, status gerbang', audit.slice(0, 4).join(' | '));
     // lapis BIAS di data asli: distribusi, invarian, dan kecocokan dengan hasil scan (belum menjadi gerbang)
     const bz = await ev(`(async()=>{
       const pairs = tickerData.filter(d => d.quoteVolume >= ICT_MIN_QUOTE_VOL).sort((a,b) => b.quoteVolume - a.quoteVolume).slice(0, 40).map(d => d.symbol);

@@ -1248,12 +1248,6 @@
           <div class="setting-field"><label>Breakeven (IFVG)</label><select id="ictPrefBe"><option value="rule50">Rule of 50</option><option value="lhf">Low hanging fruit</option><option value="none">Tidak dipakai</option></select></div>
         </div>
 
-        <div class="drawer-title" style="margin-top:20px;">🚦 Gerbang Konsep (BIAS → AREA → TRIGGER)</div>
-        <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Menentukan setup mana yang masuk daftar scan dan Decision. <b>Ketat</b> = spesifikasi asli: BIAS dan AREA wajib, TRIGGER H1 menentukan SIAP ENTRY. <b>Longgar</b> = hanya BIAS wajib; AREA dan TRIGGER hanya menambah peringkat. <b>Mati</b> = tanpa gerbang (perilaku lama). Backtest 49 pair × 548 hari: mode ketat meloloskan hanya ±1% sinyal dan hasilnya tidak lebih baik dari tanpa gerbang.</div>
-        <div class="settings-grid">
-          <div class="setting-field"><label>Mode gerbang</label><select id="gateModeSel"><option value="ketat">Ketat — BIAS + AREA wajib, TRIGGER menentukan siap</option><option value="longgar">Longgar — hanya BIAS wajib</option><option value="mati">Mati — tanpa gerbang</option></select></div>
-        </div>
-
         <div class="drawer-title" style="margin-top:20px;">📨 Notifikasi Telegram</div>
         <div class="sop-note" style="margin-top:0; margin-bottom:12px;">Kirim alarm (🚨) ke Telegram kamu juga, biar tetap kedapetan walau app lagi nggak dibuka di HP. Token &amp; Chat ID cuma disimpan lokal di browser ini (localStorage) — <b>tidak pernah</b> ikut ke-push ke GitHub atau server manapun.</div>
         <div class="settings-grid">
@@ -4237,9 +4231,10 @@ function ictPlanBeyondLive(plan, side, px){
   return slHit || tpHit;
 }
 // ===== GERBANG KONSEP: mode (pengaturan), model kelima sebagai kandidat penuh, snapshot untuk histori =====
-const LS_GATE_MODE = 'ict_gate_mode';
-function loadGateMode(){ try{ const m = localStorage.getItem(LS_GATE_MODE); return GATE_CFG.modes.includes(m) ? m : 'ketat'; }catch(e){ return 'ketat'; } }
-function saveGateMode(m){ try{ localStorage.setItem(LS_GATE_MODE, m); }catch(e){} }
+// Mode gerbang TERKUNCI ke 'longgar' (BIAS wajib; AREA/TRIGGER hanya menambah peringkat) — keputusan pemilik: backtest menunjukkan AREA/TRIGGER membuang
+// ±98% sinyal tanpa perbaikan hasil. Tidak ada pengaturan pengguna dan tidak disimpan di localStorage; variabel ini hanya hook uji (smoke test).
+let GATE_MODE_ACTIVE = 'longgar';
+function loadGateMode(){ return GATE_MODE_ACTIVE; }
 const GATE_STATE_LABEL = { siap: 'ZONA SIAP ENTRY', pantau: 'ZONA PANTAU', waitsee: 'WAIT AND SEE', tolak: 'DITOLAK' };
 // Model kelima (AREA → Trigger H1) belum punya checklist engine; ia lolos tiga gerbang by construction. Grade A bila leg ≥5x atau ada SNR.
 function ictFinishConceptCandidate(c, ev){
@@ -4506,10 +4501,10 @@ async function runIctScan({ styles, pool, title, label, notifyFresh, activeMode,
   renderTopSignals();
   armSetups(shown); // setiap hasil scan otomatis dipantau; pindah ke Decision begitu harga menyentuh Entry
 
-  const rejTotal = rej.bias + rej.area, modeLbl = { ketat: 'gerbang KETAT', longgar: 'gerbang LONGGAR', mati: 'gerbang MATI' }[gateMode];
+  const rejTotal = rej.bias + rej.area, modeLbl = { ketat: 'gerbang KETAT', longgar: 'BIAS wajib (gerbang longgar)', mati: 'gerbang MATI' }[gateMode];
   statusEl.textContent = `✓ ${label}: ${ready.length} siap entry + ${watchWs.length} wait and see + ${waiting.length} pantau dari ${candidates.length} pair likuid — ${modeLbl}${rejTotal ? `, ${rejTotal} setup ditolak (${rej.bias} bias, ${rej.area} area)` : ''}; diurutkan menurut kualitas setup (bukan peluang menang)${staleDropped ? ` · ${staleDropped} setup dibuang karena harga live sudah melewati SL/TP1` : ''}`;
   if(unique.length === 0){
-    listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang.${gateMode === 'ketat' && rejTotal ? ` Mode gerbang KETAT menolak ${rejTotal} setup (BIAS dan AREA wajib); backtest menunjukkan gerbang ini membuang ±98% sinyal tanpa memperbaiki hasil — ubah di Pengaturan → Gerbang Konsep bila ingin melonggarkan.` : ''} Coba scan ulang nanti.</div>`;
+    listEl.innerHTML = `<div class="empty-state">Belum ada setup ICT yang lolos validasi (${label}) saat ini. Itu normal — setup yang valid memang jarang.${gateMode === 'ketat' && rejTotal ? ` Mode gerbang KETAT (hanya uji) menolak ${rejTotal} setup (BIAS dan AREA wajib).` : ''} Coba scan ulang nanti.</div>`;
     return;
   }
 
@@ -5608,16 +5603,6 @@ function refreshIctPrefsUI(){
   });
 });
 refreshIctPrefsUI();
-(function(){
-  const el = document.getElementById('gateModeSel');
-  if(!el) return;
-  el.value = loadGateMode();
-  el.addEventListener('change', ()=>{
-    saveGateMode(el.value);
-    setStatus('✓ Mode gerbang konsep: ' + el.value.toUpperCase() + ' — berlaku di scan berikutnya & detail pair. Setup yang sudah dipantau tidak berubah.', 'ok');
-    if(currentDetailSymbol && currentWorkspace === 'wsTrading') selectWorkspaceSymbol(currentDetailSymbol);
-  });
-})();
 
 // ===== Detail model dari berkas "ICT Unicorn" & "The Inverse Blueprint" =====
 // Pro & kontra tiap cara entry/SL persis dari berkas Inverse Blueprint.
@@ -5804,7 +5789,7 @@ function ictGateHtml(list, mode){
         <div class="bd-row2"><span class="bd-factor2">${mark(g.trigger)} TRIGGER</span><span class="bd-reason2">${escapeHtml(g.trigger.reason)}</span></div>
       </div>`;
   }).join('') : '<div class="sop-note">Tidak ada setup untuk dinilai gerbang pada pair ini sekarang.</div>';
-  return body + `<div class="sop-note" style="margin-top:8px;">${modeNote} Ubah di Pengaturan → Gerbang Konsep. Backtest 49 pair: gerbang tidak memperbaiki hasil model lama dan membuang ±98% sinyal — gerbang adalah alat disiplin, bukan jaminan keunggulan.</div>`;
+  return body + `<div class="sop-note" style="margin-top:8px;">${modeNote} Gerbang dikunci longgar: backtest 49 pair menunjukkan AREA/TRIGGER membuang ±98% sinyal tanpa memperbaiki hasil, jadi keduanya hanya menaikkan peringkat — bukan jaminan keunggulan.</div>`;
 }
 
 function ictTimingHtml(ev){
