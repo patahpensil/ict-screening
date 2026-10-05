@@ -1,82 +1,24 @@
-name: Pemeriksaan
-
-# Repo ini tidak punya build step, package manager, atau test runner — deploy-nya
-# langsung dari branch main ke GitHub Pages. Workflow ini BUKAN untuk deploy
-# (Pages sudah menangani itu sendiri), tapi untuk menahan kesalahan yang kalau
-# lolos cuma ketahuan setelah dibuka di browser pengguna.
-
+name: Pemeriksaan Malomo
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
 jobs:
   check:
-    name: Pemeriksaan statis
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          # Riwayat penuh: pemeriksaan CACHE_NAME perlu membandingkan sw.js
-          # dengan commit pembanding.
           fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      # Instrumennya divalidasi dulu sebelum hasilnya dipercaya: selftest
-      # menyuntikkan cacat buatan dan memastikan check.js benar-benar menolaknya.
-      # Tanpa ini, check.js yang rusak akan selalu hijau tanpa ada yang sadar.
-      - name: Self-test pemeriksa
-        run: node scripts/selftest.js
-
-      - name: Pemeriksaan statis
-        run: node scripts/check.js
-
-      # Uji perilaku engine ICT (candle sintetis: skenario sweep+MSS, cerminnya, gate bias HTF, fuzz).
-      - name: Uji engine ICT
-        run: node scripts/test-ict.js
-
-      # Uji model Unicorn & Inverse Blueprint (IFVG) terhadap aturan di kedua berkas panduan.
-      - name: Uji model Unicorn & IFVG
-        run: node scripts/test-ict-models.js
-
-      # Uji pelacak Decision: armed -> RUNNING -> TP/SL/void, aturan candle konservatif, SL close-based, cermin long/short.
-      - name: Uji pelacak Decision
-        run: node scripts/test-ict-track.js
-
-      # Uji filter (MA200, EMA, volume spike, momentum): angka eksak, cermin, fuzz, dan keterpisahan dari engine ICT.
-      - name: Uji filter
-        run: node scripts/test-ict-filters.js
-
-      # Uji lapis BIAS: struktur menentukan arah, MA/EMA hanya menimbang; fase koreksi/lanjutan; cermin; fuzz.
-      - name: Uji lapis BIAS
-        run: node scripts/test-ict-bias.js
-
-      # Hitungan studi Fib vs OTE (alat riset, bukan kode aplikasi): leg/pullback/simulasi trade, cermin, tanpa look-ahead.
-      - name: Uji hitungan studi Fib vs OTE
-        run: node scripts/test-study-fib-ote.js
-
-      # Uji lapis AREA: zona OB/FVG di band OTE leg impuls (lantai 3x, bonus 5x), premium/discount, SNR bonus, cermin, fuzz.
-      - name: Uji lapis AREA
-        run: node scripts/test-ict-area.js
-
-      # Uji lapis TRIGGER H1: masuk AREA -> CHoCH/BOS -> momentum -> FVG/IFVG -> entry; kedaluwarsa/batal; cermin; model kelima; fuzz.
-      - name: Uji lapis TRIGGER
-        run: node scripts/test-ict-trigger.js
-
-      # Uji GERBANG konsep: mode ketat/longgar/mati, status siap/pantau/wait and see/tolak, trigger bawaan (cara B), peringkat.
-      - name: Uji gerbang konsep
-        run: node scripts/test-ict-gate.js
-
-      # Hitungan alat backtest konsep penuh (riset): simulasi eksak, entri acak, tanpa look-ahead, walk-forward sintetis.
-      - name: Uji alat backtest konsep
-        run: node scripts/test-backtest-concept.js
-
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
       - name: Bump CACHE_NAME
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

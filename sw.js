@@ -1,15 +1,20 @@
-const CACHE_NAME = "ict-screening-v86";
+const CACHE_NAME = "ict-screening-v88";
 const SHELL_FILES = [
   "./index.html",
+  "./engine/malomo.js",
+  "./app/storage.js",
+  "./app/market.js",
+  "./app/tracker.js",
+  "./app/ui.js",
+  "./app/main.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-512-maskable.png",
 ];
 
-// index.html sekarang 1 file utuh lagi (CSS+JS digabung balik) — network-first, biar begitu kamu
-// upload versi baru, HP langsung ambil yang terbaru tanpa perlu clear cache manual.
-const NETWORK_FIRST_FILES = ["index.html", "manifest.json"];
+// Shell dan modul aplikasi memakai network-first, dengan fallback offline.
+const NETWORK_FIRST_FILES = ["index.html", "manifest.json", "engine/malomo.js", "app/storage.js", "app/market.js", "app/tracker.js", "app/ui.js", "app/main.js"];
 
 // Origin lintas-domain yang tetap boleh di-cache karena memang bagian dari shell app (font UI).
 // Selain ini + origin sendiri, TIDAK ADA yang boleh disentuh cache — lihat catatan di handler fetch.
@@ -58,18 +63,12 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
           return res;
         })
-        .catch(() => caches.match(req))
+        .catch(async () => (await caches.match(req)) || (req.mode === "navigate" ? caches.match("./index.html") : undefined))
     );
     return;
   }
 
-  // Cache-first CUMA buat aset shell app sendiri + font Google yang dipakai shell-nya.
-  // FIX: sebelumnya cabang ini nangkep SEMUA request non-Binance, termasuk lintas-origin, sehingga:
-  //   - `${TV_BRIDGE_URL}/open?symbol=...&tf=...` dilayani dari cache setelah panggilan pertama, jadi
-  //     perintah "buka simbol ini di TradingView" nggak pernah nyampe lagi ke bridge lokalnya — status
-  //     di layar tetap sukses padahal chart-nya nggak ganti;
-  //   - URL screenshot bridge yang ber-timestamp (`&t=Date.now()`) bikin entry cache BARU tiap dipakai,
-  //     numpuk terus dan nggak pernah kebuang selama versi cache-nya belum naik.
+  // Cache aset lokal dan font; layanan eksternal lain diteruskan langsung.
   if (!sameOrigin && !CACHEABLE_CROSS_ORIGIN.some((o) => url.startsWith(o))) return;
 
   event.respondWith(

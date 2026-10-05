@@ -145,14 +145,20 @@ if (!fs.existsSync(INDEX)) { console.error('index.html tidak ditemukan di ' + RO
 const html = fs.readFileSync(INDEX, 'utf8').replace(/\r\n/g, '\n');
 const swSrc = fs.readFileSync(SW, 'utf8').replace(/\r\n/g, '\n');
 
-const openTags = [...html.matchAll(/<script(?:\s[^>]*)?>/g)];
-const closeTags = [...html.matchAll(/<\/script>/g)];
-if (openTags.length !== 1 || closeTags.length !== 1) {
-  fail('struktur', `index.html harus punya tepat 1 blok <script> (ditemukan ${openTags.length} pembuka, ${closeTags.length} penutup)`);
+const blocks=[...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+const inline=blocks.filter(b=>!(/\bsrc\s*=/.test(b[1])));
+const external=blocks.filter(b=>/\bsrc\s*=/.test(b[1]));
+const modulePaths=external.map(b=>(b[1].match(/src=["']([^"']+)["']/)||[])[1]);
+if(inline.length!==1 || modulePaths.length!==6 || modulePaths.some(p=>!p||p.includes('..')||p.includes(':')))
+  fail('struktur','Harus ada satu bootstrap inline dan enam modul lokal Malomo');
+const block=inline[0];
+const jsStart=block?block.index+block[0].indexOf('>')+1:0;
+const jsEnd=block?block.index+block[0].lastIndexOf('</script>'):html.length;
+let js=html.slice(jsStart,jsEnd);
+for(const modulePath of modulePaths){
+  try {const source=fs.readFileSync(path.join(ROOT,modulePath),'utf8');new vm.Script(source);js+='\n'+source;}
+  catch(e){fail('syntax',modulePath+': '+e.message);}
 }
-const jsStart = openTags.length ? openTags[0].index + openTags[0][0].length : 0;
-const jsEnd = closeTags.length ? closeTags[0].index : html.length;
-const js = html.slice(jsStart, jsEnd);
 const jsLineOffset = lineOf(html, jsStart) - 1;   // app line 1 == html line (offset + 1)
 const htmlLine = (jsIdx) => lineOf(js, jsIdx) + jsLineOffset;
 
@@ -179,7 +185,7 @@ const GLOBALS = new Set([
   'Notification', 'WebSocket', 'IntersectionObserver', 'MutationObserver', 'FileReader', 'Blob', 'URL',
   'URLSearchParams', 'AudioContext', 'webkitAudioContext', 'performance', 'requestAnimationFrame',
   'Error', 'TypeError', 'RangeError', 'RegExp', 'Symbol', 'Intl', 'structuredClone', 'queueMicrotask',
-  'atob', 'btoa', 'FormData', 'AbortController', 'CustomEvent', 'Event', 'Image', 'self',
+  'atob', 'btoa', 'FormData', 'AbortController', 'AbortSignal', 'CustomEvent', 'Event', 'Image', 'self',
 ]);
 
 const defined = new Set();
