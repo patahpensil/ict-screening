@@ -12,4 +12,4 @@ Probe REST Binance live dari lingkungan pengujian menghasilkan HTTP 451. Integra
 
 ## Keterbatasan yang ditampilkan
 
-Magnitude Candle Range/ATR dan Displacement numerik belum dihitung karena definisi Candle Range lama tidak tercantum dalam PRD final. Kategori volatilitas belum diisi dengan threshold buatan. Trend Efficiency diberikan sebagai informasi deskriptif struktur, bukan rumus baru. Lihat README untuk keputusan operasional dan batas simulasi.
+Magnitude Candle Range/ATR, label Displacement, regime volatilitas, dan Trend Efficiency dihitung sesuai addendum keputusan pemilik (docs/ADDENDUM_PRD_2026-10-06.md); semuanya informasi atau evidence, bukan gate. K-6 masih terbuka. Hasil TP/SL yang dicatat berdasarkan level plan, bukan fill nyata; tampilan OI/CVD/orderbook/CHoCH di Decision masih rencana. Lihat README untuk keputusan operasional dan batas pemantauan.

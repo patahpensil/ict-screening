@@ -12,7 +12,7 @@
     }
     if(value.watchlist&&value.watchlist.some(x=>typeof x!=='string'))throw new Error('Watchlist harus berisi nama pair');
     for(const key of ['journal','history','tracks','priceAlerts'])if(value[key]?.some(x=>!x||typeof x!=='object'))throw new Error('Entry '+key+' tidak valid');
-    if(value.tracks?.some(x=>x.engine!=='malomo-v1'||!['long','short'].includes(x.side)||!['armed','running','closed'].includes(x.status)||![x.entry,x.sl,x.tp,x.risk,x.rr,x.lastAt].every(Number.isFinite)||x.risk<=0))throw new Error('Simulasi harus berasal dari engine Malomo');
+    if(value.tracks?.some(x=>x.engine!=='malomo-v1'||!['long','short'].includes(x.side)||!['armed','running','closed'].includes(x.status)||![x.entry,x.sl,x.tp,x.risk,x.rr,x.lastAt].every(Number.isFinite)||x.risk<=0))throw new Error('Data pemantauan harus berasal dari engine Malomo');
     for(const key of ['watchlist','journal','history','tracks','priceAlerts'])if(value[key]!==undefined)write(key,value[key]);
   }
   root.MalomoStore={read,write,exportData,importData};

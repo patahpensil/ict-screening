@@ -1112,7 +1112,7 @@
 
     <div id="wsDecisionBody"></div>
 
-    <div class="ws-note" style="margin:14px 0;">ℹ️ App ini <b>read-only</b> — nggak eksekusi order beneran ke Binance. "Open Positions" di bawah diambil dari entry Jurnal yang statusnya kamu tandai Open/Floating.</div>
+    <div class="ws-note" style="margin:14px 0;">ℹ️ App ini tidak mengirim order ke Binance — eksekusi kamu lakukan manual. "Open Positions" di bawah diambil dari entry Jurnal yang statusnya kamu tandai Open/Floating.</div>
     <div id="wsTradingSetupBody"></div>
 
     <div class="ws-card">
@@ -1144,7 +1144,8 @@
     <button class="back-to-home-btn" onclick="goHome()">← Back</button>
     <div class="ws-header"><span class="ws-title">DECISION</span></div>
     <div class="ws-sub">Pair yang harganya sudah menyentuh level Entry — tampil RUNNING sampai kena TP atau SL, lalu hilang dari sini</div>
-    <div class="ws-note">ℹ️ Setiap hasil scan otomatis dipantau selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini. Saat RUNNING, <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>CHoCH</b> (candle tutup) ditampilkan real-time. Data ini <b>hanya tampilan</b> — tidak memengaruhi penilaian setup. Hasil TP/SL otomatis dicatat ke Review. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
+    <div class="ws-note">ℹ️ Daftar ini untuk kamu <b>tinjau sebelum eksekusi manual</b> di Binance. Setiap Trading Plan hasil Scan Malomo dipantau selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini sebagai RUNNING sampai kena TP atau SL. Hasil TP/SL otomatis dicatat ke Review berdasarkan level plan, belum termasuk fee, slippage, dan funding. App tidak mengirim order ke Binance. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
+    <div class="ws-note">🛠 <b>Rencana, belum aktif di engine Malomo:</b> saat RUNNING menampilkan <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>CHoCH</b> (candle tutup) secara real-time. Data ini nantinya <b>hanya tampilan</b> — tidak memengaruhi penilaian setup.</div>
     <div id="decisionList"></div>
     <div class="ws-note" id="decisionArmedNote" style="margin-top:6px;"></div>
   </div>
@@ -1262,7 +1263,7 @@
     </div>
     <div class="fsp-body">
       <div class="fsp-body-inner">
-        <div class="sop-note" style="margin-top:0;">Tiap kamu tap "📌 Simpan ke Histori Setup" di detail pair, Trading Plan Malomo (arah, entry, SL, TP) kesimpen di sini. Rencana simulasi yang selesai dicatat dengan hasil TP/SL. Riwayat candle diperiksa setelah aplikasi kembali aktif; simulasi bukan eksekusi exchange.</div>
+        <div class="sop-note" style="margin-top:0;">Tiap kamu tap "📌 Simpan ke Histori Setup" di detail pair, Trading Plan Malomo (arah, entry, SL, TP) kesimpen di sini. Rencana yang dipantau dan selesai dicatat dengan hasil TP/SL berdasarkan level plan. Riwayat candle diperiksa setelah aplikasi kembali aktif. Hasil ini bukan fill nyata dari exchange; sesuaikan dengan eksekusi manualmu.</div>
         <div class="journal-stats" id="historyStats"></div>
         <div class="ws-note" id="shadowSummary" style="display:none; margin-bottom:10px;"></div>
         <div class="journal-list" id="historyList"></div>
