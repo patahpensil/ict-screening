@@ -23,10 +23,21 @@
     }
     throw new Error('Binance rate limit; coba ulang setelah jeda.');
   }
-  async function cached(key,ttl,fn){
-    const value=cache.get(key);if(value&&Date.now()-value.at<ttl)return value.data;
+  const TF_MS={'1m':60000,'5m':300000,'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000};
+  // Engine hanya memakai candle yang sudah close, dan candle close tidak pernah berubah. Jadi data satu
+  // timeframe tetap berlaku sampai candle yang sedang berjalan close: 1D diunduh ulang sekali sehari,
+  // 4H tiap 4 jam, 1H tiap jam, 1m tiap menit. Scan ulang cukup mengambil data yang memang berubah.
+  async function cachedCandles(key,tf,fetchRows){
+    const value=cache.get(key);if(value&&serverNow()<value.until)return value.data;
     if(pending.has(key))return pending.get(key);
-    const job=fn().then(data=>{cache.set(key,{data,at:Date.now()});if(cache.size>1000)cache.delete(cache.keys().next().value);return data;}).finally(()=>pending.delete(key));
+    const job=fetchRows().then(all=>{
+      const now=serverNow(),data=Malomo.closed(all,now);
+      const lastCt=all.reduce((m,c)=>Math.max(m,Number(c.ct)||0),0);
+      const until=(lastCt>now?lastCt:lastCt+(TF_MS[tf]||60000))+1000;
+      cache.delete(key);cache.set(key,{data,until});
+      if(cache.size>2000)cache.delete(cache.keys().next().value);
+      return data;
+    }).finally(()=>pending.delete(key));
     pending.set(key,job);return job;
   }
   async function syncClock(){
@@ -61,9 +72,9 @@
     const watchdog=setInterval(()=>{if(socket!==current){clearInterval(watchdog);return;}if(!alive||Date.now()-alive>20000)current.close();},25000);
   }
   async function candles(symbol,tf,limit=400){
-    return cached(symbol+'|'+tf+'|'+limit,tf==='1m'?15000:40000,async()=>{
+    return cachedCandles(symbol+'|'+tf+'|'+limit,tf,async()=>{
       const rows=await request('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+tf+'&limit='+limit);
-      return Malomo.closed(rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7])})),serverNow());
+      return rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7])}));
     });
   }
   function tickSize(symbol){const f=(symbols.get(symbol)?.filters||[]).find(x=>x.filterType==='PRICE_FILTER');return f?Number(f.tickSize):null;}

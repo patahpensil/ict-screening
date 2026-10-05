@@ -2,14 +2,15 @@
 (function(root){
   'use strict';
   const U=MalomoUI,S=MalomoStore,M=MalomoMarket;
-  let scanning=false,lastScanAt=0,scanToken=0,detailToken=0,renderAt=0,lastPrices=new Map(),polling=false;
+  let scanning=false,lastScanAt=0,scanProgress='',detailToken=0,renderAt=0,lastPrices=new Map(),polling=false;
   const id=()=>Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
   const symbol=v=>{const s=String(v||'').trim().toUpperCase();return s.endsWith('USDT')?s:s+'USDT';};
   function on(name,fn,event='click'){U.$(name)?.addEventListener(event,fn);}
   // Track yang sudah closed sudah tersalin ke histori, jadi tidak disimpan lagi di daftar pemantauan.
   const saveTracks=tracks=>S.write('tracks',tracks.filter(x=>x.status!=='closed'));
-  // K-8: satu aturan PRD, satu jenis scan. Tombol di hero dan aksi cepat menjalankan scan yang sama.
-  const scanButtons=['modeIntradayBtn','scanTopBtn'];
+  // Scan berjalan otomatis sejak aplikasi dibuka dan diulang terus selama tab aktif; jeda antar-scan dihitung
+  // dari selesainya scan sebelumnya. Data candle di-cache sampai candle berikutnya close, jadi scan ulang cepat.
+  const SCAN_GAP=60000;
   function log(message,sym){const a=S.read('alerts');a.unshift({id:id(),at:Date.now(),message,symbol:sym||null});S.write('alerts',a.slice(0,200));U.alerts();U.status(message);}
   // Alert transisi pemantauan; tampil di banner berjalan dan log alert seperti Decision engine lama.
   function transition(r,before){
@@ -75,17 +76,33 @@
     }finally{polling=false;}
   }
   async function refresh(){try{await M.refresh();await catchUp();U.status('Data Binance diperbarui · '+new Date().toLocaleTimeString('id-ID'));}catch(e){U.status('Gagal memuat Binance: '+e.message,true);U.html('tbody','<div class="empty-state">Data pasar tidak tersedia. Periksa koneksi dan coba lagi.</div>');}}
-  async function scan(background=false){
-    if(scanning)return;scanning=true;
-    const token=++scanToken;if(!background)U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Malomo · Top 250 → Top 150');
-    scanButtons.forEach(x=>U.$(x).disabled=true);
+  // Hasil disimpan ringkas agar langsung tampil saat aplikasi dibuka lagi (hanya untuk tampilan;
+  // pemantauan Trading Plan selalu memakai hasil scan yang baru).
+  function slimScan(r){
+    return {at:r.at,universe:r.universe,errors:r.errors,candidates:r.candidates.map(c=>({symbol:c.symbol,quoteVolume60m:c.quoteVolume60m,error:c.error,
+      evaluation:{bias:c.evaluation.bias,side:c.evaluation.side,status:c.evaluation.status,plan:c.evaluation.plan,
+        frames:Object.fromEntries(Object.entries(c.evaluation.frames||{}).map(([t,f])=>[t,{structure:{pending:f.structure.pending},quality:{trendEfficiency:{label:f.quality?.trendEfficiency?.label??null}}}]))}}))};
+  }
+  // Tombol Scan: tampilkan hasil terakhir seketika; scan baru hanya dimulai bila tidak ada yang sedang berjalan
+  // dan hasil terakhir sudah lewat jeda. Menutup panel tidak membatalkan scan.
+  function openScan(){
+    U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Malomo · Top 250 → Top 150');
+    if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);else U.text('heroModeStatus',scanning?scanProgress:'Memulai scan…');
+    if(!scanning&&Date.now()-lastScanAt>=SCAN_GAP)scan();
+  }
+  async function scan(){
+    if(scanning)return;scanning=true;scanProgress='memperbarui…';
+    U.$('heroModeStatus').classList.add('show');
     try{
-      const result=await M.scan({cancelled:()=>token!==scanToken,progress:(n,total)=>{if(token===scanToken)U.text('heroModeStatus',`Scan ${n}/${total} kandidat Top 250…`);}});
-      if(token!==scanToken){U.text('heroModeStatus','Scan dibatalkan.');return;}
+      const result=await M.scan({progress:(n,total)=>{
+        scanProgress=root.lastMalomoScan?'memperbarui '+n+'/'+total:'Scan '+n+'/'+total+' kandidat Top 250…';
+        if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,scanProgress);else U.text('heroModeStatus',scanProgress);
+      }});
       root.lastMalomoScan=result;lastScanAt=Date.now();U.scan(result);
+      S.write('lastScan',slimScan(result));
       syncTracks(result);
-    }catch(e){U.text('heroModeStatus','Scan gagal: '+e.message);}
-    finally{scanning=false;scanButtons.forEach(x=>U.$(x).disabled=false);}
+    }catch(e){if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,'pembaruan gagal: '+e.message);else U.text('heroModeStatus','Scan gagal: '+e.message);lastScanAt=Date.now();}
+    finally{scanning=false;scanProgress='';}
   }
   function syncTracks(result){
     const tracks=S.read('tracks'),history=S.read('history'),now=Date.now();
@@ -99,7 +116,6 @@
     for(const rec of current.values())if(MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id))tracks.push(rec);
     saveTracks(tracks);U.decision();
   }
-  function cancelScan(){scanToken++;}
   // Acuan OI dicatat sinkron dari data track terbaru sesudah jaringan selesai, agar tidak menimpa status yang baru berubah.
   async function pollOI(){
     await MalomoLive.pollOI(S.read('tracks'));
@@ -143,12 +159,11 @@
     document.addEventListener('click',event=>delegated(event).catch(e=>log(e.message)));
     on('hamburgerBtn',()=>{U.$('sidebar').classList.add('open');U.$('sidebarOverlay').classList.add('show');});on('sidebarCloseBtn',U.closeSidebar);on('sidebarOverlay',U.closeSidebar);
     on('introTipClose',()=>{U.$('introTip').style.display='none';localStorage.setItem('malomo_intro_hidden','1');});if(localStorage.getItem('malomo_intro_hidden'))U.$('introTip').style.display='none';
-    // Menutup panel lain tidak boleh membatalkan scan yang sedang berjalan; hanya tombol tutup
-    // panel hasil scan yang membatalkannya secara eksplisit.
-    on('modeResultsClose',()=>{cancelScan();U.panels();});
+    // Back hanya menutup panel; scan tetap berjalan dan hasilnya langsung tampil saat panel dibuka lagi.
+    on('modeResultsClose',()=>U.panels());
     for(const name of ['modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{detailToken++;U.panels();});
     for(const name of ['modalBackdrop','journalModalBackdrop'])on(name,e=>{if(e.target===U.$(name))U.$(name).classList.remove('show');});
-    on('modeIntradayBtn',()=>scan());on('scanTopBtn',()=>scan());
+    on('modeIntradayBtn',openScan);on('scanTopBtn',openScan);
     on('decisionQuickBtn',()=>U.workspace('wsDecision'));on('marketQuickBtn',()=>U.workspace('wsScanner'));
     on('sqWatchlist',()=>{U.workspace('wsScanner');U.setFilter('watchlist');});on('sqFunding',()=>{U.workspace('wsScanner');U.setFilter('fundingext');});
     for(const name of ['sqAlerts','alertBtn','topbarAlertBtn'])on(name,()=>{U.alerts();U.panel('alertDrawer');});on('sqSettings',()=>U.panel('settingsDrawer'));
@@ -167,13 +182,14 @@
     window.addEventListener('popstate',()=>{U.panels();U.workspace('wsHome');});
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Malomo · PRD FINAL');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
-    U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh();M.connect();setInterval(refresh,45000);
+    U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh().then(()=>{if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);if(!scanning&&!document.hidden)scan();});M.connect();setInterval(refresh,45000);
     // Decision: data tampilan real-time untuk posisi RUNNING (OI ±15 dtk, CVD & orderbook WebSocket, struktur 4H ±30 dtk).
     MalomoLive.sync(S.read('tracks'));
     setInterval(()=>{MalomoLive.tick();MalomoLive.sync(S.read('tracks'));if(U.getActive()==='wsDecision')U.decision();},1000);
     setInterval(pollOI,15000);setInterval(()=>MalomoLive.pollStructure(S.read('tracks')),30000);
     pollOI();MalomoLive.pollStructure(S.read('tracks'));
-    setInterval(()=>{if(root.lastMalomoScan&&!scanning&&Date.now()-lastScanAt>=300000&&!document.hidden)scan(true);},30000);
+    const saved=S.read('lastScan',null);if(saved&&Array.isArray(saved.candidates)){root.lastMalomoScan=saved;U.scan(saved);}
+    setInterval(()=>{if(!scanning&&Date.now()-lastScanAt>=SCAN_GAP&&!document.hidden&&M.getTickers().length)scan();},10000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
     if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>U.status('Cache offline tidak tersedia.'));
   }
