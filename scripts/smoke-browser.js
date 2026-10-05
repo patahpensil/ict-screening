@@ -30,6 +30,13 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
       await page.locator('#tbody .coin-row').first().click();await page.waitForFunction(()=>document.getElementById('modalBody').textContent.includes('Protected swing'));
       assert((await page.locator('#modalBody').innerText()).includes('ATR14 / RVOL20'));await page.locator('#mhStarBtn').click();await page.locator('#modalCloseBtn').click();
       await nav('wsHome');await page.locator('#modeIntradayBtn').click();await page.waitForFunction(()=>window.lastMalomoScan);assert.equal(await page.locator('#modeResultsList .coin-row').count(),2);await page.locator('#modeResultsClose').click();
+      // Decision: kartu RUNNING memakai tampilan engine lama (harga, R, progress, level, 4 sel data real-time).
+      await page.evaluate(()=>{MalomoStore.write('tracks',[{id:'BTCUSDT|long|1',engine:'malomo-v1',symbol:'BTCUSDT',side:'long',status:'running',entry:12,sl:11,tp:15,risk:1,rr:3,lastAt:Date.now(),createdAt:Date.now()-7200000,runningAt:Date.now()-3600000,validatedAt:Date.now()-7200000,zoneLocation:'discount'}]);});
+      await nav('wsDecision');await page.waitForFunction(()=>document.querySelectorAll('#decisionList .dec-card .dec-cell').length===4);
+      const card=await page.locator('#decisionList .dec-card').innerText();
+      for(const part of ['RUNNING','BTC','LONG','+1.00R','SL','ENTRY','TP','1:3.00','OPEN INTEREST','CVD (TAKER)','ORDERBOOK','STRUKTUR 4H','berjalan 1 jam'])assert(card.includes(part),'kartu Decision tanpa '+part);
+      assert.equal(await page.locator('#decisionList .dec-prog .now').count(),1);assert.equal(await page.locator('#decisionCount').innerText(),'1');
+      await page.evaluate(()=>MalomoStore.write('tracks',[]));
       await nav('wsReview');await page.locator('#journalAddBtn').click();await page.locator('#jfSymbol').fill('BTC');await page.locator('#jfEntry').fill('10');await page.locator('#jfSl').fill('9');await page.locator('#jfPnlUsd').fill('5');await page.locator('#jfNotes').fill('<b>catatan pengguna</b>');await page.locator('#journalForm button[type="submit"]').click();assert.equal(await page.locator('#journalList .journal-entry').count(),1);assert.equal(await page.locator('#journalList .je-notes b').count(),0);
       await nav('wsTrading');await page.locator('#calcBalance').fill('1000');await page.locator('#calcRiskPct').fill('1');await page.locator('#calcEntry').fill('10');await page.locator('#calcSl').fill('9');await page.locator('#calcRunBtn').click();assert((await page.locator('#calcResult').innerText()).includes('10'));
       await nav('wsHome');
@@ -42,8 +49,8 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
     await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
     await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
     await offlinePage.goto('http://127.0.0.1:'+server.address().port);
-    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v91'));
-    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v91');return !!await c.match('./app/main.js');});
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v92'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v92');return !!await c.match('./app/main.js');});
     // `controller` bisa sudah terisi sebelum service worker siap menangani navigasi; tanpa menunggu
     // `ready`, reload offline kadang lolos dari service worker dan gagal (flaky di CI dan Chrome lokal).
     await offlinePage.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));

@@ -33,7 +33,6 @@
     list.sort((a,b)=>filter==='nearhigh'?pos(b)-pos(a):filter==='nearlow'?pos(a)-pos(b):sort==='symbol'?a.symbol.localeCompare(b.symbol):Number(b[sort])-Number(a[sort]));
     text('listTitle',`${filter} · ${Math.min(150,list.length)} dari ${list.length}`);
     html('tbody',list.length?list.slice(0,150).map(d=>tickerRow(d)).join(''):'<div class="empty-state">Tidak ada pair yang cocok.</div>');
-    html('ticker',data.slice().sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0,10).map(x=>`<span class="ticker-item">${esc(x.symbol)} ${price(x.lastPrice)} · ${x.priceChangePercent.toFixed(2)}%</span>`).join(''));
     const movers=data.slice().sort((a,b)=>b.priceChangePercent-a.priceChangePercent);
     html('moversBody',[['TOP GAINERS',movers.slice(0,5)],['TOP LOSERS',movers.slice(-5).reverse()]].map(([t,a])=>`<div><div class="ws-card-title" style="margin-bottom:8px;">${t}</div><table class="movers-table"><tbody>${a.map((d,i)=>`<tr data-action="detail" data-symbol="${esc(d.symbol)}"><td>${i+1}</td><td>${esc(d.symbol.replace(/USDT$/,''))}/USDT</td><td>${price(d.lastPrice)}</td><td style="color:${d.priceChangePercent>=0?'var(--mint)':'var(--crimson)'};text-align:right;">${d.priceChangePercent>=0?'+':''}${d.priceChangePercent.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`).join(''));
     html('searchResults',q?data.filter(x=>x.symbol.includes(q)).slice(0,10).map(x=>tickerRow(x)).join(''):'');$('searchResults').classList.toggle('show',!!q);
@@ -96,12 +95,71 @@
     html('historyList',data.map(e=>`<div class="ws-card"><div class="ws-card-title">${esc(e.symbol)} · ${esc(e.side)} · ${esc(e.outcome||'tersimpan')}</div>${row('Entry / SL / TP',price(e.entry)+' / '+price(e.sl)+' / '+price(e.tp))}${row('RR','1:'+Number(e.rr).toFixed(2))}<button class="btn" data-action="history-delete" data-id="${esc(e.id)}">🗑 Hapus</button></div>`).join('')||'<div class="empty-state">Belum ada histori setup Malomo.</div>');
     html('shadowSummary','');
   }
-  function decision(){
-    const records=MalomoStore.read('tracks'),running=records.filter(x=>x.status==='running'),armed=records.filter(x=>x.status==='armed');
-    html('decisionList',running.map(e=>`<div class="dec-card ${e.side}" data-action="detail" data-symbol="${esc(e.symbol)}"><div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span>${esc(e.symbol)} · ${e.side.toUpperCase()}</span></div><div class="je-row">Entry ${price(e.entry)} · SL ${price(e.sl)} · TP ${price(e.tp)} · RR 1:${e.rr.toFixed(2)}</div><div class="sop-note">Tinjau sebelum eksekusi manual · SL tidak menunggu retest.</div></div>`).join('')||'<div class="empty-state">Tidak ada posisi RUNNING.</div>');
-    text('decisionArmedNote',armed.length+' rencana tervalidasi menunggu harga entry');text('decisionCount',running.length);$('decisionCount').style.display=running.length?'inline-block':'none';
+  const ago=ms=>{const m=Math.max(0,Math.round(ms/60000));return m<60?m+' mnt':m<1440?Math.floor(m/60)+' jam '+(m%60)+' mnt':Math.floor(m/1440)+' hari';};
+  // Format harga kartu Decision sama dengan engine lama: 2/4/6 desimal menurut besaran harga.
+  const fp=v=>{const n=Number(v);return !Number.isFinite(n)?'-':n>=100?n.toFixed(2):n>=1?n.toFixed(4):n.toFixed(6);};
+  const usd=v=>'$'+num(Math.abs(v));
+  // Label event struktur engine Malomo untuk sel STRUKTUR 4H.
+  const STRUCT_LABEL={BREAKOUT:'Breakout',BREAKDOWN:'Breakdown',LOCAL_CONTINUATION:'Kelanjutan lokal',REVERSAL_CONFIRMED:'Reversal',BREAK_PENDING:'Menunggu konfirmasi patah',STRUCTURE_BROKEN:'Patah terkonfirmasi'};
+  // Event yang melemahkan posisi: struktur searah posisi mulai/terkonfirmasi patah, atau event struktural berlawanan arah.
+  function structureAgainst(st,long){
+    const own=long?'bullish':'bearish';
+    return ['BREAK_PENDING','STRUCTURE_BROKEN'].includes(st.type)?st.direction===own:st.direction!==own;
   }
-  function alerts(){const a=MalomoStore.read('alerts');text('alertStats',a.length+' notifikasi');html('alertLog',a.map(x=>`<div class="alert-row"><div>${esc(x.message)}</div><div class="mono">${new Date(x.at).toLocaleString('id-ID')}</div></div>`).join('')||'<div class="empty-state">Belum ada notifikasi.</div>');}
+  // Tampilan kartu Decision dipertahankan dari engine lama (permintaan pemilik); isinya dari engine Malomo.
+  function decisionCard(r){
+    const t=MalomoMarket.getTickers().find(x=>x.symbol===r.symbol),px=t?Number(t.lastPrice):NaN,long=r.side==='long';
+    const d=MalomoLive.data(r.symbol),risk=r.risk>0?r.risk:Math.abs(r.entry-r.sl);
+    const R=px>0&&risk>0?(long?px-r.entry:r.entry-px)/risk:0,profit=px>0?(px-r.entry)*(long?1:-1):0;
+    const span=r.tp-r.sl;
+    const frac=v=>Math.max(0,Math.min(1,(v-r.sl)/span))*100;
+    let oi='<div class="val">memuat…</div>';
+    if(d.oi>0&&px>0){
+      const chg=r.oiBase>0?(d.oi/r.oiBase-1)*100:null,up=chg!==null&&chg>0;
+      // Untung/rugi dinilai dari sisi posisi (engine lama membalik arah ini untuk SHORT).
+      const read=chg===null?'':Math.abs(chg)<0.05?'OI relatif datar':profit===0?(up?'OI naik':'OI turun'):up?(profit>0?'OI naik searah posisi':'OI naik melawan posisi'):(profit>0?'OI turun (posisi ditutup)':'OI turun, harga melawan');
+      oi=`<div class="val">${usd(d.oi*px)}</div><div class="sub">${chg!==null?(chg>=0?'+':'')+chg.toFixed(2)+'% sejak RUNNING':''}${read?' · '+read:''}</div>`;
+    }
+    const cvd5=(d.cvdWin||[]).reduce((s,x)=>s+x.d,0);
+    const cvd=d.wsOn||(d.cvdWin&&d.cvdWin.length)
+      ?`<div class="val ${d.cvd>=0?'chg-pos':'chg-neg'}">${d.cvd>=0?'+':'−'}${usd(d.cvd)}</div><div class="sub">5 mnt: ${cvd5>=0?'+':'−'}${usd(cvd5)} · sejak dipantau ${ago(Date.now()-(d.cvdSince||Date.now()))}</div>`
+      :'<div class="val">menyambung…</div><div class="sub">menunggu trade pertama dari stream</div>';
+    const ob=d.imb!==undefined
+      ?`<div class="val">Bid ${Math.round((1+d.imb)*50)}% · Ask ${Math.round((1-d.imb)*50)}%</div><div class="sub">${d.imb>0.1?'bid dominan':d.imb<-0.1?'ask dominan':'seimbang'} · 20 level · spread ${d.bid>0&&d.ask>0?((d.ask-d.bid)/d.bid*100).toFixed(3)+'%':'-'}</div>`
+      :'<div class="val">menyambung…</div><div class="sub">menunggu snapshot orderbook</div>';
+    const st=MalomoLive.structure(r.symbol);
+    let structureCell='<div class="val">memuat…</div>';
+    if(st===null)structureCell='<div class="val">belum ada</div><div class="sub">4H · tutup candle</div>';
+    else if(st){
+      const warn=structureAgainst(st,long)&&st.t!==null&&st.t>=(r.runningAt||0);
+      const dir=['BREAK_PENDING','STRUCTURE_BROKEN'].includes(st.type)?'':' '+st.direction;
+      structureCell=`<div class="val ${warn?'dec-warn':''}">${esc(STRUCT_LABEL[st.type]||st.type)}${esc(dir)}</div><div class="sub">4H · ${st.barsAgo} candle lalu · level ${fp(st.level)}${warn?'<br>⚠ berlawanan arah posisi, terjadi setelah entry':''}</div>`;
+    }
+    const rr=Math.abs(r.tp-r.entry)/risk;
+    return `<div class="dec-card ${esc(r.side)}" data-action="detail" data-symbol="${esc(r.symbol)}">
+      <div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span class="dec-sym">${esc(r.symbol.replace(/USDT$/,''))}</span><span class="badge-pill ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'}</span>
+        <div class="dec-meta">Malomo · zona 4H · entry 1H${r.zoneLocation?' · '+esc(r.zoneLocation):''} · divalidasi ${esc(fmtTime(r.validatedAt))} · berjalan ${ago(Date.now()-(r.runningAt||r.createdAt))}${r.frozen?' · pemantauan dibekukan':''}</div></div>
+      <div class="dec-price"><span class="px">${px>0?fp(px):'-'}</span><span class="rr ${R>=0?'chg-pos':'chg-neg'}">${R>=0?'+':''}${R.toFixed(2)}R</span></div>
+      <div class="dec-prog"><div class="fill" style="width:${px>0?frac(px):0}%"></div><div class="mark" style="left:${frac(r.entry)}%" title="Entry"></div>${px>0?`<div class="now" style="left:${frac(px)}%"></div>`:''}</div>
+      <div class="dec-lv"><div><span>SL</span>${fp(r.sl)}</div><div><span>ENTRY</span>${fp(r.entry)}</div><div><span>TP</span>${fp(r.tp)}</div><div><span>RR</span>1:${rr.toFixed(2)}</div></div>
+      <div class="dec-data"><div class="dec-cell"><div class="lbl">OPEN INTEREST</div>${oi}</div><div class="dec-cell"><div class="lbl">CVD (TAKER)</div>${cvd}</div><div class="dec-cell"><div class="lbl">ORDERBOOK</div>${ob}</div><div class="dec-cell"><div class="lbl">STRUKTUR 4H</div>${structureCell}</div></div>
+    </div>`;
+  }
+  function decision(){
+    const records=MalomoStore.read('tracks'),running=records.filter(x=>x.status==='running').sort((a,b)=>(b.runningAt||0)-(a.runningAt||0)),armed=records.filter(x=>x.status==='armed');
+    html('decisionList',running.map(decisionCard).join('')||'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Malomo</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
+    text('decisionArmedNote',armed.length?armed.length+' setup dari scan sedang dipantau, menunggu harga menyentuh Entry.':'');$('decisionArmedNote').style.display=armed.length?'block':'none';
+    text('decisionCount',running.length);$('decisionCount').style.display=running.length?'inline-flex':'none';
+  }
+  function alerts(){
+    const a=MalomoStore.read('alerts');text('alertStats',a.length+' notifikasi');
+    html('alertLog',a.map(x=>`<div class="alert-row"><div>${x.symbol?'<b>'+esc(x.symbol.replace(/USDT$/,''))+'</b> — ':''}${esc(x.message)}</div><div class="mono">${new Date(x.at).toLocaleString('id-ID')}</div></div>`).join('')||'<div class="empty-state">Belum ada notifikasi.</div>');
+    // Banner berjalan dan angka di lonceng menampilkan log alert, seperti engine lama.
+    const top=a.slice(0,20);
+    html('ticker',top.length?[...top,...top].map(x=>`<span>🔔 ${x.symbol?'<b>'+esc(x.symbol.replace(/USDT$/,''))+'</b> — ':''}<span class="up">${esc(x.message)}</span></span>`).join(''):'<span class="mono">Belum ada alert atau alarm terpicu — bakal muncul di sini begitu ada.</span>');
+    const count=a.length>99?'99+':String(a.length);
+    for(const badge of ['alertBadge','topbarAlertBadge'])if($(badge)){$(badge).textContent=count;$(badge).style.display=a.length?(badge==='topbarAlertBadge'?'flex':'inline-flex'):'none';}
+  }
   function priceAlerts(){html('priceAlertList',MalomoStore.read('priceAlerts').map(a=>`<div class="pa-item">${esc(a.symbol)} ${a.direction==='above'?'↑':'↓'} ${price(a.price)} ${a.triggered?'✓':''}<button class="pa-del" data-action="price-alert-delete" data-id="${esc(a.id)}">✕</button></div>`).join(''));}
   root.MalomoUI={$,html,text,esc,price,num,row,card,workspace,panel,panels,status,market,scan,detail,journal,journalForm,history,decision,alerts,priceAlerts,tickerRow,closeSidebar,getSelected:()=>selected,setFilter:v=>{filter=v;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===v));market();},setSort:v=>{sort=v;market();},getActive:()=>active};
 })(globalThis);
