@@ -29,9 +29,9 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
       await page.locator('#searchBox').fill('BTC');assert.equal(await page.locator('#tbody .coin-row').count(),1);await page.locator('#searchBox').fill('');
       await page.locator('#tbody .coin-row').first().click();await page.waitForFunction(()=>document.getElementById('modalBody').textContent.includes('Protected swing'));
       assert((await page.locator('#modalBody').innerText()).includes('ATR14 / RVOL20'));await page.locator('#mhStarBtn').click();await page.locator('#modalCloseBtn').click();
-      await nav('wsHome');await page.locator('#modeIntradayBtn').click();await page.waitForFunction(()=>window.lastMalomoScan&&document.querySelectorAll('#modeResultsList .coin-row').length===2);assert.equal((await page.locator('#modeResultsClose').innerText()).trim(),'← Back');await page.locator('#modeResultsClose').click();
+      await nav('wsHome');await page.locator('#modeIntradayBtn').click();await page.waitForFunction(()=>window.lastMalomoScan&&document.querySelectorAll('#modeResultsList .scan-card').length===2);assert.equal((await page.locator('#modeResultsClose').innerText()).trim(),'← Back');assert.equal((await page.locator('#scanRefreshBtn').innerText()).trim(),'⟳ Refresh');assert.deepEqual((await page.locator('#modeResultsList .scan-col-head').allInnerTexts()).map(t=>t.split(' ')[0]),['LONG','SHORT']);assert((await page.locator('#modeResultsList .md-chip').count())>0,'banner data pasar tidak tampil');await page.locator('#modeResultsClose').click();
       // Dibuka lagi: hasil terakhir tampil seketika (tanpa menunggu scan ulang) dan tersimpan untuk pembukaan berikutnya.
-      await page.locator('#modeIntradayBtn').click();assert.equal(await page.locator('#modeResultsList .coin-row').count(),2);assert.equal(await page.evaluate(()=>MalomoStore.read('lastScan',null).candidates.length),2);await page.locator('#modeResultsClose').click();
+      await page.locator('#modeIntradayBtn').click();assert.equal(await page.locator('#modeResultsList .scan-card').count(),2);assert.equal(await page.evaluate(()=>MalomoStore.read('lastScan',null).candidates.length),2);await page.locator('#modeResultsClose').click();
       // Decision: kartu RUNNING memakai tampilan engine lama (harga, R, progress, level, 4 sel data real-time).
       await page.evaluate(()=>{MalomoStore.write('tracks',[{id:'BTCUSDT|long|1',engine:'malomo-v1',symbol:'BTCUSDT',side:'long',status:'running',entry:12,sl:11,tp:15,risk:1,rr:3,lastAt:Date.now(),createdAt:Date.now()-7200000,runningAt:Date.now()-3600000,validatedAt:Date.now()-7200000,zoneLocation:'discount'}]);});
       await nav('wsDecision');await page.waitForFunction(()=>document.querySelectorAll('#decisionList .dec-card .dec-cell').length===4);
@@ -51,8 +51,8 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
     await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
     await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
     await offlinePage.goto('http://127.0.0.1:'+server.address().port);
-    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v93'));
-    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v93');return !!await c.match('./app/main.js');});
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v94'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v94');return !!await c.match('./app/main.js');});
     // `controller` bisa sudah terisi sebelum service worker siap menangani navigasi; tanpa menunggu
     // `ready`, reload offline kadang lolos dari service worker dan gagal (flaky di CI dan Chrome lokal).
     await offlinePage.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));

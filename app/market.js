@@ -74,7 +74,7 @@
   async function candles(symbol,tf,limit=400){
     return cachedCandles(symbol+'|'+tf+'|'+limit,tf,async()=>{
       const rows=await request('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+tf+'&limit='+limit);
-      return rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7])}));
+      return rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7]),takerBuyQuote:Number(k[10])}));
     });
   }
   function tickSize(symbol){const f=(symbols.get(symbol)?.filters||[]).find(x=>x.filterType==='PRICE_FILTER');return f?Number(f.tickSize):null;}

@@ -324,6 +324,20 @@
   .sort-pill.active{background:var(--mint-dim); border-color:var(--mint); color:var(--mint);}
 
   /* ===== COIN LIST (beginner-friendly rows) ===== */
+  /* Hasil Scan Malomo: dua kolom LONG/SHORT, satu kolom di layar sempit; banner data pasar per pair. */
+  .scan-split{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
+  @media(max-width:560px){ .scan-split{grid-template-columns:1fr;} }
+  .scan-col{min-width:0;}
+  .scan-col-head{font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:0.08em; padding:8px 12px; margin-bottom:8px; border-radius:var(--r-md); border:1px solid var(--border-soft); background:var(--surface);}
+  .scan-col-head.long{color:var(--mint); border-color:var(--mint);}
+  .scan-col-head.short{color:var(--crimson); border-color:var(--crimson);}
+  .scan-card{padding:12px 12px 10px; border-bottom:1px solid var(--border-soft); cursor:pointer;}
+  .scan-card-top{display:flex; align-items:center; gap:9px;}
+  .scan-card-name{flex:1;}
+  .badge-pill.scan-status{display:block; border-radius:8px; white-space:normal; line-height:1.45; margin:8px 0 7px; padding:5px 9px;}
+  .md-chips{display:flex; flex-wrap:wrap; gap:4px; width:100%;}
+  .md-chip{font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border-soft); border-radius:6px; padding:2px 6px; white-space:nowrap;}
+  .md-chip b{color:var(--text-3); font-weight:600;}
   .coin-list{background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--r-lg); overflow:hidden;}
   .coin-row{display:flex; align-items:center; gap:11px; padding:13px 14px; border-bottom:1px solid var(--border-soft); cursor:pointer;}
   .coin-row:last-child{border-bottom:none;}
@@ -1175,13 +1189,13 @@
     <div class="fsp-header">
       <div class="fsp-header-inner">
         <span class="fsp-title" id="modeResultsTitle">Layak Entry</span>
-        <button class="back-to-home-btn" id="modeResultsClose" style="margin-bottom:0;">← Back</button>
+        <div style="display:flex; gap:8px;"><button class="back-to-home-btn" id="scanRefreshBtn" style="margin-bottom:0;">⟳ Refresh</button><button class="back-to-home-btn" id="modeResultsClose" style="margin-bottom:0;">← Back</button></div>
       </div>
     </div>
     <div class="fsp-body">
       <div class="fsp-body-inner">
         <div class="hero-mode-status" id="heroModeStatus"></div>
-        <div class="coin-list" id="modeResultsList"></div>
+        <div id="modeResultsList"></div>
         <div class="sop-note" style="margin-top:12px;">ℹ️ <b>Trading Plan</b> membutuhkan zona struktural 4H, konfirmasi close 1H, SL di luar protected swing, dan RR minimum 1:2.2. ATR/RVOL hanya evidence. Kandidat menunggu retest tetap mengikuti ranking.</div>
       </div>
     </div>
@@ -1363,6 +1377,7 @@
 <script src="app/market.js"></script>
 <script src="app/tracker.js"></script>
 <script src="app/live.js"></script>
+<script src="app/marketdata.js"></script>
 <script src="app/ui.js"></script>
 <script src="app/main.js"></script>
 <script>
