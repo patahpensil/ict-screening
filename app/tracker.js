@@ -16,5 +16,12 @@
     }else if(sl)close('sl',record.sl);else if(tp)close('tp',record.tp);
     record.lastAt=at;return record;
   }
-  return {create,advance};
+  // Rencana yang belum terisi gugur bila scan terbaru tidak lagi menghasilkan plan yang sama.
+  // Posisi RUNNING tidak disentuh: keluarnya hanya lewat SL/TP.
+  function expire(record,current,at){
+    if(record.status!=='armed'||(current&&current.id===record.id))return false;
+    record.status='closed';record.outcome='void';record.closedAt=at;record.r=null;record.voidReason='rencana tidak lagi dihasilkan engine pada scan terbaru';
+    return true;
+  }
+  return {create,advance,expire};
 });

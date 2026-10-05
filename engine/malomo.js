@@ -6,6 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(){
   'use strict';
   const RULES = Object.freeze({ universe:250, candidates:150, minRR:2.2 });
+  const EVIDENCE_EVENTS = Object.freeze(['BREAKOUT','BREAKDOWN','LOCAL_CONTINUATION','REVERSAL_CONFIRMED']);
   function closed(candles, now){
     return (candles || []).filter(c => [c.open,c.high,c.low,c.close,c.volume].every(Number.isFinite)
       && c.high >= Math.max(c.open,c.close) && c.low <= Math.min(c.open,c.close)
@@ -103,14 +104,15 @@
       }
       const ref=long?high:low;
       if(ref&&!pendingExtreme&&(long?x.close>ref.price:x.close<ref.price)){
+        // PRD Poin 3.5: asal = swing ekstrem yang SUDAH terkonfirmasi fractal pada candle break ini,
+        // sejak swing acuan. Dipilih tepat di candle break agar swing yang terbentuk sesudahnya tidak ikut.
+        // Asal di luar protected lama (sisa sweep wick) tetap sah: sweep tidak mematahkan struktur (Poin 4).
         const origins=seen.filter(s=>s.type===(long?'low':'high')&&s.index>ref.index&&s.confirmedAt<=i);
         const origin=origins.reduce((best,s)=>!best||(long?s.price<best.price:s.price>best.price)?s:best,null);
-        if(origin&&(long?origin.price>=protectedSwing.price:origin.price<=protectedSwing.price)){
-          protectedSwing=origin; if(long)low=origin;else high=origin;mark(origin);
-          events.push({type:long?'BREAKOUT':'BREAKDOWN',direction:bias,index:i,level:ref.price,reference:ref});
-          phase='kelanjutan struktural';pullbackAt=null;
-          pendingExtreme={type:long?'high':'low',breakIndex:i,level:ref.price};
-        }
+        if(origin){protectedSwing=origin; if(long)low=origin;else high=origin;mark(origin);}
+        events.push({type:long?'BREAKOUT':'BREAKDOWN',direction:bias,index:i,level:ref.price,reference:ref,protectedMoved:!!origin});
+        phase='kelanjutan struktural';pullbackAt=null;
+        pendingExtreme={type:long?'high':'low',breakIndex:i,level:ref.price};
       }
     }
     const last=c[c.length-1], ev=events[events.length-1]||null;
@@ -123,12 +125,12 @@
   }
   function frame(c){
     const st=structure(c),last=c.length?c[c.length-1].close:null;
-    const e=evidence(c),ei=st.event?.index;
+    // PRD Poin 5: evidence hanya untuk Breakout, Breakdown, Trend Lanjutan, dan Reversal Terkonfirmasi.
+    const evidenceEvent=st.events.filter(x=>EVIDENCE_EVENTS.includes(x.type)).slice(-1)[0]||null;
+    const e=evidence(c),ei=evidenceEvent?.index;
     const eventEvidence=Number.isInteger(ei)?evidence(c.slice(0,ei+1)):null;
-    const prior=atr(c.slice(0,-1));
-    e.atrChange=prior>0&&e.atr14!==null?e.atr14/prior:null;
     e.trendEfficiency='Struktur '+st.bias+'; '+st.phase+'; '+st.swings.filter(s=>s.role==='internal').length+' swing internal (informasi kualitas)';
-    return {candles:c,last,structure:st,evidence:e,eventEvidence,ema:Object.fromEntries([21,30,50].map(n=>[n,ema(c,n)]))};
+    return {candles:c,last,structure:st,evidence:e,evidenceEvent,eventEvidence,ema:Object.fromEntries([21,30,50].map(n=>[n,ema(c,n)]))};
   }
   function direction(d,h){
     return d.structure.bias===h.structure.bias&&['bullish','bearish'].includes(d.structure.bias)?d.structure.bias:null;
@@ -158,9 +160,10 @@
     if(f)z=Object.assign({},z,{low:Math.max(z.low,f.low),high:Math.min(z.high,f.high),fvg:f,createdAt:Math.max(z.createdAt,h.candles[f.index].ct)});
     return z;
   }
-  function trigger(c,z,side){
-    if(!z)return {ready:false,status:'menunggu zona',enteredIdx:null};
-    const ps=pivots(c),long=side==='long';let entered=null,ref=null;
+  // Setiap pengujian zona dibaca terpisah: setelah satu validasi, pengujian berikutnya dimulai
+  // dari sentuhan zona yang baru, sehingga retest sesudah setup lama selesai tetap bisa tervalidasi.
+  function triggers(c,z,side){
+    const ps=pivots(c),long=side==='long',out=[];let entered=null,ref=null;
     for(let i=0;i<c.length;i++){
       const x=c[i];
       if(Number.isFinite(z.createdAt)&&Number.isFinite(x.t)&&x.t<z.createdAt)continue;
@@ -168,10 +171,17 @@
       if(entered===null)continue;
       const available=ps.filter(p=>p.type===(long?'high':'low')&&p.index>=entered&&p.confirmedAt<i);
       if(available.length)ref=available[available.length-1];
-      if(ref&&(long?x.close>ref.price:x.close<ref.price))
-        return {ready:true,status:'tervalidasi',enteredIdx:entered,index:i,level:ref.price,entry:x.close,ct:x.ct};
+      if(ref&&(long?x.close>ref.price:x.close<ref.price)){
+        out.push({ready:true,status:'tervalidasi',enteredIdx:entered,index:i,level:ref.price,entry:x.close,ct:x.ct});
+        entered=null;ref=null;
+      }
     }
-    return {ready:false,status:'menunggu validasi entry',enteredIdx:entered};
+    return {list:out,entered};
+  }
+  function trigger(c,z,side){
+    if(!z)return {ready:false,status:'menunggu zona',enteredIdx:null};
+    const r=triggers(c,z,side),last=r.list[r.list.length-1];
+    return last?Object.assign({},last,{count:r.list.length}):{ready:false,status:'menunggu validasi entry',enteredIdx:r.entered};
   }
   function plan(side,entry,stop,targets,tickSize){
     const tick=Number.isFinite(tickSize)&&tickSize>0?tickSize:Math.max(Number.EPSILON*stop*4,Math.abs(stop)*1e-8);
@@ -193,16 +203,18 @@
       if(f)z=Object.assign({},z,{low:Math.max(z.low,f.low),high:Math.min(z.high,f.high),fvg1h:f,createdAt:Math.max(z.createdAt,l.candles[f.index].ct)});
     }
     const tr=trigger(l.candles,z,side);
-    let p=null;
+    let p=null,resolved=false;
     if(side&&tr.ready&&h.structure.protectedSwing){
       const targets=[d,h].flatMap(f=>f.structure.swings.filter(s=>s.role==='structural'&&s.type===(side==='long'?'high':'low')&&f.candles[s.confirmedAt].ct<=tr.ct).map(s=>s.price));
       p=plan(side,tr.entry,h.structure.protectedSwing.price,targets,options.tickSize);
-      if(p&&l.candles.slice(tr.index+1).some(c=>side==='long'?c.low<=p.sl||c.high>=p.tp:c.high>=p.sl||c.low<=p.tp))p=null;
+      if(p){p.validatedAt=tr.ct;p.zoneLocation=z.location;}
+      // Plan yang SL/TP-nya sudah tersentuh sesudah validasi bukan "RR tidak cukup"; statusnya dibedakan.
+      if(p&&l.candles.slice(tr.index+1).some(c=>side==='long'?c.low<=p.sl||c.high>=p.tp:c.high>=p.sl||c.low<=p.tp)){p=null;resolved=true;}
     }
-    return {engine:'malomo-v1',frames,bias,side,zone:z,trigger:tr,plan:p,
-      decision:p?side.toUpperCase():'SKIP',status:!side?'arah tidak valid':!tr.ready?'menunggu validasi entry':!p?'NO TRADING PLAN':'tervalidasi'};
+    return {engine:'malomo-v1',frames,bias,side,zone:z,trigger:tr,plan:p,resolved,
+      decision:p?side.toUpperCase():'SKIP',status:!side?'arah tidak valid':!tr.ready?'menunggu validasi entry':resolved?'plan terakhir selesai — SL/TP sudah tersentuh':!p?'NO TRADING PLAN':'tervalidasi'};
   }
   function rankUniverse(tickers){return tickers.filter(t=>Number.isFinite(t.quoteVolume)).slice().sort((a,b)=>b.quoteVolume-a.quoteVolume||a.symbol.localeCompare(b.symbol)).slice(0,RULES.universe);}
   function rankCandidates(rows){return rows.filter(r=>r.evaluation.bias&&Number.isFinite(r.quoteVolume60m)).slice().sort((a,b)=>b.quoteVolume60m-a.quoteVolume60m||a.symbol.localeCompare(b.symbol)).slice(0,RULES.candidates);}
-  return Object.freeze({RULES,closed,pivots,ema,atr,evidence,structure,frame,direction,fvgs,zone,trigger,plan,evaluate,rankUniverse,rankCandidates});
+  return Object.freeze({RULES,closed,pivots,ema,atr,evidence,structure,frame,direction,fvgs,zone,triggers,trigger,plan,evaluate,rankUniverse,rankCandidates});
 });

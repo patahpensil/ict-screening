@@ -6,6 +6,9 @@
   const id=()=>Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
   const symbol=v=>{const s=String(v||'').trim().toUpperCase();return s.endsWith('USDT')?s:s+'USDT';};
   function on(name,fn,event='click'){U.$(name)?.addEventListener(event,fn);}
+  // Track yang sudah closed sudah tersalin ke histori, jadi tidak disimpan lagi di daftar pemantauan.
+  const saveTracks=tracks=>S.write('tracks',tracks.filter(x=>x.status!=='closed'));
+  const scanButtons=['modeIntradayBtn','modeSwingBtn','scanTopBtn'];
   function log(message){const a=S.read('alerts');a.unshift({id:id(),at:Date.now(),message});S.write('alerts',a.slice(0,200));U.alerts();U.status(message);}
   async function telegram(message){
     const cfg=S.read('telegram',{});if(!cfg.enabled||!cfg.token||!cfg.chatId)throw new Error('Aktifkan dan simpan konfigurasi Telegram dahulu.');
@@ -25,14 +28,14 @@
       for(const a of alerts.filter(a=>a.symbol===d.symbol&&!a.triggered)){
         if(old!==undefined&&(a.direction==='above'?old<a.price&&d.lastPrice>=a.price:old>a.price&&d.lastPrice<=a.price)){a.triggered=true;notify(d.symbol+' menembus '+a.price);changed=true;}
       }
-      for(const r of tracks.filter(r=>r.symbol===d.symbol&&r.status!=='closed')){
+      for(const r of tracks.filter(r=>r.symbol===d.symbol&&r.status!=='closed'&&!r.frozen)){
         if(Date.now()-r.lastAt>120000)continue; // candle catch-up must precede decisions after background gaps
         const before=r.status;MalomoTracker.advance(r,{low:Math.min(old??d.lastPrice,d.lastPrice),high:Math.max(old??d.lastPrice,d.lastPrice)},Date.now());
         changed=true;
         if(r.status!==before){if(r.status==='closed')recordClose(r);}
       }
     }
-    if(changed){S.write('priceAlerts',alerts);S.write('tracks',tracks);U.priceAlerts();U.decision();}
+    if(changed){S.write('priceAlerts',alerts);saveTracks(tracks);U.priceAlerts();U.decision();}
   }
   function recordClose(r){
     const history=S.read('history');if(history.some(x=>x.trackId===r.id))return;
@@ -44,32 +47,46 @@
     if(polling)return;polling=true;
     try{
       const tracks=S.read('tracks');
-      for(const sym of [...new Set(tracks.filter(x=>x.status!=='closed').map(x=>x.symbol))]){
+      const active=x=>x.status!=='closed'&&!x.frozen;
+      for(const sym of [...new Set(tracks.filter(active).map(x=>x.symbol))]){
         try{
           let candles=await M.candles(sym,'1m',1000);
-          const oldest=Math.min(...tracks.filter(x=>x.symbol===sym&&x.status!=='closed').map(x=>x.lastAt));
-          if(candles.length&&oldest<candles[0].t){log(sym+': riwayat simulasi belum lengkap; status dibekukan.');continue;}
-          for(const r of tracks.filter(x=>x.symbol===sym&&x.status!=='closed')){
+          // Riwayat 1m tidak menjangkau jeda terakhir: dibekukan sekali dan diberi pesan sekali,
+          // bukan diulang setiap siklus refresh.
+          for(const r of tracks.filter(x=>x.symbol===sym&&active(x)&&candles.length&&x.lastAt<candles[0].t)){r.frozen=true;log(sym+': riwayat simulasi belum lengkap; status dibekukan.');}
+          for(const r of tracks.filter(x=>x.symbol===sym&&active(x))){
             for(const c of candles.filter(c=>c.ct>r.lastAt)){const before=r.status;MalomoTracker.advance(r,c,c.ct);if(before!=='closed'&&r.status==='closed')recordClose(r);}
           }
         }catch(e){log(sym+': pemantauan gagal — '+e.message);}
       }
-      S.write('tracks',tracks);U.decision();
+      saveTracks(tracks);U.decision();
     }finally{polling=false;}
   }
   async function refresh(){try{await M.refresh();await catchUp();U.status('Data Binance diperbarui · '+new Date().toLocaleTimeString('id-ID'));}catch(e){U.status('Gagal memuat Binance: '+e.message,true);U.html('tbody','<div class="empty-state">Data pasar tidak tersedia. Periksa koneksi dan coba lagi.</div>');}}
   async function scan(mode='intraday',background=false){
     if(scanning)return;scanning=true;
     const token=++scanToken;if(!background)U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Malomo · Top 250 → Top 150');
-    const buttons=['modeIntradayBtn','modeSwingBtn','scanTopBtn'];buttons.forEach(x=>U.$(x).disabled=true);
+    scanButtons.forEach(x=>U.$(x).disabled=true);
     try{
       const result=await M.scan({cancelled:()=>token!==scanToken,progress:(n,total)=>{if(token===scanToken)U.text('heroModeStatus',`Scan ${n}/${total} kandidat Top 250…`);}});
-      if(token!==scanToken)return;root.lastMalomoScan=result;lastScanAt=Date.now();U.scan(result);
-      const tracks=S.read('tracks');for(const row of result.candidates){const rec=MalomoTracker.create(row.symbol,row.evaluation,Date.now());if(rec&&!tracks.some(x=>x.id===rec.id))tracks.push(rec);}
-      S.write('tracks',tracks);U.decision();
+      if(token!==scanToken){U.text('heroModeStatus','Scan dibatalkan.');return;}
+      root.lastMalomoScan=result;lastScanAt=Date.now();U.scan(result);
+      syncTracks(result);
     }catch(e){U.text('heroModeStatus','Scan gagal: '+e.message);}
-    finally{scanning=false;if(token===scanToken)buttons.forEach(x=>U.$(x).disabled=false);}
+    finally{scanning=false;scanButtons.forEach(x=>U.$(x).disabled=false);}
   }
+  function syncTracks(result){
+    const tracks=S.read('tracks'),history=S.read('history'),now=Date.now();
+    const current=new Map();
+    for(const row of result.candidates){const rec=MalomoTracker.create(row.symbol,row.evaluation,now);if(rec)current.set(row.symbol,rec);}
+    // Hanya pair yang benar-benar terbaca tanpa error pada scan ini yang boleh menggugurkan rencana armed.
+    const failed=new Set([...result.errors.map(e=>e.symbol),...result.candidates.filter(r=>r.error).map(r=>r.symbol)]);
+    const scanned=new Set(result.universe.filter(s=>!failed.has(s)));
+    for(const r of tracks.filter(r=>scanned.has(r.symbol)))if(MalomoTracker.expire(r,current.get(r.symbol),now))recordClose(r);
+    for(const rec of current.values())if(!tracks.some(x=>x.id===rec.id)&&!history.some(x=>x.trackId===rec.id))tracks.push(rec);
+    saveTracks(tracks);U.decision();
+  }
+  function cancelScan(){scanToken++;}
   async function detail(sym,tf='4h',modal=true){
     const token=++detailToken;const s=symbol(sym);U.$('searchResults').classList.remove('show');U.text('wsAnalysisSymbolInput',s);
     U.$('wsAnalysisSymbolInput').value=s;
@@ -106,7 +123,10 @@
     document.addEventListener('click',event=>delegated(event).catch(e=>log(e.message)));
     on('hamburgerBtn',()=>{U.$('sidebar').classList.add('open');U.$('sidebarOverlay').classList.add('show');});on('sidebarCloseBtn',U.closeSidebar);on('sidebarOverlay',U.closeSidebar);
     on('introTipClose',()=>{U.$('introTip').style.display='none';localStorage.setItem('malomo_intro_hidden','1');});if(localStorage.getItem('malomo_intro_hidden'))U.$('introTip').style.display='none';
-    for(const name of ['modeResultsClose','modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{scanToken++;detailToken++;U.panels();['modeIntradayBtn','modeSwingBtn','scanTopBtn'].forEach(x=>U.$(x).disabled=false);});
+    // Menutup panel lain tidak boleh membatalkan scan yang sedang berjalan; hanya tombol tutup
+    // panel hasil scan yang membatalkannya secara eksplisit.
+    on('modeResultsClose',()=>{cancelScan();U.panels();});
+    for(const name of ['modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{detailToken++;U.panels();});
     for(const name of ['modalBackdrop','journalModalBackdrop'])on(name,e=>{if(e.target===U.$(name))U.$(name).classList.remove('show');});
     on('modeIntradayBtn',()=>scan('intraday'));on('modeSwingBtn',()=>scan('swing'));on('scanTopBtn',()=>scan());
     on('decisionQuickBtn',()=>U.workspace('wsDecision'));on('marketQuickBtn',()=>U.workspace('wsScanner'));
@@ -123,7 +143,7 @@
     const tg=S.read('telegram',{});U.$('tgToken').value=tg.token||'';U.$('tgChatId').value=tg.chatId||'';U.$('tgEnabled').checked=!!tg.enabled;
     on('tgSaveBtn',()=>{S.write('telegram',{token:U.$('tgToken').value.trim(),chatId:U.$('tgChatId').value.trim(),enabled:U.$('tgEnabled').checked});U.text('tgStatus','Konfigurasi disimpan lokal.');});
     on('tgTestBtn',async()=>{try{await telegram('Test notifikasi ICT Malomo Screener');U.text('tgStatus','Test berhasil dikirim.');}catch(e){U.text('tgStatus',e.message);}});
-    on('scrollTopBtn',()=>window.scrollTo({top:0,behavior:'smooth'}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){scanToken++;detailToken++;U.panels();U.closeSidebar();['modeIntradayBtn','modeSwingBtn','scanTopBtn'].forEach(x=>U.$(x).disabled=false);}});
+    on('scrollTopBtn',()=>window.scrollTo({top:0,behavior:'smooth'}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){detailToken++;U.panels();U.closeSidebar();}});
     window.addEventListener('popstate',()=>{U.panels();U.workspace('wsHome');});
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Malomo · PRD FINAL');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
