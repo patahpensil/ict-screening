@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Menegakkan aturan wajib di CLAUDE.md:
+ * Menegakkan pembaruan shell PWA:
  * setiap kali index.html atau sw.js berubah, CACHE_NAME di baris pertama sw.js
  * HARUS ikut naik.
  *
@@ -21,7 +21,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const WATCHED = ['index.html', 'sw.js'];
+const WATCHED = ['index.html', 'sw.js', 'engine/malomo.js', 'app/storage.js', 'app/market.js', 'app/tracker.js', 'app/ui.js', 'app/main.js'];
 
 function git(args) {
   return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();

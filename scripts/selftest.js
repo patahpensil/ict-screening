@@ -20,7 +20,7 @@ const ORIG_HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const ORIG_SW = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 
 // Titik sisip yang stabil: baris pembuka blok <script>.
-const SCRIPT_OPEN = ORIG_HTML.indexOf('>', ORIG_HTML.indexOf('<script')) + 1;
+const SCRIPT_OPEN = ORIG_HTML.indexOf('<script>') + '<script>'.length;
 const injectJs = (snippet) =>
   ORIG_HTML.slice(0, SCRIPT_OPEN) + '\n' + snippet + '\n' + ORIG_HTML.slice(SCRIPT_OPEN);
 
@@ -66,6 +66,8 @@ const CASES = [
 function jalankan(html, sw) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-selftest-'));
   fs.mkdirSync(path.join(dir, 'scripts'));
+  fs.cpSync(path.join(ROOT,'engine'),path.join(dir,'engine'),{recursive:true});
+  fs.cpSync(path.join(ROOT,'app'),path.join(dir,'app'),{recursive:true});
   fs.writeFileSync(path.join(dir, 'index.html'), html);
   fs.writeFileSync(path.join(dir, 'sw.js'), sw);
   fs.copyFileSync(path.join(ROOT, 'scripts', 'check.js'), path.join(dir, 'scripts', 'check.js'));

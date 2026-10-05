@@ -1,0 +1,10 @@
+{
+  "name": "ict-malomo-screener",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node scripts/selftest.js && node scripts/check.js && node scripts/test-malomo.js && node scripts/test-transport.js",
+    "test:browser": "node scripts/smoke-browser.js"
+  },
+  "devDependencies": {"playwright": "1.56.1"}
+}
