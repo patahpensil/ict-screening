@@ -3,8 +3,13 @@
   'use strict';
   const base='https://fapi.binance.com',minute=60000;
   const cache=new Map(),pending=new Map();let tail=Promise.resolve(),cooldown=0;
-  let metadataAt=0,symbols=new Map(),tickers=[],socket=null,reconnect=null,alive=0;
+  let metadataAt=0,symbols=new Map(),tickers=[],socket=null,reconnect=null,alive=0,clockOffset=0;
   const listeners=new Set();
+  // Status "candle sudah close" dibandingkan dengan jam server Binance, bukan jam perangkat:
+  // jam PC yang lebih cepat beberapa detik akan membuat candle yang masih berjalan terbaca close.
+  const serverNow=()=>Date.now()+clockOffset;
+  // Batas kesegaran data 60m: satu menit penuh ditambah jeda jaringan.
+  const freshness=minute+5000;
   const notify=()=>listeners.forEach(fn=>fn(tickers));
   async function request(path){
     const start=tail.then(()=>new Promise(resolve=>setTimeout(resolve,200)));
@@ -24,9 +29,13 @@
     const job=fn().then(data=>{cache.set(key,{data,at:Date.now()});if(cache.size>1000)cache.delete(cache.keys().next().value);return data;}).finally(()=>pending.delete(key));
     pending.set(key,job);return job;
   }
+  async function syncClock(){
+    const sent=Date.now(),res=await request('/fapi/v1/time'),received=Date.now();
+    if(Number.isFinite(res?.serverTime))clockOffset=res.serverTime-(sent+received)/2;
+  }
   function normalize(r){return {symbol:r.symbol,lastPrice:Number(r.lastPrice),priceChangePercent:Number(r.priceChangePercent),highPrice:Number(r.highPrice),lowPrice:Number(r.lowPrice),quoteVolume:Number(r.quoteVolume),fundingRate:Number(r.fundingRate||0)};}
   async function refresh(){
-    if(!symbols.size||Date.now()-metadataAt>300000){const info=await request('/fapi/v1/exchangeInfo');symbols=new Map(info.symbols.filter(s=>s.quoteAsset==='USDT'&&s.contractType==='PERPETUAL'&&s.status==='TRADING').map(s=>[s.symbol,s]));metadataAt=Date.now();}
+    if(!symbols.size||Date.now()-metadataAt>300000){const info=await request('/fapi/v1/exchangeInfo');symbols=new Map(info.symbols.filter(s=>s.quoteAsset==='USDT'&&s.contractType==='PERPETUAL'&&s.status==='TRADING').map(s=>[s.symbol,s]));metadataAt=Date.now();await syncClock();}
     const [raw,funding]=await Promise.all([request('/fapi/v1/ticker/24hr'),request('/fapi/v1/premiumIndex')]);
     const rates=new Map(funding.map(x=>[x.symbol,Number(x.lastFundingRate)]));
     tickers=raw.filter(r=>symbols.has(r.symbol)).map(r=>normalize(Object.assign({},r,{fundingRate:rates.get(r.symbol)})));
@@ -54,17 +63,17 @@
   async function candles(symbol,tf,limit=400){
     return cached(symbol+'|'+tf+'|'+limit,tf==='1m'?15000:40000,async()=>{
       const rows=await request('/fapi/v1/klines?symbol='+encodeURIComponent(symbol)+'&interval='+tf+'&limit='+limit);
-      return Malomo.closed(rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7])})),Date.now());
+      return Malomo.closed(rows.map(k=>({t:k[0],open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5]),ct:k[6],quoteVolume:Number(k[7])})),serverNow());
     });
   }
   function tickSize(symbol){const f=(symbols.get(symbol)?.filters||[]).find(x=>x.filterType==='PRICE_FILTER');return f?Number(f.tickSize):null;}
   async function evaluate(symbol){
     const data=await Promise.all(['1d','4h','1h'].map(tf=>candles(symbol,tf)));
-    return Malomo.evaluate(Object.fromEntries(['1d','4h','1h'].map((tf,i)=>[tf,data[i]])),{tickSize:tickSize(symbol)});
+    return Malomo.evaluate(Object.fromEntries(['1d','4h','1h'].map((tf,i)=>[tf,data[i]])),{tickSize:tickSize(symbol),now:serverNow()});
   }
   async function volume60(symbol){
     const c=(await candles(symbol,'1m',61)).slice(-60);
-    if(c.length!==60||Date.now()-c[c.length-1].ct>minute||c.some(x=>!Number.isFinite(x.quoteVolume))||c.some((x,i)=>i&&x.t-c[i-1].t!==minute))throw new Error('Quote Volume 60 menit belum lengkap');
+    if(c.length!==60||serverNow()-c[c.length-1].ct>freshness||c.some(x=>!Number.isFinite(x.quoteVolume))||c.some((x,i)=>i&&x.t-c[i-1].t!==minute))throw new Error('Quote Volume 60 menit belum lengkap');
     return {value:c.reduce((s,x)=>s+x.quoteVolume,0),through:c[c.length-1].ct};
   }
   async function scan(options={}){
@@ -87,10 +96,10 @@
     const selected=Malomo.rankCandidates(rows);
     for(const row of selected){
       if(cancelled())break;
-      try{const l=await candles(row.symbol,'1h');row.evaluation=Malomo.evaluate({'1d':row.evaluation.frames['1d'].candles,'4h':row.evaluation.frames['4h'].candles,'1h':l},{tickSize:tickSize(row.symbol)});}
+      try{const l=await candles(row.symbol,'1h');row.evaluation=Malomo.evaluate({'1d':row.evaluation.frames['1d'].candles,'4h':row.evaluation.frames['4h'].candles,'1h':l},{tickSize:tickSize(row.symbol),now:serverNow()});}
       catch(e){row.error=e.message;errors.push({symbol:row.symbol,error:e.message});}
     }
     return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates:selected,errors};
   }
-  root.MalomoMarket={refresh,connect,candles,evaluate,scan,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,getLive:()=>alive>0&&Date.now()-alive<20000};
+  root.MalomoMarket={refresh,connect,candles,evaluate,scan,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,serverNow,getLive:()=>alive>0&&Date.now()-alive<20000};
 })(globalThis);
