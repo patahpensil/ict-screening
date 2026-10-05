@@ -1,4 +1,4 @@
-/* Paper tracking only: entry confirmed by engine; SL exits independently of retest. */
+/* Pemantauan Trading Plan untuk eksekusi manual: entry dikonfirmasi engine; SL keluar tanpa menunggu retest. Tidak mengirim order. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.MalomoTracker=api;})(globalThis,function(){
   'use strict';
   function create(symbol,evaluation,at){

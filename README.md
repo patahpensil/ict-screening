@@ -8,7 +8,7 @@ Screener Binance USDⓈ-M Futures perpetual USDT berdasarkan [PRD final Poin 1�
 | --- | --- |
 | `engine/malomo.js` | Fungsi murni: struktur/fractal kausal, protected swing, break–retest, arah, evidence, zona, entry 1H, RR dan ranking |
 | `app/market.js` | Binance REST/WS, kontrak aktif USDT perpetual, antrean/backoff, cache permintaan, pipeline Top 250 → arah → Top 150 |
-| `app/tracker.js` | Simulasi lokal entry, TP/SL dan candle ambigu; tidak mengeksekusi order |
+| `app/tracker.js` | Pemantauan Trading Plan (ARMED → RUNNING → TP/SL) untuk ditinjau sebelum eksekusi manual; tidak mengirim order |
 | `app/storage.js` | Data pengguna dan state Malomo; jurnal/watchlist pengguna tetap terbaca |
 | `app/ui.js` | Render memakai komponen tampilan yang ada |
 | `app/main.js` | Navigasi, scanner, pemantauan, jurnal, kalkulator dan alert harga |
@@ -36,11 +36,11 @@ Hal berikut adalah pilihan implementasi, bukan tambahan syarat strategi:
 
 Rumus yang tidak ditetapkan PRD final diputuskan pemilik proyek pada 6 Okt 2026 dan dicatat di [docs/ADDENDUM_PRD_2026-10-06.md](docs/ADDENDUM_PRD_2026-10-06.md): Candle Range = badan candle (K-1), label Displacement kuat/sedang/lemah (K-2), regime volatilitas dari persentil ATR14 100 candle (K-3), Trend Efficiency = Kaufman ER20 (K-4), batas pengujian zona (K-5), asal protected swing (K-7), satu mode scan (K-8), dan masa berlaku rencana ARMED (K-9). Semuanya informasi atau evidence, bukan gate. Keputusan yang masih terbuka ada di [docs/KEPUTUSAN_TERBUKA.md](docs/KEPUTUSAN_TERBUKA.md).
 
-## Data pengguna dan simulasi
+## Data pengguna dan pemantauan
 
 Jurnal (`pp_trade_journal`), watchlist (`pp_watchlist`) dan pengaturan Telegram pengguna tetap menggunakan key yang ada. State model/penilaian lama tidak dimigrasikan ke engine baru. State baru memakai namespace `malomo_*`. Ekspor tidak menyertakan token Telegram.
 
-Tracking adalah simulasi lokal, bukan order bursa atau bukti keunggulan trading. Candle yang menyentuh TP dan SL sekaligus dihitung SL lebih dahulu; TP pada candle fill tidak dianggap sudah tercapai. Pemantauan melakukan catch-up candle 1m, termasuk candle yang memotong interval terakhir secara konservatif. Jika riwayat tidak cukup, simulasi dibekukan dan diberi pesan satu kali, tidak diberi hasil tebakan. Rencana ARMED gugur jika scan terbaru yang berhasil membaca pair tersebut tidak lagi menghasilkan plan yang sama; posisi RUNNING hanya keluar lewat SL/TP. Simulasi yang selesai dipindahkan ke histori. Menutup panel atau modal tidak membatalkan scan; hanya tombol tutup panel hasil scan yang membatalkannya. Fee, slippage dan funding belum masuk hasil simulasi. Alert bekerja saat aplikasi aktif dan tersambung.
+Pemantauan (tracking) menandai kapan harga menyentuh entry, TP, atau SL dari Trading Plan, sebagai bahan tinjauan sebelum pemilik mengeksekusi manual di Binance. Aplikasi tidak mengirim order. Hasil yang dicatat berdasarkan level plan, bukan fill nyata, dan bukan bukti keunggulan trading. Candle yang menyentuh TP dan SL sekaligus dihitung SL lebih dahulu; TP pada candle fill tidak dianggap sudah tercapai. Pemantauan melakukan catch-up candle 1m, termasuk candle yang memotong interval terakhir secara konservatif. Jika riwayat tidak cukup, pemantauan dibekukan dan diberi pesan satu kali, tidak diberi hasil tebakan. Rencana ARMED gugur jika scan terbaru yang berhasil membaca pair tersebut tidak lagi menghasilkan plan yang sama; posisi RUNNING hanya keluar lewat SL/TP. Pemantauan yang selesai dipindahkan ke histori. Menutup panel atau modal tidak membatalkan scan; hanya tombol tutup panel hasil scan yang membatalkannya. Fee, slippage dan funding belum masuk hasil yang dicatat. Tampilan OI, CVD, orderbook, dan CHoCH di halaman Decision masih rencana dan belum aktif di engine Malomo. Alert bekerja saat aplikasi aktif dan tersambung.
 
 ## Menjalankan dan menguji
 

@@ -42,7 +42,7 @@
     const history=S.read('history');if(history.some(x=>x.trackId===r.id))return;
     history.unshift(Object.assign({},r,{id:id(),trackId:r.id}));S.write('history',history);U.history();
     if(r.outcome==='void')return;
-    const journal=S.read('journal');journal.unshift({id:id(),trackId:r.id,symbol:r.symbol,direction:r.side,date:new Date(r.closedAt).toISOString().slice(0,10),status:r.outcome==='tp'?'win':'loss',entry:r.entry,exit:r.exit,sl:r.sl,tp1:r.tp,setup:'Malomo · close 1H',pnlPct:100*(r.exit-r.entry)*(r.side==='long'?1:-1)/r.entry,notes:'Simulasi; tanpa fee/slippage/funding. '+r.r.toFixed(2)+'R.'});S.write('journal',journal);U.journal();
+    const journal=S.read('journal');journal.unshift({id:id(),trackId:r.id,symbol:r.symbol,direction:r.side,date:new Date(r.closedAt).toISOString().slice(0,10),status:r.outcome==='tp'?'win':'loss',entry:r.entry,exit:r.exit,sl:r.sl,tp1:r.tp,setup:'Malomo · close 1H',pnlPct:100*(r.exit-r.entry)*(r.side==='long'?1:-1)/r.entry,notes:'Dicatat otomatis dari level plan; belum termasuk fee/slippage/funding — sesuaikan dengan eksekusi nyata. '+r.r.toFixed(2)+'R.'});S.write('journal',journal);U.journal();
   }
   async function catchUp(){
     if(polling)return;polling=true;
@@ -54,7 +54,7 @@
           let candles=await M.candles(sym,'1m',1000);
           // Riwayat 1m tidak menjangkau jeda terakhir: dibekukan sekali dan diberi pesan sekali,
           // bukan diulang setiap siklus refresh.
-          for(const r of tracks.filter(x=>x.symbol===sym&&active(x)&&candles.length&&x.lastAt<candles[0].t)){r.frozen=true;log(sym+': riwayat simulasi belum lengkap; status dibekukan.');}
+          for(const r of tracks.filter(x=>x.symbol===sym&&active(x)&&candles.length&&x.lastAt<candles[0].t)){r.frozen=true;log(sym+': riwayat pemantauan belum lengkap; status dibekukan.');}
           for(const r of tracks.filter(x=>x.symbol===sym&&active(x))){
             for(const c of candles.filter(c=>c.ct>r.lastAt)){const before=r.status;MalomoTracker.advance(r,c,c.ct);if(before!=='closed'&&r.status==='closed')recordClose(r);}
           }
