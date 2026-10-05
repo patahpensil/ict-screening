@@ -8,7 +8,8 @@
   function on(name,fn,event='click'){U.$(name)?.addEventListener(event,fn);}
   // Track yang sudah closed sudah tersalin ke histori, jadi tidak disimpan lagi di daftar pemantauan.
   const saveTracks=tracks=>S.write('tracks',tracks.filter(x=>x.status!=='closed'));
-  const scanButtons=['modeIntradayBtn','modeSwingBtn','scanTopBtn'];
+  // K-8: satu aturan PRD, satu jenis scan. Tombol di hero dan aksi cepat menjalankan scan yang sama.
+  const scanButtons=['modeIntradayBtn','scanTopBtn'];
   function log(message){const a=S.read('alerts');a.unshift({id:id(),at:Date.now(),message});S.write('alerts',a.slice(0,200));U.alerts();U.status(message);}
   async function telegram(message){
     const cfg=S.read('telegram',{});if(!cfg.enabled||!cfg.token||!cfg.chatId)throw new Error('Aktifkan dan simpan konfigurasi Telegram dahulu.');
@@ -63,7 +64,7 @@
     }finally{polling=false;}
   }
   async function refresh(){try{await M.refresh();await catchUp();U.status('Data Binance diperbarui · '+new Date().toLocaleTimeString('id-ID'));}catch(e){U.status('Gagal memuat Binance: '+e.message,true);U.html('tbody','<div class="empty-state">Data pasar tidak tersedia. Periksa koneksi dan coba lagi.</div>');}}
-  async function scan(mode='intraday',background=false){
+  async function scan(background=false){
     if(scanning)return;scanning=true;
     const token=++scanToken;if(!background)U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Malomo · Top 250 → Top 150');
     scanButtons.forEach(x=>U.$(x).disabled=true);
@@ -128,7 +129,7 @@
     on('modeResultsClose',()=>{cancelScan();U.panels();});
     for(const name of ['modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{detailToken++;U.panels();});
     for(const name of ['modalBackdrop','journalModalBackdrop'])on(name,e=>{if(e.target===U.$(name))U.$(name).classList.remove('show');});
-    on('modeIntradayBtn',()=>scan('intraday'));on('modeSwingBtn',()=>scan('swing'));on('scanTopBtn',()=>scan());
+    on('modeIntradayBtn',()=>scan());on('scanTopBtn',()=>scan());
     on('decisionQuickBtn',()=>U.workspace('wsDecision'));on('marketQuickBtn',()=>U.workspace('wsScanner'));
     on('sqWatchlist',()=>{U.workspace('wsScanner');U.setFilter('watchlist');});on('sqFunding',()=>{U.workspace('wsScanner');U.setFilter('fundingext');});
     for(const name of ['sqAlerts','alertBtn','topbarAlertBtn'])on(name,()=>{U.alerts();U.panel('alertDrawer');});on('sqSettings',()=>U.panel('settingsDrawer'));
@@ -148,7 +149,7 @@
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Malomo · PRD FINAL');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
     U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh();M.connect();setInterval(refresh,45000);
-    setInterval(()=>{if(root.lastMalomoScan&&!scanning&&Date.now()-lastScanAt>=300000&&!document.hidden)scan('intraday',true);},30000);
+    setInterval(()=>{if(root.lastMalomoScan&&!scanning&&Date.now()-lastScanAt>=300000&&!document.hidden)scan(true);},30000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
     if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>U.status('Cache offline tidak tersedia.'));
   }
