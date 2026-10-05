@@ -37,6 +37,31 @@
     html('moversBody',[['TOP GAINERS',movers.slice(0,5)],['TOP LOSERS',movers.slice(-5).reverse()]].map(([t,a])=>`<div><div class="ws-card-title" style="margin-bottom:8px;">${t}</div><table class="movers-table"><tbody>${a.map((d,i)=>`<tr data-action="detail" data-symbol="${esc(d.symbol)}"><td>${i+1}</td><td>${esc(d.symbol.replace(/USDT$/,''))}/USDT</td><td>${price(d.lastPrice)}</td><td style="color:${d.priceChangePercent>=0?'var(--mint)':'var(--crimson)'};text-align:right;">${d.priceChangePercent>=0?'+':''}${d.priceChangePercent.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`).join(''));
     html('searchResults',q?data.filter(x=>x.symbol.includes(q)).slice(0,10).map(x=>tickerRow(x)).join(''):'');$('searchResults').classList.toggle('show',!!q);
   }
+  // Kartu bertumpuk untuk kolom LONG/SHORT: nama dan harga di atas, status selebar kartu, lalu banner data.
+  function scanCard(d,badge,chips){
+    const starred=MalomoStore.read('watchlist').includes(d.symbol);let hash=0;for(const c of d.symbol)hash=(hash*31+c.charCodeAt(0))|0;
+    const name=d.symbol.replace(/USDT$/,'');
+    return '<div class="scan-card" data-symbol="'+esc(d.symbol)+'" data-action="detail"><div class="scan-card-top"><button class="crow-star '+(starred?'active':'')+'" data-action="star" data-symbol="'+esc(d.symbol)+'">'+(starred?'★':'☆')+'</button><div class="crow-avatar" style="background:hsl('+(Math.abs(hash)%360)+',62%,46%)">'+esc(name.slice(0,3))+'</div><div class="crow-name scan-card-name"><span class="crow-symtext">'+esc(name)+'</span><span class="crow-sub">USDT-M</span></div><div class="crow-right"><div class="crow-price">'+price(d.lastPrice)+'</div><div class="crow-change '+(d.priceChangePercent>=0?'chg-pos':'chg-neg')+'">'+(d.priceChangePercent>=0?'▲':'▼')+' '+Math.abs(d.priceChangePercent).toFixed(2)+'%</div></div></div>'+badge+chips+'</div>';
+  }
+  // Banner data pasar pelengkap per pair (hanya tampilan; tidak masuk penilaian engine).
+  function marketChips(symbol,metrics,t,vol60){
+    const md=MalomoMarketData.get(symbol)||{},chips=[];
+    const chip=(label,value,cls='')=>'<span class="md-chip '+cls+'"><b>'+label+'</b> '+value+'</span>';
+    const flow=v=>(v>=0?'+':'−')+'$'+num(Math.abs(v));
+    if(md.oiUsd>0)chips.push(chip('OI','$'+num(md.oiUsd)+(Number.isFinite(md.oiChange24h)?' '+(md.oiChange24h>=0?'▲':'▼')+Math.abs(md.oiChange24h).toFixed(1)+'% 24j':'')));
+    if(md.accounts)chips.push(chip('L/S akun',md.accounts.ratio.toFixed(2)+' ('+md.accounts.longPct.toFixed(0)+'% L)'));
+    if(md.topPositions)chips.push(chip('Top trader',md.topPositions.ratio.toFixed(2)+' ('+md.topPositions.longPct.toFixed(0)+'% L)'));
+    if(md.taker)chips.push(chip('Taker B/S',md.taker.ratio.toFixed(2),md.taker.ratio>=1?'up':'down'));
+    if(Number.isFinite(metrics?.cvd1h))chips.push(chip('CVD 1j',flow(metrics.cvd1h),metrics.cvd1h>=0?'up':'down'));
+    if(Number.isFinite(metrics?.cvd24h))chips.push(chip('CVD 24j',flow(metrics.cvd24h),metrics.cvd24h>=0?'up':'down'));
+    if(metrics?.adx4h)chips.push(chip('ADX 4H',metrics.adx4h.adx.toFixed(0)+' (+DI '+metrics.adx4h.plusDI.toFixed(0)+' / −DI '+metrics.adx4h.minusDI.toFixed(0)+')'));
+    if(t)chips.push(chip('Vol 24j','$'+num(t.quoteVolume)));
+    if(Number.isFinite(vol60))chips.push(chip('Vol 60m','$'+num(vol60)));
+    if(md.book)chips.push(chip('OB','Bid '+md.book.bidPct.toFixed(0)+'% · Ask '+(100-md.book.bidPct).toFixed(0)+'%'+(Number.isFinite(md.book.spreadPct)?' · spread '+md.book.spreadPct.toFixed(3)+'%':'')));
+    if(t&&Number.isFinite(t.fundingRate))chips.push(chip('Funding',(t.fundingRate*100).toFixed(4)+'%'));
+    if(!md.at)chips.push('<span class="md-chip">data pasar memuat…</span>');
+    return '<div class="md-chips">'+chips.join('')+'</div>';
+  }
   // note: progres pembaruan yang sedang berjalan; hasil lama tetap tampil sampai hasil baru selesai.
   function scanStatus(result,note){
     const ready=result.candidates.filter(x=>x.evaluation.plan).length,errors=result.errors.length;
@@ -47,12 +72,17 @@
     scanStatus(result,note);
     text('scLastScan',new Date(result.at).toLocaleTimeString('id-ID'));
     const bySymbol=new Map(MalomoMarket.getTickers().map(x=>[x.symbol,x]));
-    html('modeResultsList',result.candidates.length?result.candidates.map(r=>{
+    const row=r=>{
       const m=r.evaluation,d=bySymbol.get(r.symbol);if(!d)return '';
       const pending=Object.values(m.frames).some(f=>f.structure.pending);
       const er=['1d','4h'].map(t=>m.frames[t]?.quality?.trendEfficiency?.label||'—').join('/');
-      return tickerRow(d,`<span class="badge-pill ${m.side==='short'?'score-lo':'score-hi'}">${esc(m.side?.toUpperCase()||m.bias)} · ${esc(r.error||m.status||'menunggu data entry')}${pending?' · menunggu konfirmasi struktur':''} · ER 1D/4H ${esc(er)}${m.plan?' · RR 1:'+m.plan.rr.toFixed(2):''}</span>`);
-    }).join(''):'<div class="empty-state">Belum ada kandidat dengan struktur 1D–4H selaras.</div>');
+      const badge=`<span class="badge-pill scan-status ${m.side==='short'?'score-lo':'score-hi'}">${esc(m.side?.toUpperCase()||m.bias)} · ${esc(r.error||m.status||'menunggu data entry')}${pending?' · menunggu konfirmasi struktur':''} · ER 1D/4H ${esc(er)}${m.plan?' · RR 1:'+m.plan.rr.toFixed(2):''}</span>`;
+      return scanCard(d,badge,marketChips(r.symbol,r.metrics,d,r.quoteVolume60m));
+    };
+    // Dua kolom LONG dan SHORT; urutan di tiap kolom tetap ranking Quote Volume 60 menit.
+    const isLong=r=>(r.evaluation.side||(r.evaluation.bias==='bullish'?'long':'short'))==='long';
+    const col=(title,cls,list)=>`<section class="scan-col"><div class="scan-col-head ${cls}">${title} · ${list.length}</div><div class="coin-list">${list.map(row).join('')||'<div class="empty-state">Tidak ada kandidat.</div>'}</div></section>`;
+    html('modeResultsList',result.candidates.length?`<div class="scan-split">${col('LONG','long',result.candidates.filter(isLong))}${col('SHORT','short',result.candidates.filter(r=>!isLong(r)))}</div>`:'<div class="empty-state">Belum ada kandidat dengan struktur 1D–4H selaras.</div>');
     html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()}</div><div>Entry ${price(p.entry)} · SL ${price(p.sl)} · TP ${price(p.tp)}</div><div class="badge-pill score-hi">RR 1:${p.rr.toFixed(2)} · close 1H tervalidasi</div></div>`;}).join('')||'<div class="empty-state">Belum ada Trading Plan tervalidasi.</div>');
   }
   function detail(symbol,m,tf='4h',display=null){
@@ -74,8 +104,9 @@
     const location=z?.location?' · '+esc(z.location)+(z.location===(m.side==='long'?'discount':'premium')?' (sesuai preferensi)':' (bukan lokasi preferensi)'):'';
     const validation=card('VALIDASI STRUKTUR → ENTRY 1H',row('Struktur 1D–4H',m.bias?'✓ Selaras':'○ Tidak selaras')+row('Zona struktural 4H',z?price(z.low)+'–'+price(z.high)+location:'○ Belum ada')+row('Close 1H',esc(m.trigger.status)+(m.trigger.ready?' · '+esc(fmtTime(m.trigger.ct)):''))+row('Volume','Hanya penguat')+row('Minimum RR',p?'✓ 1:'+p.rr.toFixed(2):'NO TRADING PLAN'));
     const decision=card('KEPUTUSAN MALOMO',`<div class="decision-btns"><div class="decision-btn buy ${m.decision==='LONG'?'active':''}"><div class="db-label">LONG</div></div><div class="decision-btn wait ${m.decision==='SKIP'?'active':''}"><div class="db-label">SKIP</div></div><div class="decision-btn sell ${m.decision==='SHORT'?'active':''}"><div class="db-label">SHORT</div></div></div><div class="sop-note">${esc(m.status)}. Status menunggu konfirmasi struktur tidak menggugurkan kandidat ranking.</div>`);
+    const marketCard=card('DATA PASAR · PELENGKAP',marketChips(symbol,MalomoMarketData.metrics(m),MalomoMarket.getTickers().find(x=>x.symbol===symbol),null)+'<div class="sop-note">Hanya tampilan; tidak memengaruhi penilaian engine.</div>');
     const trading=p?`<div class="entry-card ${m.side}"><div class="entry-card-head">${m.side.toUpperCase()} · ENTRY 1H TERVALIDASI</div>${row('Zona 4H',price(z.low)+'–'+price(z.high)+location)}${row('Divalidasi (close 1H)',esc(fmtTime(p.validatedAt)))}${row('Entry',price(p.entry))}${row('Stop Loss',price(p.sl))}${row('Target struktural',price(p.tp))}${row('Risk : Reward','1:'+p.rr.toFixed(2))}<div class="entry-caveat">SL adalah batas keluar posisi; tidak menunggu konfirmasi break–retest.</div><button class="btn btn-primary" data-action="save-plan">📌 Simpan ke Histori Setup</button><button class="btn" data-action="use-plan">🧮 Pakai di Kalkulator</button></div>`:card('TRADING PLAN','<div class="empty-state">'+esc(m.status)+' — entry, SL struktural dan target harus memenuhi RR minimum 1:2.2.</div>');
-    html('wsAnalysisBody',analysis);html('wsValidationBody',validation);html('wsDecisionBody',decision);html('wsTradingSetupBody',trading);html('modalBody',analysis+validation+decision+trading);
+    html('wsAnalysisBody',analysis);html('wsValidationBody',validation);html('wsDecisionBody',decision);html('wsTradingSetupBody',trading);html('modalBody',analysis+marketCard+validation+decision+trading);
   }
   function journal(){
     const rows=MalomoStore.read('journal'),closed=rows.filter(e=>['win','loss','breakeven'].includes(e.status)),wins=closed.filter(e=>e.status==='win').length;

@@ -79,7 +79,7 @@
   // Hasil disimpan ringkas agar langsung tampil saat aplikasi dibuka lagi (hanya untuk tampilan;
   // pemantauan Trading Plan selalu memakai hasil scan yang baru).
   function slimScan(r){
-    return {at:r.at,universe:r.universe,errors:r.errors,candidates:r.candidates.map(c=>({symbol:c.symbol,quoteVolume60m:c.quoteVolume60m,error:c.error,
+    return {at:r.at,universe:r.universe,errors:r.errors,candidates:r.candidates.map(c=>({symbol:c.symbol,quoteVolume60m:c.quoteVolume60m,error:c.error,metrics:c.metrics,
       evaluation:{bias:c.evaluation.bias,side:c.evaluation.side,status:c.evaluation.status,plan:c.evaluation.plan,
         frames:Object.fromEntries(Object.entries(c.evaluation.frames||{}).map(([t,f])=>[t,{structure:{pending:f.structure.pending},quality:{trendEfficiency:{label:f.quality?.trendEfficiency?.label??null}}}]))}}))};
   }
@@ -98,11 +98,27 @@
         scanProgress=root.lastMalomoScan?'memperbarui '+n+'/'+total:'Scan '+n+'/'+total+' kandidat Top 250…';
         if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,scanProgress);else U.text('heroModeStatus',scanProgress);
       }});
+      for(const row of result.candidates)row.metrics=MalomoMarketData.metrics(row.evaluation);
       root.lastMalomoScan=result;lastScanAt=Date.now();U.scan(result);
       S.write('lastScan',slimScan(result));
       syncTracks(result);
+      refreshMarketData();
     }catch(e){if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,'pembaruan gagal: '+e.message);else U.text('heroModeStatus','Scan gagal: '+e.message);lastScanAt=Date.now();}
     finally{scanning=false;scanProgress='';}
+  }
+  // Data pasar pelengkap untuk semua kandidat; daftar dirender ulang berkala selama data berdatangan.
+  function refreshMarketData(){
+    if(!root.lastMalomoScan)return;
+    let shownAt=0;
+    MalomoMarketData.refresh(root.lastMalomoScan.candidates.map(r=>r.symbol),()=>{
+      if(Date.now()-shownAt>1500){shownAt=Date.now();U.scan(root.lastMalomoScan,scanning?scanProgress:null);}
+    }).then(()=>U.scan(root.lastMalomoScan,scanning?scanProgress:null));
+  }
+  // Tombol Refresh: paksa scan baru dan data pasar terbaru, tanpa menunggu jeda otomatis.
+  function forceRefresh(){
+    MalomoMarketData.invalidate();
+    if(scanning){if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,scanProgress+' (sedang berjalan)');return;}
+    scan();
   }
   function syncTracks(result){
     const tracks=S.read('tracks'),history=S.read('history'),now=Date.now();
@@ -131,6 +147,7 @@
     try{
       const evaluation=await M.evaluate(s);const display=evaluation.frames[tf]||Malomo.frame(await M.candles(s,tf));
       if(token!==detailToken)return;U.detail(s,evaluation,tf,display);
+      MalomoMarketData.ensure(s).then(()=>{if(token===detailToken)U.detail(s,evaluation,tf,display);}).catch(()=>{});
     }catch(e){if(token===detailToken){const msg='<div class="empty-state">Gagal memuat: '+U.esc(e.message)+'</div>';U.html('modalBody',msg);U.html('wsAnalysisBody',msg);U.status(e.message,true);}}
   }
   function star(sym){const wl=S.read('watchlist');S.write('watchlist',wl.includes(sym)?wl.filter(x=>x!==sym):[...wl,sym]);U.market();if(U.getSelected()?.symbol===sym)U.$('mhStarBtn').textContent=wl.includes(sym)?'☆':'★';}
@@ -160,7 +177,7 @@
     on('hamburgerBtn',()=>{U.$('sidebar').classList.add('open');U.$('sidebarOverlay').classList.add('show');});on('sidebarCloseBtn',U.closeSidebar);on('sidebarOverlay',U.closeSidebar);
     on('introTipClose',()=>{U.$('introTip').style.display='none';localStorage.setItem('malomo_intro_hidden','1');});if(localStorage.getItem('malomo_intro_hidden'))U.$('introTip').style.display='none';
     // Back hanya menutup panel; scan tetap berjalan dan hasilnya langsung tampil saat panel dibuka lagi.
-    on('modeResultsClose',()=>U.panels());
+    on('modeResultsClose',()=>U.panels());on('scanRefreshBtn',forceRefresh);
     for(const name of ['modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{detailToken++;U.panels();});
     for(const name of ['modalBackdrop','journalModalBackdrop'])on(name,e=>{if(e.target===U.$(name))U.$(name).classList.remove('show');});
     on('modeIntradayBtn',openScan);on('scanTopBtn',openScan);
