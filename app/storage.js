@@ -1,7 +1,7 @@
 /* Local user data only. Strategy state is isolated from the previous engine. */
 (function(root){
   'use strict';
-  const keys={watchlist:'pp_watchlist',journal:'pp_trade_journal',history:'malomo_history',tracks:'malomo_tracks',alerts:'malomo_alerts',priceAlerts:'malomo_price_alerts',telegram:'pp_telegram_config'};
+  const keys={watchlist:'pp_watchlist',journal:'pp_trade_journal',history:'malomo_history',tracks:'malomo_tracks',alerts:'malomo_alerts',priceAlerts:'malomo_price_alerts',telegram:'pp_telegram_config',lastScan:'malomo_last_scan'};
   function read(name,fallback=[]){try{const v=JSON.parse(localStorage.getItem(keys[name]||name));return v===null||Array.isArray(fallback)&&!Array.isArray(v)?fallback:v;}catch{return fallback;}}
   function write(name,value){localStorage.setItem(keys[name]||name,JSON.stringify(value));return value;}
   function exportData(){return {format:'malomo-user-data',version:1,watchlist:read('watchlist'),journal:read('journal'),history:read('history'),tracks:read('tracks'),priceAlerts:read('priceAlerts')};}

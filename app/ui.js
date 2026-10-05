@@ -37,9 +37,14 @@
     html('moversBody',[['TOP GAINERS',movers.slice(0,5)],['TOP LOSERS',movers.slice(-5).reverse()]].map(([t,a])=>`<div><div class="ws-card-title" style="margin-bottom:8px;">${t}</div><table class="movers-table"><tbody>${a.map((d,i)=>`<tr data-action="detail" data-symbol="${esc(d.symbol)}"><td>${i+1}</td><td>${esc(d.symbol.replace(/USDT$/,''))}/USDT</td><td>${price(d.lastPrice)}</td><td style="color:${d.priceChangePercent>=0?'var(--mint)':'var(--crimson)'};text-align:right;">${d.priceChangePercent>=0?'+':''}${d.priceChangePercent.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`).join(''));
     html('searchResults',q?data.filter(x=>x.symbol.includes(q)).slice(0,10).map(x=>tickerRow(x)).join(''):'');$('searchResults').classList.toggle('show',!!q);
   }
-  function scan(result){
-    const ready=result.candidates.filter(x=>x.evaluation.plan),errors=result.errors.length;
-    text('heroModeStatus',`✓ Malomo: ${result.candidates.length} kandidat Top 150 · ${ready.length} Trading Plan${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}`);
+  // note: progres pembaruan yang sedang berjalan; hasil lama tetap tampil sampai hasil baru selesai.
+  function scanStatus(result,note){
+    const ready=result.candidates.filter(x=>x.evaluation.plan).length,errors=result.errors.length;
+    text('heroModeStatus',`✓ Malomo: ${result.candidates.length} kandidat Top 150 · ${ready} Trading Plan · hasil ${new Date(result.at).toLocaleTimeString('id-ID')}${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}${note?' · '+note:''}`);
+  }
+  function scan(result,note){
+    const ready=result.candidates.filter(x=>x.evaluation.plan);
+    scanStatus(result,note);
     text('scLastScan',new Date(result.at).toLocaleTimeString('id-ID'));
     const bySymbol=new Map(MalomoMarket.getTickers().map(x=>[x.symbol,x]));
     html('modeResultsList',result.candidates.length?result.candidates.map(r=>{
@@ -161,5 +166,5 @@
     for(const badge of ['alertBadge','topbarAlertBadge'])if($(badge)){$(badge).textContent=count;$(badge).style.display=a.length?(badge==='topbarAlertBadge'?'flex':'inline-flex'):'none';}
   }
   function priceAlerts(){html('priceAlertList',MalomoStore.read('priceAlerts').map(a=>`<div class="pa-item">${esc(a.symbol)} ${a.direction==='above'?'↑':'↓'} ${price(a.price)} ${a.triggered?'✓':''}<button class="pa-del" data-action="price-alert-delete" data-id="${esc(a.id)}">✕</button></div>`).join(''));}
-  root.MalomoUI={$,html,text,esc,price,num,row,card,workspace,panel,panels,status,market,scan,detail,journal,journalForm,history,decision,alerts,priceAlerts,tickerRow,closeSidebar,getSelected:()=>selected,setFilter:v=>{filter=v;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===v));market();},setSort:v=>{sort=v;market();},getActive:()=>active};
+  root.MalomoUI={$,html,text,esc,price,num,row,card,workspace,panel,panels,status,market,scan,scanStatus,detail,journal,journalForm,history,decision,alerts,priceAlerts,tickerRow,closeSidebar,getSelected:()=>selected,setFilter:v=>{filter=v;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===v));market();},setSort:v=>{sort=v;market();},getActive:()=>active};
 })(globalThis);

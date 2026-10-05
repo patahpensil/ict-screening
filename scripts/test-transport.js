@@ -1,11 +1,11 @@
 'use strict';
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const M=require('../engine/malomo');
-const now=1800000000000,minute=60000,calls=[];
+const now=1800000000000,minute=60000,calls=[];let clock=now;
 const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
 const bars=prices.map((p,i)=>[now-(prices.length-i)*minute,p,p+.2,p-.2,p,10,now-(prices.length-i-1)*minute-1,100]);
 let rateLimit=true;
-const ctx=vm.createContext({Malomo:M,Map,Set,Promise,Date:class extends Date{static now(){return now;}},AbortSignal,setTimeout:fn=>{queueMicrotask(fn);return 1;},clearTimeout(){},setInterval(){},clearInterval(){},fetch:async url=>{
+const ctx=vm.createContext({Malomo:M,Map,Set,Promise,Date:class extends Date{static now(){return clock;}},AbortSignal,setTimeout:fn=>{queueMicrotask(fn);return 1;},clearTimeout(){},setInterval(){},clearInterval(){},fetch:async url=>{
   calls.push(url);const u=new URL(url),path=u.pathname;
   if(rateLimit){rateLimit=false;return {status:429,ok:false,headers:{get:()=>null}};}
   let body;
@@ -24,6 +24,9 @@ vm.runInContext(fs.readFileSync('app/market.js','utf8'),ctx);
   assert.equal(ctx.MalomoMarket.serverNow(),now+5000); // candle close dinilai dengan jam server, bukan jam perangkat
   const first=await ctx.MalomoMarket.candles('BTCUSDT','4h'),n=calls.length;assert(first.length===23);await ctx.MalomoMarket.candles('BTCUSDT','4h');assert.equal(calls.length,n);
   const r=await ctx.MalomoMarket.scan();assert.equal(r.universe.length,1);assert.equal(r.candidates.length,1);assert.equal(r.candidates[0].quoteVolume60m,600);assert.equal(r.errors.length,0);
+  // Cache candle berlaku sampai candle berikutnya close: tidak diunduh ulang di tengah candle 4H, diunduh ulang sesudahnya.
+  let before=calls.length;clock=now+3600000;await ctx.MalomoMarket.candles('BTCUSDT','4h');assert.equal(calls.length,before);
+  clock=now+4*3600000+10000;await ctx.MalomoMarket.candles('BTCUSDT','4h');assert.equal(calls.length,before+1);clock=now;
   const original=ctx.MalomoMarket.getTickers();original[0].quoteVolume=NaN;assert.equal((await ctx.MalomoMarket.scan()).universe.length,0);
   const map=new Map();ctx.localStorage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
   vm.runInContext(fs.readFileSync('app/storage.js','utf8'),ctx);
@@ -31,5 +34,5 @@ vm.runInContext(fs.readFileSync('app/market.js','utf8'),ctx);
   ctx.MalomoStore.write('telegram',{token:'private',enabled:true});assert(!JSON.stringify(ctx.MalomoStore.exportData()).includes('private'));
   assert.throws(()=>ctx.MalomoStore.importData({journal:[null]}));assert.throws(()=>ctx.MalomoStore.importData({tracks:[{engine:'legacy'}]}));
   assert.equal(ctx.MalomoStore.read('journal').length,1); // validation is atomic before writes
-  console.log('PASS transport: USDT perpetual scope, rate-limit retry, server clock, shared cache, rolling60m, data validity, scan\nPASS storage: user journal continuity, secret-free export, atomic validation, legacy engine isolation');
+  console.log('PASS transport: USDT perpetual scope, rate-limit retry, server clock, candle cache until next close, rolling60m, data validity, scan\nPASS storage: user journal continuity, secret-free export, atomic validation, legacy engine isolation');
 })().catch(e=>{console.error(e);process.exitCode=1;});
