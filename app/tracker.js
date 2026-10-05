@@ -23,5 +23,11 @@
     record.status='closed';record.outcome='void';record.closedAt=at;record.r=null;record.voidReason='rencana tidak lagi dihasilkan engine pada scan terbaru';
     return true;
   }
-  return {create,advance,expire};
+  // Satu pair hanya boleh punya satu rencana aktif (ARMED atau RUNNING), apa pun arahnya.
+  // Engine lama bisa mendaftarkan LONG dan SHORT untuk pair yang sama dari mode berbeda; ini mencegahnya.
+  // Panggil setelah expire(): rencana ARMED lama yang tidak lagi dihasilkan engine sudah gugur lebih dulu.
+  function admit(tracks,record){
+    return !tracks.some(x=>x.id===record.id||(x.symbol===record.symbol&&x.status!=='closed'));
+  }
+  return {create,advance,expire,admit};
 });

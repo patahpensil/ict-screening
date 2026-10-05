@@ -1145,7 +1145,7 @@
     <div class="ws-header"><span class="ws-title">DECISION</span></div>
     <div class="ws-sub">Pair yang harganya sudah menyentuh level Entry — tampil RUNNING sampai kena TP atau SL, lalu hilang dari sini</div>
     <div class="ws-note">ℹ️ Daftar ini untuk kamu <b>tinjau sebelum eksekusi manual</b> di Binance. Setiap Trading Plan hasil Scan Malomo dipantau selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini sebagai RUNNING sampai kena TP atau SL. Hasil TP/SL otomatis dicatat ke Review berdasarkan level plan, belum termasuk fee, slippage, dan funding. App tidak mengirim order ke Binance. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
-    <div class="ws-note">🛠 <b>Rencana, belum aktif di engine Malomo:</b> saat RUNNING menampilkan <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>CHoCH</b> (candle tutup) secara real-time. Data ini nantinya <b>hanya tampilan</b> — tidak memengaruhi penilaian setup.</div>
+    <div class="ws-note">📡 <b>Data real-time saat RUNNING:</b> <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>struktur 4H</b> engine Malomo (candle tutup). Data ini <b>hanya tampilan</b> — tidak memengaruhi penilaian setup. Satu pair hanya punya satu posisi aktif; LONG dan SHORT tidak bisa berjalan bersamaan di pair yang sama.</div>
     <div id="decisionList"></div>
     <div class="ws-note" id="decisionArmedNote" style="margin-top:6px;"></div>
   </div>
@@ -1362,6 +1362,7 @@
 <script src="app/storage.js"></script>
 <script src="app/market.js"></script>
 <script src="app/tracker.js"></script>
+<script src="app/live.js"></script>
 <script src="app/ui.js"></script>
 <script src="app/main.js"></script>
 <script>

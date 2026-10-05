@@ -10,7 +10,17 @@
   const saveTracks=tracks=>S.write('tracks',tracks.filter(x=>x.status!=='closed'));
   // K-8: satu aturan PRD, satu jenis scan. Tombol di hero dan aksi cepat menjalankan scan yang sama.
   const scanButtons=['modeIntradayBtn','scanTopBtn'];
-  function log(message){const a=S.read('alerts');a.unshift({id:id(),at:Date.now(),message});S.write('alerts',a.slice(0,200));U.alerts();U.status(message);}
+  function log(message,sym){const a=S.read('alerts');a.unshift({id:id(),at:Date.now(),message,symbol:sym||null});S.write('alerts',a.slice(0,200));U.alerts();U.status(message);}
+  // Alert transisi pemantauan; tampil di banner berjalan dan log alert seperti Decision engine lama.
+  function transition(r,before){
+    if(r.status===before)return;
+    const head=r.symbol.replace(/USDT$/,'')+' '+r.side.toUpperCase();
+    if(before==='armed'&&r.status==='running')log('🧭 '+head+' RUNNING — harga menyentuh Entry '+U.price(r.entry)+' (Malomo · zona 4H · entry 1H)',r.symbol);
+    if(r.status==='closed'&&r.outcome==='tp')log('✅ '+head+' kena TP (+'+r.r.toFixed(2)+'R) — keluar dari Decision, tercatat di Histori Setup',r.symbol);
+    if(r.status==='closed'&&r.outcome==='sl')log('❌ '+head+' kena SL ('+r.r.toFixed(2)+'R) — keluar dari Decision, tercatat di Histori Setup',r.symbol);
+    MalomoLive.sync(S.read('tracks'));
+    if(r.status==='running'){pollOI();MalomoLive.pollStructure(S.read('tracks'));}
+  }
   async function telegram(message){
     const cfg=S.read('telegram',{});if(!cfg.enabled||!cfg.token||!cfg.chatId)throw new Error('Aktifkan dan simpan konfigurasi Telegram dahulu.');
     const res=await fetch('https://api.telegram.org/bot'+cfg.token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chatId,text:message})});
@@ -23,7 +33,7 @@
   }
   function prices(data){
     if(polling)return;
-    const alerts=S.read('priceAlerts'),tracks=S.read('tracks');let changed=false;
+    const alerts=S.read('priceAlerts'),tracks=S.read('tracks'),transitions=[];let changed=false;
     for(const d of data){
       const old=lastPrices.get(d.symbol);lastPrices.set(d.symbol,d.lastPrice);
       for(const a of alerts.filter(a=>a.symbol===d.symbol&&!a.triggered)){
@@ -33,10 +43,10 @@
         if(Date.now()-r.lastAt>120000)continue; // candle catch-up must precede decisions after background gaps
         const before=r.status;MalomoTracker.advance(r,{low:Math.min(old??d.lastPrice,d.lastPrice),high:Math.max(old??d.lastPrice,d.lastPrice)},Date.now());
         changed=true;
-        if(r.status!==before){if(r.status==='closed')recordClose(r);}
+        if(r.status!==before){if(r.status==='closed')recordClose(r);transitions.push([r,before]);}
       }
     }
-    if(changed){S.write('priceAlerts',alerts);saveTracks(tracks);U.priceAlerts();U.decision();}
+    if(changed){S.write('priceAlerts',alerts);saveTracks(tracks);transitions.forEach(([r,b])=>transition(r,b));U.priceAlerts();U.decision();}
   }
   function recordClose(r){
     const history=S.read('history');if(history.some(x=>x.trackId===r.id))return;
@@ -47,7 +57,7 @@
   async function catchUp(){
     if(polling)return;polling=true;
     try{
-      const tracks=S.read('tracks');
+      const tracks=S.read('tracks'),transitions=[];
       const active=x=>x.status!=='closed'&&!x.frozen;
       for(const sym of [...new Set(tracks.filter(active).map(x=>x.symbol))]){
         try{
@@ -56,11 +66,12 @@
           // bukan diulang setiap siklus refresh.
           for(const r of tracks.filter(x=>x.symbol===sym&&active(x)&&candles.length&&x.lastAt<candles[0].t)){r.frozen=true;log(sym+': riwayat pemantauan belum lengkap; status dibekukan.');}
           for(const r of tracks.filter(x=>x.symbol===sym&&active(x))){
-            for(const c of candles.filter(c=>c.ct>r.lastAt)){const before=r.status;MalomoTracker.advance(r,c,c.ct);if(before!=='closed'&&r.status==='closed')recordClose(r);}
+            const start=r.status;for(const c of candles.filter(c=>c.ct>r.lastAt)){const before=r.status;MalomoTracker.advance(r,c,c.ct);if(before!=='closed'&&r.status==='closed')recordClose(r);}
+            if(r.status!==start)transitions.push([r,start]);
           }
         }catch(e){log(sym+': pemantauan gagal — '+e.message);}
       }
-      saveTracks(tracks);U.decision();
+      saveTracks(tracks);transitions.forEach(([r,b])=>transition(r,b));U.decision();
     }finally{polling=false;}
   }
   async function refresh(){try{await M.refresh();await catchUp();U.status('Data Binance diperbarui · '+new Date().toLocaleTimeString('id-ID'));}catch(e){U.status('Gagal memuat Binance: '+e.message,true);U.html('tbody','<div class="empty-state">Data pasar tidak tersedia. Periksa koneksi dan coba lagi.</div>');}}
@@ -84,10 +95,18 @@
     const failed=new Set([...result.errors.map(e=>e.symbol),...result.candidates.filter(r=>r.error).map(r=>r.symbol)]);
     const scanned=new Set(result.universe.filter(s=>!failed.has(s)));
     for(const r of tracks.filter(r=>scanned.has(r.symbol)))if(MalomoTracker.expire(r,current.get(r.symbol),now))recordClose(r);
-    for(const rec of current.values())if(!tracks.some(x=>x.id===rec.id)&&!history.some(x=>x.trackId===rec.id))tracks.push(rec);
+    // Satu pair satu rencana aktif: pair yang sudah ARMED/RUNNING tidak mendapat rencana kedua (LONG maupun SHORT).
+    for(const rec of current.values())if(MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id))tracks.push(rec);
     saveTracks(tracks);U.decision();
   }
   function cancelScan(){scanToken++;}
+  // Acuan OI dicatat sinkron dari data track terbaru sesudah jaringan selesai, agar tidak menimpa status yang baru berubah.
+  async function pollOI(){
+    await MalomoLive.pollOI(S.read('tracks'));
+    const tracks=S.read('tracks');let changed=false;
+    for(const r of tracks)if(r.status==='running'&&!(r.oiBase>0)&&MalomoLive.data(r.symbol).oi>0){r.oiBase=MalomoLive.data(r.symbol).oi;changed=true;}
+    if(changed)saveTracks(tracks);
+  }
   async function detail(sym,tf='4h',modal=true){
     const token=++detailToken;const s=symbol(sym);U.$('searchResults').classList.remove('show');U.text('wsAnalysisSymbolInput',s);
     U.$('wsAnalysisSymbolInput').value=s;
@@ -149,6 +168,11 @@
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Malomo · PRD FINAL');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
     U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh();M.connect();setInterval(refresh,45000);
+    // Decision: data tampilan real-time untuk posisi RUNNING (OI ±15 dtk, CVD & orderbook WebSocket, struktur 4H ±30 dtk).
+    MalomoLive.sync(S.read('tracks'));
+    setInterval(()=>{MalomoLive.tick();MalomoLive.sync(S.read('tracks'));if(U.getActive()==='wsDecision')U.decision();},1000);
+    setInterval(pollOI,15000);setInterval(()=>MalomoLive.pollStructure(S.read('tracks')),30000);
+    pollOI();MalomoLive.pollStructure(S.read('tracks'));
     setInterval(()=>{if(root.lastMalomoScan&&!scanning&&Date.now()-lastScanAt>=300000&&!document.hidden)scan(true);},30000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
     if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>U.status('Cache offline tidak tersedia.'));
