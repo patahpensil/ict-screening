@@ -1,20 +1,40 @@
 # Keputusan Terbuka — Menunggu Pemilik Proyek
 
 Dicatat: 6 Oktober 2026, dari audit kode terhadap `docs/PRD_MALOMO_FINAL.md`.
+Diperbarui: 6 Oktober 2026, setelah pembahasan dengan pemilik proyek.
 
-Hal-hal di bawah tidak dijawab oleh PRD, atau PRD bisa dibaca lebih dari satu cara. Engine **tidak** mengisi celah ini dengan angka buatan. Kolom "Perilaku saat ini" menjelaskan apa yang dijalankan sampai ada keputusan.
+Hal-hal di bawah tidak dijawab oleh PRD, atau PRD bisa dibaca lebih dari satu cara. Keputusan yang sudah diambil dicatat rinci di [`ADDENDUM_PRD_2026-10-06.md`](ADDENDUM_PRD_2026-10-06.md).
 
-| # | Poin PRD | Pertanyaan | Perilaku saat ini |
+## Status
+
+| # | Poin PRD | Topik | Status |
 |---|---|---|---|
-| K-1 | Poin 5 | **Definisi Candle Range** untuk magnitude relatif (Candle Range / ATR14): High−Low, badan candle \|close−open\|, atau definisi lain? | Magnitude tidak dihitung; UI menampilkan "belum dinilai". |
-| K-2 | Poin 5 | **Aturan label Displacement**: kombinasi structural close, magnitude, dan RVOL20 seperti apa yang diberi label kuat/lemah? Label apa saja yang dipakai? | Tidak diberi label. |
-| K-3 | Poin 6 | **Batas regime Contraction / Normal / Expansion** dan rumus ATR Expansion (ATR14 dibanding apa, periode berapa, ambang berapa)? | Tidak diklasifikasikan. Baris "ATR dibanding candle sebelumnya" dihapus karena nilainya hampir selalu ≈1 dan tidak bermakna sebagai ATR Expansion. |
-| K-4 | Poin 2 | **Rumus Trend Efficiency** (mis. efficiency ratio: perubahan bersih ÷ jumlah perubahan absolut, periode berapa)? | Hanya teks deskriptif: bias, fase, jumlah swing internal. |
-| K-5 | Poin 7.3 | **Batas akhir "swing internal yang terbentuk selama pengujian zona"**: apakah swing yang terbentuk setelah harga meninggalkan zona masih sah sebagai acuan validasi entry? Kalau tidak, kapan pengujian zona dianggap selesai? | Swing sah jika terbentuk sejak candle pertama yang menyentuh zona, tanpa batas akhir, sampai validasi terjadi. Setelah validasi, sentuhan zona berikutnya dibaca sebagai pengujian baru. |
-| K-6 | Poin 3.5 + 4 | **Protected low/high boleh bergeser keluar dari protected lama?** Setelah sweep wick di bawah protected low (close tetap di atas), lalu breakout struktural, PRD 3.5 memilih swing low terendah dalam leg, yang ternyata adalah swing sweep (lebih rendah dari protected lama). | Mengikuti PRD 3.5 secara harfiah: swing sweep menjadi protected low baru. Sebelumnya engine macet dan tidak mencatat breakout sama sekali. |
-| K-7 | Poin 3.5 | **Break tanpa swing asal yang sudah terkonfirmasi pada candle break.** Swing asal yang terbentuk tepat sebelum break baru terkonfirmasi 1–2 candle sesudahnya. Apakah boleh ditunggu? | Mengikuti kata "sudah dikonfirmasi" dan aturan README: breakout tercatat, protected tetap memakai yang lama. Swing yang terkonfirmasi sesudah break tidak dipakai. |
-| K-8 | — | **Tombol mode Intraday dan Swing** menjalankan aturan PRD yang sama sehingga hasilnya identik. Digabung menjadi satu tombol, atau dibedakan (dengan aturan apa)? | Keduanya menjalankan scan yang sama. |
-| K-9 | — | **Masa berlaku rencana ARMED** (sudah tervalidasi, menunggu harga kembali ke entry). Perlu batas waktu? | Tanpa batas waktu. Rencana gugur (void) jika scan terbaru yang berhasil membaca pair itu tidak lagi menghasilkan plan yang sama. Posisi RUNNING hanya keluar lewat SL/TP. |
+| K-1 | Poin 5 | Definisi Candle Range | ✅ Diputuskan: badan candle \|close − open\| ÷ ATR14 |
+| K-2 | Poin 5 | Label Displacement | ✅ Diputuskan: kuat/sedang/lemah dari referensi PRD (magnitude ≥ 1.0, RVOL20 ≥ 1.10) |
+| K-3 | Poin 6 | Regime volatilitas | ✅ Diputuskan: persentil ATR14 dalam 100 candle; ≤ 25 Contraction, ≥ 75 Expansion |
+| K-4 | Poin 2 | Trend Efficiency | ✅ Diputuskan: Kaufman ER20; ≥ 0.5 bersih, ≥ 0.3 sedang, < 0.3 choppy |
+| K-5 | Poin 7.3 | Batas pengujian zona | ✅ Diputuskan: berakhir pada validasi, close menembus protected, atau target pertama tercapai |
+| **K-6** | Poin 3.5 + 4 | Protected swing setelah sweep | ⏸ **Ditunda** — mencari solusi yang lebih tepat (lihat di bawah) |
+| K-7 | Poin 3.5 | Asal protected yang terkonfirmasi sesudah break | ✅ Diputuskan dengan **catatan koreksi**: ditinjau ulang bila penerapannya keliru |
+| K-8 | — | Mode Intraday vs Swing | ✅ Diputuskan: digabung menjadi "Scan Malomo" |
+| K-9 | — | Masa berlaku rencana ARMED | ✅ Diputuskan: tanpa batas waktu; gugur bila engine tidak lagi menghasilkannya |
+
+## K-6 · Protected swing setelah sweep — DITUNDA
+
+**Masalah.** Struktur bullish punya protected low L. Sebuah candle menyapu di bawah L dengan wick, tapi close tetap di atas L, jadi struktur tidak patah (PRD Poin 4). Swing sweep S yang lebih rendah dari L lalu terkonfirmasi. Ketika terjadi breakout struktural berikutnya, PRD 3.5 memilih swing low terendah dalam leg, yaitu **S**. Akibatnya protected low bergeser **turun** dari L ke S.
+
+**Perilaku sementara.** Mengikuti PRD 3.5 secara harfiah: S menjadi protected low. SL menjadi lebih lebar dan RR lebih kecil.
+
+**Yang perlu dicari.** Apakah protected setelah sweep sebaiknya:
+- tetap S (seperti sekarang, karena likuiditas di bawah L sudah tersapu dan S adalah titik invalidasi nyata),
+- tetap L (protected tidak pernah turun dalam struktur bullish), atau
+- aturan lain, misalnya memakai S hanya bila sweep diikuti displacement.
+
+Belum diubah sampai ada keputusan.
+
+## Catatan koreksi K-7
+
+Aturan K-7 disetujui dengan syarat dikoreksi bila penerapannya keliru. Saat implementasi, ada satu aturan tambahan yang tidak tertulis di PRD: swing kandidat yang sudah ditembus close sebelum keputusan diambil tidak dipakai, dan protected lama dipertahankan. Laporkan kasus di chart yang terasa salah (pair, timeframe, waktu) untuk ditinjau.
 
 ## Catatan operasional (bukan keputusan strategi)
 

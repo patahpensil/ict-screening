@@ -8,6 +8,8 @@
   const price=v=>Number.isFinite(Number(v))&&v!==null?Number(v).toLocaleString('en-US',{maximumFractionDigits:8}):'—';
   const num=v=>Number(v||0).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2});
   const fmtTime=ms=>Number.isFinite(ms)?new Date(ms).toLocaleString('id-ID',{timeZone:'Asia/Makassar',dateStyle:'short',timeStyle:'short'})+' WITA':'—';
+  const ratio=x=>Number.isFinite(x)?x.toFixed(2):'—';
+  const qualityText=(value,label)=>Number.isFinite(value)?value.toFixed(2)+' · '+esc(label):'data kurang';
   let filter='all',sort='quoteVolume',active='wsHome',selected=null;
   const card=(title,body)=>`<div class="ws-card"><div class="ws-card-title">${esc(title)}</div>${body}</div>`;
   const row=(name,value)=>`<div class="bd-row2"><span class="bd-factor2">${esc(name)}</span><span class="bd-reason2">${value}</span></div>`;
@@ -44,7 +46,8 @@
     html('modeResultsList',result.candidates.length?result.candidates.map(r=>{
       const m=r.evaluation,d=bySymbol.get(r.symbol);if(!d)return '';
       const pending=Object.values(m.frames).some(f=>f.structure.pending);
-      return tickerRow(d,`<span class="badge-pill ${m.side==='short'?'score-lo':'score-hi'}">${esc(m.side?.toUpperCase()||m.bias)} · ${esc(r.error||m.status||'menunggu data entry')}${pending?' · menunggu konfirmasi struktur':''}${m.plan?' · RR 1:'+m.plan.rr.toFixed(2):''}</span>`);
+      const er=['1d','4h'].map(t=>m.frames[t]?.quality?.trendEfficiency?.label||'—').join('/');
+      return tickerRow(d,`<span class="badge-pill ${m.side==='short'?'score-lo':'score-hi'}">${esc(m.side?.toUpperCase()||m.bias)} · ${esc(r.error||m.status||'menunggu data entry')}${pending?' · menunggu konfirmasi struktur':''} · ER 1D/4H ${esc(er)}${m.plan?' · RR 1:'+m.plan.rr.toFixed(2):''}</span>`);
     }).join(''):'<div class="empty-state">Belum ada kandidat dengan struktur 1D–4H selaras.</div>');
     html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()}</div><div>Entry ${price(p.entry)} · SL ${price(p.sl)} · TP ${price(p.tp)}</div><div class="badge-pill score-hi">RR 1:${p.rr.toFixed(2)} · close 1H tervalidasi</div></div>`;}).join('')||'<div class="empty-state">Belum ada Trading Plan tervalidasi.</div>');
   }
@@ -56,13 +59,13 @@
     const bias=m.bias||'ARAH TIDAK VALID';
     const frameInfo=['1d','4h'].map(t=>{
       const f=m.frames[t],e=f.evidence,s=f.structure,ev=f.evidenceEvent,ee=f.eventEvidence;
-      const rvol=x=>x===null||x===undefined?'—':x.toFixed(2);
       // PRD Poin 5: evidence dinilai pada candle event struktural, bukan candle terakhir.
-      const eventRow=ev&&ee?row('Evidence event',`${esc(ev.type)} · ${esc(fmtTime(f.candles[ev.index]?.ct))} · ATR14 ${price(ee.atr14)} · RVOL20 ${rvol(ee.rvol20)}${ee.rvol20!==null&&ee.rvol20>=1.1?' (≥1.10)':''} · bukan gate`):row('Evidence event','Belum ada event struktural');
-      return card(t.toUpperCase()+' · '+s.bias,row('Status',esc(s.status+' · '+s.phase))+row('Protected swing',price(s.protectedSwing?.price))+row('EMA 21/30/50',[21,30,50].map(n=>'EMA'+n+': '+(f.ema[n]===null?'data kurang':f.last>=f.ema[n]?'harga di atas':'harga di bawah')).join(' · '))+eventRow+row('ATR14 / RVOL20 candle terakhir',`${price(e.atr14)} / ${rvol(e.rvol20)} · evidence, bukan gate`));
+      const eventRow=ev&&ee?row('Evidence event',`${esc(ev.type)} · ${esc(fmtTime(f.candles[ev.index]?.ct))} · Badan/ATR14 ${ratio(ee.candleMagnitude)} · RVOL20 ${ratio(ee.rvol20)} · Displacement ${esc(ee.displacement||'data kurang')} · bukan gate`):row('Evidence event','Belum ada event struktural');
+      const q=f.quality;
+      return card(t.toUpperCase()+' · '+s.bias,row('Status',esc(s.status+' · '+s.phase)+(s.pendingOrigin?' · asal protected menunggu konfirmasi fractal':''))+row('Protected swing',price(s.protectedSwing?.price))+row('EMA 21/30/50',[21,30,50].map(n=>'EMA'+n+': '+(f.ema[n]===null?'data kurang':f.last>=f.ema[n]?'harga di atas':'harga di bawah')).join(' · '))+eventRow+row('Trend Efficiency (ER20)',qualityText(q.trendEfficiency.value,q.trendEfficiency.label))+row('Regime volatilitas',q.volatility.regime?esc(q.volatility.regime)+' · persentil ATR14 '+q.volatility.percentile.toFixed(0):'data kurang (butuh 100 nilai ATR14)')+row('ATR14 / RVOL20 candle terakhir',`${price(e.atr14)} / ${ratio(e.rvol20)} · evidence, bukan gate`));
     }).join('');
     const swingRows=frame.structure.swings.slice(-12).map(s=>row(s.type+' · '+s.role,price(s.price))).join('');
-    const analysis=`<div class="trend-banner ${m.side==='long'?'score-hi':m.side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(bias)}</div><div class="tb-sub">${esc(m.status)}</div></div><div class="mtf-zone-grid">${frameInfo}</div>${card('SWING · '+tf.toUpperCase(),swingRows||'<div class="sop-note">Belum ada swing terkonfirmasi.</div>')}${card('LIQUIDITY SWEEP',frame.structure.sweeps.map(s=>row(s.side,price(s.level))).join('')||'<div class="sop-note">Tidak ada sweep pada candle terakhir.</div>')}${card('KONTEKS',row('Trend Efficiency',esc(frame.evidence.trendEfficiency))+row('Magnitude / Displacement','Belum dinilai: menunggu keputusan definisi Candle Range (docs/KEPUTUSAN_TERBUKA.md).')+row('Regime volatilitas','Belum diklasifikasikan: menunggu keputusan batas kategori (docs/KEPUTUSAN_TERBUKA.md).'))}`;
+    const analysis=`<div class="trend-banner ${m.side==='long'?'score-hi':m.side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(bias)}</div><div class="tb-sub">${esc(m.status)}</div></div><div class="mtf-zone-grid">${frameInfo}</div>${card('SWING · '+tf.toUpperCase(),swingRows||'<div class="sop-note">Belum ada swing terkonfirmasi.</div>')}${card('LIQUIDITY SWEEP',frame.structure.sweeps.map(s=>row(s.side,price(s.level))).join('')||'<div class="sop-note">Tidak ada sweep pada candle terakhir.</div>')}${card('KONTEKS · '+tf.toUpperCase(),row('Trend Efficiency (ER20)',qualityText(frame.quality.trendEfficiency.value,frame.quality.trendEfficiency.label))+row('Regime volatilitas',frame.quality.volatility.regime?esc(frame.quality.volatility.regime)+' · persentil ATR14 '+frame.quality.volatility.percentile.toFixed(0):'data kurang (butuh 100 nilai ATR14)')+row('Badan candle terakhir / ATR14',ratio(frame.evidence.candleMagnitude))+'<div class="sop-note">Semua nilai konteks hanya informasi; tidak menentukan arah dan tidak menggugurkan kandidat.</div>')}`;
     const z=m.zone,p=m.plan;
     const location=z?.location?' · '+esc(z.location)+(z.location===(m.side==='long'?'discount':'premium')?' (sesuai preferensi)':' (bukan lokasi preferensi)'):'';
     const validation=card('VALIDASI STRUKTUR → ENTRY 1H',row('Struktur 1D–4H',m.bias?'✓ Selaras':'○ Tidak selaras')+row('Zona struktural 4H',z?price(z.low)+'–'+price(z.high)+location:'○ Belum ada')+row('Close 1H',esc(m.trigger.status)+(m.trigger.ready?' · '+esc(fmtTime(m.trigger.ct)):''))+row('Volume','Hanya penguat')+row('Minimum RR',p?'✓ 1:'+p.rr.toFixed(2):'NO TRADING PLAN'));
