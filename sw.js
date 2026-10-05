@@ -1,4 +1,4 @@
-const CACHE_NAME = "ict-screening-v87";
+const CACHE_NAME = "ict-screening-v88";
 const SHELL_FILES = [
   "./index.html",
   "./engine/malomo.js",
@@ -63,7 +63,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
           return res;
         })
-        .catch(() => caches.match(req))
+        .catch(async () => (await caches.match(req)) || (req.mode === "navigate" ? caches.match("./index.html") : undefined))
     );
     return;
   }

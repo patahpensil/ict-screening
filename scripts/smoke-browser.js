@@ -37,5 +37,16 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
       if(process.env.SCREENSHOT_DIR){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,viewport.width+'.png'),fullPage:true,animations:'disabled'});}
       assert.deepEqual(errors,[]);console.log('PASS browser '+viewport.width+'px: navigation, market, watchlist, search, detail, scanner, journal, calculator, responsive width');await context.close();
     }
+    const offlineContext=await browser.newContext(),offlinePage=await offlineContext.newPage();
+    await offlinePage.addInitScript(()=>{window.WebSocket=class{constructor(){this.readyState=1;}close(){this.readyState=3;}};});
+    await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
+    await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
+    await offlinePage.goto('http://127.0.0.1:'+server.address().port);
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v88'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v88');return !!await c.match('./app/main.js');});
+    await offlineContext.setOffline(true);await offlinePage.reload();
+    await offlinePage.waitForFunction(()=>typeof MalomoApp==='object'&&document.getElementById('sidebarEngineStatus').textContent.includes('Malomo'));
+    assert.equal(await offlinePage.evaluate(()=>typeof Malomo.evaluate),'function');
+    console.log('PASS PWA: every new module loads offline from shell cache');await offlineContext.close();
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
