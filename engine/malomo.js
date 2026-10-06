@@ -125,9 +125,12 @@
       if(pending){
         const reclaimed=long?x.close>level:x.close<level;
         const touched=long?x.high>=level:x.low<=level;
+        // K-11: retest yang gagal merebut level juga terbukti bila pullback sesudah break membentuk swing
+        // terkonfirmasi yang tetap di luar level (swing high di bawah level untuk bullish yang patah turun).
+        const swingRetest=seen.some(s=>s.confirmedAt===i&&s.index>pending.index&&(long?s.type==='high'&&s.price<level:s.type==='low'&&s.price>level));
         if(reclaimed) pending=null;
-        else if(i>pending.index&&touched&&outside){
-          events.push({type:'STRUCTURE_BROKEN',direction:bias,index:i,level,protectedSwing});
+        else if(i>pending.index&&((touched&&outside)||swingRetest)){
+          events.push({type:'STRUCTURE_BROKEN',direction:bias,index:i,level,protectedSwing,via:touched&&outside?'retest':'swing'});
           brokenBias=bias;bias='neutral';phase='patah terkonfirmasi';resetAt=pending.index;pending=null;pendingExtreme=null;pendingOrigin=null;pullbackAt=null;continue;
         }
       } else if(outside){
@@ -207,21 +210,23 @@
   // menembus protected swing, (3) harga mencapai target struktural pertama sebelum validasi.
   // opts.invalidation = harga protected swing; opts.targets = [{price, at}] dengan `at` = waktu target diketahui.
   function triggers(c,z,side,opts={}){
-    const ps=pivots(c),long=side==='long',out=[],ended=[];let entered=null,ref=null;
+    const ps=pivots(c),long=side==='long',out=[],ended=[];let entered=null,ref=null,extreme=null;
     const beyond=(a,b)=>long?a>b:a<b;
     const firstTarget=at=>(opts.targets||[]).filter(t=>t.at<=at&&beyond(t.price,long?z.high:z.low))
       .reduce((best,t)=>best===null||beyond(best,t.price)?t.price:best,null);
-    const end=(i,reason)=>{ended.push({index:i,reason,ct:c[i].ct});entered=null;ref=null;};
+    const end=(i,reason)=>{ended.push({index:i,reason,ct:c[i].ct});entered=null;ref=null;extreme=null;};
     for(let i=0;i<c.length;i++){
       const x=c[i];
       if(Number.isFinite(z.createdAt)&&Number.isFinite(x.t)&&x.t<z.createdAt)continue;
-      if(entered===null&&x.low<=z.high&&x.high>=z.low)entered=i;
+      if(entered===null&&x.low<=z.high&&x.high>=z.low){entered=i;extreme=null;}
       if(entered===null)continue;
+      // K-10: ekstrem selama pengujian zona (low untuk LONG, high untuk SHORT) menjadi dasar SL.
+      extreme=extreme===null?(long?x.low:x.high):long?Math.min(extreme,x.low):Math.max(extreme,x.high);
       const available=ps.filter(p=>p.type===(long?'high':'low')&&p.index>=entered&&p.confirmedAt<i);
       if(available.length)ref=available[available.length-1];
       if(ref&&beyond(x.close,ref.price)){
-        out.push({ready:true,status:'tervalidasi',enteredIdx:entered,index:i,level:ref.price,entry:x.close,ct:x.ct});
-        entered=null;ref=null;continue;
+        out.push({ready:true,status:'tervalidasi',enteredIdx:entered,index:i,level:ref.price,entry:x.close,ct:x.ct,extreme});
+        entered=null;ref=null;extreme=null;continue;
       }
       if(Number.isFinite(opts.invalidation)&&beyond(opts.invalidation,x.close)){end(i,'close menembus protected swing');continue;}
       const target=firstTarget(x.ct);
@@ -256,11 +261,15 @@
       if(f)z=Object.assign({},z,{low:Math.max(z.low,f.low),high:Math.min(z.high,f.high),fvg1h:f,createdAt:Math.max(z.createdAt,l.candles[f.index].ct)});
     }
     const structuralTargets=side?[d,h].flatMap(f=>f.structure.swings.filter(s=>s.role==='structural'&&s.type===(side==='long'?'high':'low')).map(s=>({price:s.price,at:f.candles[s.confirmedAt].ct}))):[];
-    const tr=trigger(l.candles,z,side,{invalidation:h.structure.protectedSwing?.price,targets:structuralTargets});
+    // K-11: selama struktur 1D atau 4H menunggu konfirmasi patah, Trading Plan ditahan; kandidat tetap di ranking.
+    const held=!!(side&&(d.structure.pending||h.structure.pending));
+    const tr=held?{ready:false,status:'Trading Plan ditahan: struktur '+[d.structure.pending?'1D':'',h.structure.pending?'4H':''].filter(Boolean).join('/')+' menunggu konfirmasi patah',enteredIdx:null,held:true}
+      :trigger(l.candles,z,side,{invalidation:h.structure.protectedSwing?.price,targets:structuralTargets});
     let p=null,resolved=false;
     if(side&&tr.ready&&h.structure.protectedSwing){
       const targets=structuralTargets.filter(t=>t.at<=tr.ct).map(t=>t.price);
-      p=plan(side,tr.entry,h.structure.protectedSwing.price,targets,options.tickSize);
+      // K-10: SL di luar ekstrem 1H selama pengujian zona; protected swing 4H tetap batas struktur patah (PRD 7.6).
+      p=plan(side,tr.entry,tr.extreme,targets,options.tickSize);
       if(p){p.validatedAt=tr.ct;p.zoneLocation=z.location;}
       // Plan yang SL/TP-nya sudah tersentuh sesudah validasi bukan "RR tidak cukup"; statusnya dibedakan.
       if(p&&l.candles.slice(tr.index+1).some(c=>side==='long'?c.low<=p.sl||c.high>=p.tp:c.high>=p.sl||c.low<=p.tp)){p=null;resolved=true;}

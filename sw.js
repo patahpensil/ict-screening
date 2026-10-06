@@ -1,4 +1,4 @@
-const CACHE_NAME = "ict-screening-v94";
+const CACHE_NAME = "ict-screening-v95";
 const SHELL_FILES = [
   "./index.html",
   "./engine/malomo.js",

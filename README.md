@@ -14,7 +14,7 @@ Screener Binance USDⓈ-M Futures perpetual USDT berdasarkan [PRD final Poin 1�
 | `app/ui.js` | Render memakai komponen tampilan yang ada |
 | `app/main.js` | Navigasi, scanner, pemantauan, jurnal, kalkulator dan alert harga |
 
-Struktur menentukan arah; EMA21/30/50 hanya posisi harga. Kandidat menunggu konfirmasi break–retest tetap masuk ranking. ATR/RVOL dan informasi kualitas tidak menjadi veto. Penembusan swing internal adalah kelanjutan lokal. Ekstrem struktural menunggu dua candle kanan close. Entry membutuhkan pengujian zona 4H dan close 1H melewati swing internal yang terbentuk selama pengujian. Target struktural terdekat wajib menghasilkan RR minimal 1:2.2. SL keluar tanpa menunggu retest.
+Struktur menentukan arah; EMA21/30/50 hanya posisi harga. Kandidat menunggu konfirmasi break–retest tetap masuk ranking. ATR/RVOL dan informasi kualitas tidak menjadi veto. Penembusan swing internal adalah kelanjutan lokal. Ekstrem struktural menunggu dua candle kanan close. Entry membutuhkan pengujian zona 4H dan close 1H melewati swing internal yang terbentuk selama pengujian. SL di luar ekstrem 1H selama pengujian zona (addendum K-10); protected swing 4H tetap batas struktur patah. Target struktural terdekat wajib menghasilkan RR minimal 1:2.2. SL keluar tanpa menunggu retest. Struktur pending terkonfirmasi patah lewat retest yang menyentuh level atau lewat swing yang tetap di luar level; selama 1D/4H pending, Trading Plan ditahan (addendum K-11).
 
 ## Keputusan teknis operasional
 

@@ -72,6 +72,25 @@ Tanpa batas waktu. Rencana ARMED gugur (void) jika:
 
 Posisi RUNNING hanya keluar lewat SL/TP.
 
+## K-10 · Geometri Trading Plan — SL di ekstrem uji zona 1H (diputuskan 7 Okt 2026)
+
+**Masalah yang ditemukan.** Dalam 7 hari (108 pair, dievaluasi tiap 4 jam) hanya 3 Trading Plan lolos. 856 dari 894 trigger entry (96%) gagal RR 1:2.2, karena SL di protected swing 4H (median risk ±13% harga) sementara target struktural terdekat dekat dengan entry.
+
+**Keputusan.**
+- **SL = di luar ekstrem 1H selama pengujian zona**: low terendah (LONG) atau high tertinggi (SHORT) sejak candle pertama menyentuh zona sampai candle validasi, ditambah 1 tick.
+- Entry tetap close candle 1H validasi. Target tetap level struktural terdekat. RR minimum tetap 1:2.2.
+- Protected swing 4H tetap menjadi batas **struktur patah**, terpisah dari SL (PRD 7.6).
+
+## K-11 · Status "menunggu konfirmasi patah" (diputuskan 7 Okt 2026)
+
+**Masalah yang ditemukan.** 64 dari 108 kandidat tertahan di status menunggu konfirmasi karena harga menembus protected swing lalu melaju tanpa pernah kembali menyentuh level. Arah lama dipertahankan dan zona entry tertinggal jauh (contoh SOL: SHORT dengan zona 74–75 saat harga 121).
+
+**Keputusan.**
+1. Patah terkonfirmasi juga bila **pullback sesudah break membentuk swing terkonfirmasi yang tetap di luar level** (swing high di bawah level untuk bullish yang patah turun; swing low di atas level untuk bearish yang patah naik). Ini bentuk "retest gagal merebut kembali level". Retest yang menyentuh level tetap berlaku seperti sebelumnya. Close yang merebut kembali level tetap membatalkan status pending.
+2. **Selama struktur 1D atau 4H menunggu konfirmasi patah, Trading Plan tidak dibentuk.** Kandidat tetap tampil di ranking Top 150 dengan status "Trading Plan ditahan".
+
+**Hasil pengecekan 7 hari dengan data Binance (sesudah K-10 dan K-11).** Struktur pending turun dari 64 menjadi 5. Trading Plan unik naik dari 3 menjadi 12 (risk median 3,84%, RR median 2,93). Hasil 12 plan itu: 2 TP, 8 SL, 2 berjalan (±−0,6R). Sampel terlalu kecil untuk menilai kualitas; perlu backtest yang lebih panjang.
+
 ## Masih terbuka
 
 - **K-6** · Protected swing setelah sweep: ditunda untuk mencari solusi yang lebih tepat. Sampai diputuskan, perilaku harfiah PRD 3.5 tetap berjalan. Lihat `docs/KEPUTUSAN_TERBUKA.md`.

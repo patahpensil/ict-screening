@@ -1,6 +1,6 @@
 # Validasi implementasi Malomo
 
-- `npm test`: lulus. Self-test pemeriksa, pemeriksaan sintaks/DOM, 51 skenario engine/tracker, serta pengujian transport dan penyimpanan.
+- `npm test`: lulus. Self-test pemeriksa, pemeriksaan sintaks/DOM, 58 skenario engine/tracker, serta pengujian transport dan penyimpanan.
 - `scripts/smoke-browser.js`: lulus pada viewport desktop 1440×1000 dan mobile 390×844. Navigasi, data pasar, watchlist, pencarian, detail, scanner, jurnal, escaping catatan, kalkulator, dan tidak ada overflow horizontal/page error. Binance dimock; tidak mengirim order/notifikasi.
 - Uji PWA offline: lulus. Halaman utama dan seluruh modul baru terbaca dari shell cache saat jaringan dimatikan; fallback navigasi root diperbaiki.
 - CSS dalam `index.html` sama persis dengan branch main sebelum revisi. Shell menggunakan layout/panel yang ada; isi penilaian disesuaikan dengan PRD.

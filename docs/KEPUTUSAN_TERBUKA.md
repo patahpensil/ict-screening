@@ -18,6 +18,8 @@ Hal-hal di bawah tidak dijawab oleh PRD, atau PRD bisa dibaca lebih dari satu ca
 | K-7 | Poin 3.5 | Asal protected yang terkonfirmasi sesudah break | ✅ Diputuskan dengan **catatan koreksi**: ditinjau ulang bila penerapannya keliru |
 | K-8 | — | Mode Intraday vs Swing | ✅ Diputuskan: digabung menjadi "Scan Malomo" |
 | K-9 | — | Masa berlaku rencana ARMED | ✅ Diputuskan: tanpa batas waktu; gugur bila engine tidak lagi menghasilkannya |
+| K-10 | Poin 7 | Geometri Trading Plan (96% trigger gagal RR) | ✅ Diputuskan 7 Okt: SL di luar ekstrem 1H selama pengujian zona; entry, target, RR 1:2.2 tetap |
+| K-11 | Poin 2–4 | Status menunggu konfirmasi patah yang macet | ✅ Diputuskan 7 Okt: patah terkonfirmasi juga lewat swing di luar level; plan ditahan selama 1D/4H pending |
 
 ## K-6 · Protected swing setelah sweep — DITUNDA
 
@@ -39,4 +41,4 @@ Aturan K-7 disetujui dengan syarat dikoreksi bila penerapannya keliru. Saat impl
 ## Catatan operasional (bukan keputusan strategi)
 
 - **Akses Binance dari jaringan Indonesia.** Pada audit 6 Okt 2026, koneksi dari PC pemilik ke `fapi.binance.com` gagal dengan "certificate has expired" dan WebSocket juga gagal. Pola ini menunjukkan koneksi diblokir atau dibelokkan jaringan. Aplikasi berjalan sepenuhnya di browser pengguna, jadi pengguna di jaringan yang sama membutuhkan VPN.
-- **URL WebSocket** `wss://fstream.binance.com/market/stream` belum terverifikasi live dari lingkungan mana pun. Jika WebSocket gagal, aplikasi jatuh ke REST polling 45 detik.
+- **URL WebSocket** terverifikasi live dari VPS pada 7 Okt 2026: `/market/stream` (ticker, markPrice, aggTrade) dan `/public/stream` (depth) mengirim data. Jika WebSocket gagal, aplikasi jatuh ke REST polling 45 detik.

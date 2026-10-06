@@ -51,8 +51,8 @@ const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
     await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
     await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
     await offlinePage.goto('http://127.0.0.1:'+server.address().port);
-    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v94'));
-    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v94');return !!await c.match('./app/main.js');});
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v95'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v95');return !!await c.match('./app/main.js');});
     // `controller` bisa sudah terisi sebelum service worker siap menangani navigasi; tanpa menunggu
     // `ready`, reload offline kadang lolos dari service worker dan gagal (flaky di CI dan Chrome lokal).
     await offlinePage.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));
