@@ -1,0 +1,4492 @@
+{
+ "12bulan|baru_K10_K11": {
+  "stat": {
+   "evals": 414245,
+   "dir": 229676,
+   "held": 10743,
+   "trig": 45621,
+   "plans": 91,
+   "void": 6,
+   "triggerUnik": 1954,
+   "triggerJadiPlan": 118,
+   "triggerGagalRR": 1775,
+   "triggerSudahSelesai": 61
+  },
+  "all": {
+   "trades": 85,
+   "open": 0,
+   "wins": 20,
+   "winRate": 23.529411764705884,
+   "totalR": -3.3368495493711228,
+   "totalRNet": -7.585908777175937,
+   "expectancyR": -0.03925705352201321,
+   "expectancyRNet": -0.08924598561383455,
+   "maxDrawdownRNet": -18.52578152818763,
+   "medianRR": 3.357766143106,
+   "medianRiskPct": 2.3910401681610765
+  },
+  "bySide": {
+   "short": {
+    "trades": 71,
+    "open": 0,
+    "wins": 17,
+    "winRate": 23.943661971830984,
+    "totalR": 0.0037691161433190956,
+    "totalRNet": -3.7991665149258624,
+    "expectancyR": 0.000053086142863649235,
+    "expectancyRNet": -0.05350938753416708,
+    "maxDrawdownRNet": -17.614631283750445,
+    "medianRR": 3.368983957219,
+    "medianRiskPct": 2.2237910342393126
+   },
+   "long": {
+    "trades": 14,
+    "open": 0,
+    "wins": 3,
+    "winRate": 21.428571428571427,
+    "totalR": -3.340618665514442,
+    "totalRNet": -3.7867422622500744,
+    "expectancyR": -0.23861561896531727,
+    "expectancyRNet": -0.2704815901607196,
+    "maxDrawdownRNet": -6.0884457059386925,
+    "medianRR": 3.357766143106,
+    "medianRiskPct": 6.582278481012653
+   }
+  },
+  "byMonth": {
+   "2026-06": {
+    "trades": 16,
+    "open": 0,
+    "wins": 3,
+    "winRate": 18.75,
+    "totalR": -2.484860854920183,
+    "totalRNet": -3.5348313074629347,
+    "expectancyR": -0.15530380343251143,
+    "expectancyRNet": -0.22092695671643342,
+    "maxDrawdownRNet": -11.814700055527744,
+    "medianRR": 3.050632911392,
+    "medianRiskPct": 1.5843110387942076
+   },
+   "2026-07": {
+    "trades": 12,
+    "open": 0,
+    "wins": 2,
+    "winRate": 16.666666666666668,
+    "totalR": -3.685449979499779,
+    "totalRNet": -4.25402714532137,
+    "expectancyR": -0.30712083162498155,
+    "expectancyRNet": -0.35450226211011415,
+    "maxDrawdownRNet": -8.072912561988044,
+    "medianRR": 3.868055555556,
+    "medianRiskPct": 2.342669432918387
+   },
+   "2026-08": {
+    "trades": 10,
+    "open": 0,
+    "wins": 2,
+    "winRate": 20,
+    "totalR": -2.601904166261823,
+    "totalRNet": -3.556834146482175,
+    "expectancyR": -0.2601904166261823,
+    "expectancyRNet": -0.3556834146482175,
+    "maxDrawdownRNet": -7.684453607983688,
+    "medianRR": 3.834586466165,
+    "medianRiskPct": 3.566129191809276
+   },
+   "2026-01": {
+    "trades": 4,
+    "open": 0,
+    "wins": 2,
+    "winRate": 50,
+    "totalR": 3.6792915665015014,
+    "totalRNet": 3.5206645898542956,
+    "expectancyR": 0.9198228916253753,
+    "expectancyRNet": 0.8801661474635739,
+    "maxDrawdownRNet": -2.105877994652406,
+    "medianRR": 2.919933277731,
+    "medianRiskPct": 2.926905619032703
+   },
+   "2026-02": {
+    "trades": 11,
+    "open": 0,
+    "wins": 3,
+    "winRate": 27.272727272727273,
+    "totalR": 1.346606332956271,
+    "totalRNet": 0.9174673543486327,
+    "expectancyR": 0.12241875754147918,
+    "expectancyRNet": 0.08340612312260297,
+    "maxDrawdownRNet": -6.204630784253951,
+    "medianRR": 4.526315789474,
+    "medianRiskPct": 2.2237910342393126
+   },
+   "2026-03": {
+    "trades": 13,
+    "open": 0,
+    "wins": 4,
+    "winRate": 30.76923076923077,
+    "totalR": 5.513067959145481,
+    "totalRNet": 5.018494311464347,
+    "expectancyR": 0.42408215070349853,
+    "expectancyRNet": 0.38603802395879594,
+    "maxDrawdownRNet": -5.216957647664588,
+    "medianRR": 4.603773584906,
+    "medianRiskPct": 2.6213592233009697
+   },
+   "2025-10": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.3743760399334435,
+    "totalRNet": 1.3393466206867901,
+    "expectancyR": 0.6871880199667217,
+    "expectancyRNet": 0.6696733103433951,
+    "maxDrawdownRNet": -1.0168954758190327,
+    "medianRR": 4.465678627145,
+    "medianRiskPct": 5.7486211380655545
+   },
+   "2025-11": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.0175629161399073,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0087814580699537,
+    "maxDrawdownRNet": -2.0175629161399073,
+    "medianRR": 2.371428571429,
+    "medianRiskPct": 11.524452430673604
+   },
+   "2026-10": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.0474439920777776,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0237219960388888,
+    "maxDrawdownRNet": -2.0474439920777776,
+    "medianRR": 4.085743890856,
+    "medianRiskPct": 15.103025560772034
+   },
+   "2025-12": {
+    "trades": 5,
+    "open": 0,
+    "wins": 1,
+    "winRate": 20,
+    "totalR": -1.5438596491228291,
+    "totalRNet": -1.8059398271446714,
+    "expectancyR": -0.3087719298245658,
+    "expectancyRNet": -0.3611879654289343,
+    "maxDrawdownRNet": -2.111802919708029,
+    "medianRR": 2.456140350877,
+    "medianRiskPct": 1.9683908045977023
+   },
+   "2026-05": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0296702127659574,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0296702127659574,
+    "maxDrawdownRNet": -1.0296702127659574,
+    "medianRR": 4.234042553191,
+    "medianRiskPct": 3.4281546316557208
+   },
+   "2026-09": {
+    "trades": 4,
+    "open": 0,
+    "wins": 1,
+    "winRate": 25,
+    "totalR": -0.7387144992526187,
+    "totalRNet": -0.817374696302875,
+    "expectancyR": -0.18467862481315467,
+    "expectancyRNet": -0.20434367407571874,
+    "maxDrawdownRNet": -3.0681483883806,
+    "medianRR": 3.06914893617,
+    "medianRiskPct": 8.16417577515057
+   },
+   "2026-04": {
+    "trades": 3,
+    "open": 0,
+    "wins": 1,
+    "winRate": 33.333333333333336,
+    "totalR": 0.8045977011494139,
+    "totalRNet": 0.6818025901676679,
+    "expectancyR": 0.2681992337164713,
+    "expectancyRNet": 0.2272675300558893,
+    "maxDrawdownRNet": -1.053849040139616,
+    "medianRR": 3.357766143106,
+    "medianRiskPct": 2.7377360598949516
+   }
+  },
+  "bySymbol": {
+   "BTCUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.2336369539736456,
+    "expectancyR": -1,
+    "expectancyRNet": -1.1168184769868228,
+    "maxDrawdownRNet": -2.2336369539736456,
+    "medianRR": 6.745491896827,
+    "medianRiskPct": 1.1645943269700738
+   },
+   "ETHUSDT": {
+    "trades": 3,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -3,
+    "totalRNet": -3.6670315141868444,
+    "expectancyR": -1,
+    "expectancyRNet": -1.2223438380622815,
+    "maxDrawdownRNet": -3.6670315141868444,
+    "medianRR": 5.143732970027,
+    "medianRiskPct": 0.8103647193256565
+   },
+   "SOLUSDT": {
+    "trades": 6,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -6,
+    "totalRNet": -6.232898295486274,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0388163825810457,
+    "maxDrawdownRNet": -6.232898295486274,
+    "medianRR": 4.073619631902,
+    "medianRiskPct": 3.145508033491758
+   },
+   "ZECUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.0250726776732257,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0125363388366129,
+    "maxDrawdownRNet": -2.0250726776732257,
+    "medianRR": 4.465678627145,
+    "medianRiskPct": 11.524452430673604
+   },
+   "RLCUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.7593582887700614,
+    "totalRNet": 1.6879491978609704,
+    "expectancyR": 0.8796791443850307,
+    "expectancyRNet": 0.8439745989304852,
+    "maxDrawdownRNet": -1.0386229946524064,
+    "medianRR": 3.368983957219,
+    "medianRiskPct": 2.926905619032703
+   },
+   "XRPUSDT": {
+    "trades": 5,
+    "open": 0,
+    "wins": 2,
+    "winRate": 40,
+    "totalR": 3.6194674379176375,
+    "totalRNet": 3.286605436744379,
+    "expectancyR": 0.7238934875835275,
+    "expectancyRNet": 0.6573210873488758,
+    "maxDrawdownRNet": -3.2303664691098284,
+    "medianRR": 3.050632911392,
+    "medianRiskPct": 1.431331225851772
+   },
+   "NEARUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0211274509803923,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0211274509803923,
+    "maxDrawdownRNet": -1.0211274509803923,
+    "medianRR": 4.156862745098,
+    "medianRiskPct": 4.847908745247142
+   },
+   "BRUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 2.1926605504587156,
+    "totalRNet": 2.168527565034834,
+    "expectancyR": 1.0963302752293578,
+    "expectancyRNet": 1.084263782517417,
+    "maxDrawdownRNet": -1.0061211898799756,
+    "medianRR": 4.085743890856,
+    "medianRiskPct": 15.103025560772034
+   },
+   "HYPEUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.91993327773144,
+    "totalRNet": 1.8762206190596284,
+    "expectancyR": 0.95996663886572,
+    "expectancyRNet": 0.9381103095298142,
+    "maxDrawdownRNet": -1.0237497729336966,
+    "medianRR": 3.099909173479,
+    "medianRiskPct": 4.667912481507442
+   },
+   "ORCAUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.068997798972854,
+    "expectancyR": -1,
+    "expectancyRNet": -1.034498899486427,
+    "maxDrawdownRNet": -2.068997798972854,
+    "medianRR": 4.234042553191,
+    "medianRiskPct": 3.4281546316557208
+   },
+   "ADAUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.3015873015873138,
+    "totalRNet": 1.2335130845130966,
+    "expectancyR": 0.6507936507936569,
+    "expectancyRNet": 0.6167565422565483,
+    "maxDrawdownRNet": -1.0242567567567569,
+    "medianRR": 2.405405405405,
+    "medianRiskPct": 4.209328782707616
+   },
+   "SUIUSDT": {
+    "trades": 9,
+    "open": 0,
+    "wins": 2,
+    "winRate": 22.22222222222222,
+    "totalR": 0.4980555555555721,
+    "totalRNet": 0.1392768848027921,
+    "expectancyR": 0.05533950617284135,
+    "expectancyRNet": 0.015475209422532455,
+    "maxDrawdownRNet": -7.285120198530558,
+    "medianRR": 3.63,
+    "medianRiskPct": 2.8676771814830015
+   },
+   "QNTUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0937063492063488,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0937063492063488,
+    "maxDrawdownRNet": -1.0937063492063488,
+    "medianRR": 8.650793650794,
+    "medianRiskPct": 1.072888283378751
+   },
+   "UNIUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0287125984251968,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0287125984251968,
+    "maxDrawdownRNet": -1.0287125984251968,
+    "medianRR": 5.92125984252,
+    "medianRiskPct": 3.544515768908729
+   },
+   "AVAXUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 4.65957446808512,
+    "totalRNet": 4.618359574468099,
+    "expectancyR": 4.65957446808512,
+    "expectancyRNet": 4.618359574468099,
+    "maxDrawdownRNet": 0,
+    "medianRR": 4.659574468085,
+    "medianRiskPct": 2.296491742402027
+   },
+   "PUMPUSDT": {
+    "trades": 3,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -3,
+    "totalRNet": -3.0426326708953972,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0142108902984657,
+    "maxDrawdownRNet": -3.0426326708953972,
+    "medianRR": 3.834586466165,
+    "medianRiskPct": 6.582278481012653
+   },
+   "WLDUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 3.6805555555555487,
+    "totalRNet": 3.6534374999999932,
+    "expectancyR": 3.6805555555555487,
+    "expectancyRNet": 3.6534374999999932,
+    "maxDrawdownRNet": 0,
+    "medianRR": 3.680555555556,
+    "medianRiskPct": 3.4532374100719485
+   },
+   "ENAUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.111802919708029,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0559014598540144,
+    "maxDrawdownRNet": -2.111802919708029,
+    "medianRR": 3.105413105413,
+    "medianRiskPct": 1.9683908045977023
+   },
+   "1000PEPEUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0707748538011699,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0707748538011699,
+    "maxDrawdownRNet": -1.0707748538011699,
+    "medianRR": 2.956140350877,
+    "medianRiskPct": 1.4229841058500399
+   },
+   "API3USDT": {
+    "trades": 6,
+    "open": 0,
+    "wins": 1,
+    "winRate": 16.666666666666668,
+    "totalR": -0.4736842105263044,
+    "totalRNet": -0.779197678880329,
+    "expectancyR": -0.07894736842105073,
+    "expectancyRNet": -0.12986627981338816,
+    "maxDrawdownRNet": -4.202021070693205,
+    "medianRR": 4.526315789474,
+    "medianRiskPct": 2.058083695403602
+   },
+   "TAOUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.095171842337418,
+    "expectancyR": -1,
+    "expectancyRNet": -1.047585921168709,
+    "maxDrawdownRNet": -2.095171842337418,
+    "medianRR": 3.357766143106,
+    "medianRiskPct": 2.3910401681610765
+   },
+   "ONDOUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0533113207547167,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0533113207547167,
+    "maxDrawdownRNet": -1.0533113207547167,
+    "medianRR": 4.603773584906,
+    "medianRiskPct": 1.8935334047874337
+   },
+   "LINKUSDT": {
+    "trades": 7,
+    "open": 0,
+    "wins": 2,
+    "winRate": 28.571428571428573,
+    "totalR": 1.1082446034793896,
+    "totalRNet": 0.8131431513597345,
+    "expectancyR": 0.1583206576399128,
+    "expectancyRNet": 0.11616330733710492,
+    "maxDrawdownRNet": -3.1541108687912205,
+    "medianRR": 4.845303867403,
+    "medianRiskPct": 2.595948284638084
+   },
+   "PENGUUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.049676,
+    "expectancyR": -1,
+    "expectancyRNet": -1.049676,
+    "maxDrawdownRNet": -1.049676,
+    "medianRR": 2.6,
+    "medianRiskPct": 2.0335122824141876
+   },
+   "BTWUSDT": {
+    "trades": 4,
+    "open": 0,
+    "wins": 1,
+    "winRate": 25,
+    "totalR": -0.7387144992526187,
+    "totalRNet": -0.7950393429655693,
+    "expectancyR": -0.18467862481315467,
+    "expectancyRNet": -0.19875983574139233,
+    "maxDrawdownRNet": -3.0458130350432944,
+    "medianRR": 3.998849104859,
+    "medianRiskPct": 10.659655831739972
+   },
+   "MOVRUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0417074468085108,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0417074468085108,
+    "maxDrawdownRNet": -1.0417074468085108,
+    "medianRR": 3.06914893617,
+    "medianRiskPct": 2.4267458370982222
+   },
+   "LTCUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.776859504132251,
+    "totalRNet": 1.675212154807518,
+    "expectancyR": 0.8884297520661255,
+    "expectancyRNet": 0.837606077403759,
+    "maxDrawdownRNet": -1.0550853658536585,
+    "medianRR": 2.776859504132,
+    "medianRiskPct": 2.085487762840389
+   },
+   "INJUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.4561403508771709,
+    "totalRNet": 1.3400536062377952,
+    "expectancyR": 0.7280701754385854,
+    "expectancyRNet": 0.6700268031188976,
+    "maxDrawdownRNet": -1.0386481481481482,
+    "medianRR": 2.79012345679,
+    "medianRiskPct": 2.6213592233009697
+   },
+   "PAXGUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 2.2054352832794617,
+    "totalRNet": 2.0026467065867024,
+    "expectancyR": 2.2054352832794617,
+    "expectancyRNet": 2.0026467065867024,
+    "maxDrawdownRNet": 0,
+    "medianRR": 2.205435283279,
+    "medianRiskPct": 0.49582058192118356
+   },
+   "ASTERUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 2.3743760399334435,
+    "totalRNet": 2.356242096505823,
+    "expectancyR": 2.3743760399334435,
+    "expectancyRNet": 2.356242096505823,
+    "maxDrawdownRNet": 0,
+    "medianRR": 2.374376039933,
+    "medianRiskPct": 5.175680330692391
+   },
+   "MINAUSDT": {
+    "trades": 4,
+    "open": 0,
+    "wins": 2,
+    "winRate": 50,
+    "totalR": 3.323300943044675,
+    "totalRNet": 3.1752776307879036,
+    "expectancyR": 0.8308252357611687,
+    "expectancyRNet": 0.7938194076969759,
+    "maxDrawdownRNet": -1.0539999999999998,
+    "medianRR": 2.804597701149,
+    "medianRiskPct": 3.0010348395998716
+   },
+   "DOTUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.033754593175853,
+    "expectancyR": -1,
+    "expectancyRNet": -1.033754593175853,
+    "maxDrawdownRNet": -1.033754593175853,
+    "medianRR": 4.409448818898,
+    "medianRiskPct": 3.0071033938437273
+   },
+   "VTHOUSDT": {
+    "trades": 3,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -3,
+    "totalRNet": -3.1587359634277155,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0529119878092386,
+    "maxDrawdownRNet": -3.1587359634277155,
+    "medianRR": 5.570552147239,
+    "medianRiskPct": 1.9631071247249885
+   },
+   "MUBARAKUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0093857142857143,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0093857142857143,
+    "maxDrawdownRNet": -1.0093857142857143,
+    "medianRR": 2.371428571429,
+    "medianRiskPct": 11.254019292604509
+   }
+  },
+  "tendencies": {
+   "sisi": {
+    "short": {
+     "trades": 71,
+     "winRate": 23.943661971830984,
+     "expectancyRNet": -0.05350938753416708,
+     "totalRNet": -3.7991665149258624,
+     "paruh1": {
+      "trades": 37,
+      "expectancyRNet": 0.2900863362445945
+     },
+     "paruh2": {
+      "trades": 34,
+      "expectancyRNet": -0.42742238105811353
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "long": {
+     "trades": 14,
+     "winRate": 21.428571428571427,
+     "expectancyRNet": -0.2704815901607196,
+     "totalRNet": -3.7867422622500744,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.0263072392709471
+     },
+     "paruh2": {
+      "trades": 11,
+      "expectancyRNet": -0.0643473222215666
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rr": {
+    "≥6": {
+     "trades": 11,
+     "winRate": 0,
+     "expectancyRNet": -1.0613676136963244,
+     "totalRNet": -11.675043750659569,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": -1.049200221303868
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.0826605503831233
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–4": {
+     "trades": 19,
+     "winRate": 26.31578947368421,
+     "expectancyRNet": 0.13751322327081433,
+     "totalRNet": 2.6127512421454724,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 0.2589709871463635
+     },
+     "paruh2": {
+      "trades": 12,
+      "expectancyRNet": 0.06666286101007739
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–6": {
+     "trades": 20,
+     "winRate": 15,
+     "expectancyRNet": -0.2267538455635349,
+     "totalRNet": -4.535076911270698,
+     "paruh1": {
+      "trades": 11,
+      "expectancyRNet": -0.018300452645611785
+     },
+     "paruh2": {
+      "trades": 9,
+      "expectancyRNet": -0.48153021468544094
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "<3": {
+     "trades": 35,
+     "winRate": 34.285714285714285,
+     "expectancyRNet": 0.17175601836025306,
+     "totalRNet": 6.011460642608857,
+     "paruh1": {
+      "trades": 15,
+      "expectancyRNet": 0.8924788227627611
+     },
+     "paruh2": {
+      "trades": 20,
+      "expectancyRNet": -0.368786084941628
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "risikoPersen": {
+    "<1": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": -0.433699853962343,
+     "totalRNet": -1.734799415849372,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -0.433699853962343
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1–2": {
+     "trades": 27,
+     "winRate": 14.814814814814815,
+     "expectancyRNet": -0.35948374791579274,
+     "totalRNet": -9.706061193726404,
+     "paruh1": {
+      "trades": 10,
+      "expectancyRNet": -0.16179810852677612
+     },
+     "paruh2": {
+      "trades": 17,
+      "expectancyRNet": -0.47576941814462603
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "4–8": {
+     "trades": 15,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.22920861250906885,
+     "totalRNet": 3.438129187636033,
+     "paruh1": {
+      "trades": 9,
+      "expectancyRNet": 0.18241555608940466
+     },
+     "paruh2": {
+      "trades": 6,
+      "expectancyRNet": 0.29939819713856514
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "2–4": {
+     "trades": 33,
+     "winRate": 27.272727272727273,
+     "expectancyRNet": 0.09718008926614174,
+     "totalRNet": 3.2069429457826777,
+     "paruh1": {
+      "trades": 19,
+      "expectancyRNet": 0.507793511570536
+     },
+     "paruh2": {
+      "trades": 14,
+      "expectancyRNet": -0.4600809838612503
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "≥8": {
+     "trades": 6,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.4650200501698117,
+     "totalRNet": -2.79012030101887,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0087814580699537
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -0.19313934621974083
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lokasiZona": {
+    "discount": {
+     "trades": 39,
+     "winRate": 20.512820512820515,
+     "expectancyRNet": -0.2518806951534326,
+     "totalRNet": -9.823347110983871,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 0.4770989459527626
+     },
+     "paruh2": {
+      "trades": 32,
+      "expectancyRNet": -0.41134499164541294
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "premium": {
+     "trades": 46,
+     "winRate": 26.08695652173913,
+     "expectancyRNet": 0.048639963778433486,
+     "totalRNet": 2.2374383338079404,
+     "paruh1": {
+      "trades": 33,
+      "expectancyRNet": 0.1307448515626611
+     },
+     "paruh2": {
+      "trades": 13,
+      "expectancyRNet": -0.15978013598152901
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "zonaFVG": {
+    "tidak": {
+     "trades": 65,
+     "winRate": 23.076923076923077,
+     "expectancyRNet": -0.07346952078327103,
+     "totalRNet": -4.775518850912617,
+     "paruh1": {
+      "trades": 29,
+      "expectancyRNet": 0.2831843324878559
+     },
+     "paruh2": {
+      "trades": 36,
+      "expectancyRNet": -0.3607740136961234
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "ya": {
+     "trades": 20,
+     "winRate": 25,
+     "expectancyRNet": -0.1405194963131659,
+     "totalRNet": -2.810389926263318,
+     "paruh1": {
+      "trades": 11,
+      "expectancyRNet": -0.050733901719151486
+     },
+     "paruh2": {
+      "trades": 9,
+      "expectancyRNet": -0.25025744526140575
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "pengujianZona": {
+    "ulang": {
+     "trades": 63,
+     "winRate": 25.396825396825395,
+     "expectancyRNet": 0.02364591563183298,
+     "totalRNet": 1.4896926848054777,
+     "paruh1": {
+      "trades": 30,
+      "expectancyRNet": 0.2394306075531337
+     },
+     "paruh2": {
+      "trades": 33,
+      "expectancyRNet": -0.17252198611480402
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "pertama": {
+     "trades": 22,
+     "winRate": 18.181818181818183,
+     "expectancyRNet": -0.4125273391809735,
+     "totalRNet": -9.075601461981417,
+     "paruh1": {
+      "trades": 10,
+      "expectancyRNet": 0.04713544966431445
+     },
+     "paruh2": {
+      "trades": 12,
+      "expectancyRNet": -0.7955796632187134
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "lamaUjiJam": {
+    "12–48": {
+     "trades": 52,
+     "winRate": 19.23076923076923,
+     "expectancyRNet": -0.24567092088512654,
+     "totalRNet": -12.77488788602658,
+     "paruh1": {
+      "trades": 26,
+      "expectancyRNet": 0.010028353966416489
+     },
+     "paruh2": {
+      "trades": 26,
+      "expectancyRNet": -0.5013701957366694
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "≥48": {
+     "trades": 7,
+     "winRate": 57.142857142857146,
+     "expectancyRNet": 1.1466869890804505,
+     "totalRNet": 8.026808923563154,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 3.3592549019607962
+     },
+     "paruh2": {
+      "trades": 6,
+      "expectancyRNet": 0.7779256702670594
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–12": {
+     "trades": 26,
+     "winRate": 23.076923076923077,
+     "expectancyRNet": -0.1091473005658658,
+     "totalRNet": -2.837829814712511,
+     "paruh1": {
+      "trades": 13,
+      "expectancyRNet": 0.31032927831919477
+     },
+     "paruh2": {
+      "trades": 13,
+      "expectancyRNet": -0.5286238794509261
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "fase4H": {
+    "pullback": {
+     "trades": 80,
+     "winRate": 22.5,
+     "expectancyRNet": -0.11983685297544418,
+     "totalRNet": -9.586948238035534,
+     "paruh1": {
+      "trades": 39,
+      "expectancyRNet": 0.13527105048336438
+     },
+     "paruh2": {
+      "trades": 41,
+      "expectancyRNet": -0.3625004684606522
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "kelanjutan struktural": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0296702127659574,
+     "totalRNet": -1.0296702127659574,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0296702127659574
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "kelanjutan lokal": {
+     "trades": 4,
+     "winRate": 50,
+     "expectancyRNet": 0.757677418406387,
+     "totalRNet": 3.030709673625548,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 2.3787017543859434
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.21733597307986816
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er4H": {
+    "sedang": {
+     "trades": 25,
+     "winRate": 32,
+     "expectancyRNet": 0.30973244771854197,
+     "totalRNet": 7.743311192963549,
+     "paruh1": {
+      "trades": 12,
+      "expectancyRNet": 0.7430338150003611
+     },
+     "paruh2": {
+      "trades": 13,
+      "expectancyRNet": -0.09023804515698337
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "choppy": {
+     "trades": 55,
+     "winRate": 18.181818181818183,
+     "expectancyRNet": -0.3088644702739832,
+     "totalRNet": -16.987545865069077,
+     "paruh1": {
+      "trades": 27,
+      "expectancyRNet": -0.13401389456566673
+     },
+     "paruh2": {
+      "trades": 28,
+      "expectancyRNet": -0.4774703825641455
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "bersih": {
+     "trades": 5,
+     "winRate": 40,
+     "expectancyRNet": 0.33166517898591763,
+     "totalRNet": 1.6583258949295883,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 2.356242096505823
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -0.17447905039405864
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er1D": {
+    "bersih": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.068910465666572,
+     "totalRNet": -3.2067313969997158,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.068910465666572
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "sedang": {
+     "trades": 25,
+     "winRate": 32,
+     "expectancyRNet": 0.34065099605418253,
+     "totalRNet": 8.516274901354564,
+     "paruh1": {
+      "trades": 12,
+      "expectancyRNet": 0.6849477222933208
+     },
+     "paruh2": {
+      "trades": 13,
+      "expectancyRNet": 0.02283863337190137
+     },
+     "kecenderungan": "condong positif (konsisten)"
+    },
+    "choppy": {
+     "trades": 57,
+     "winRate": 21.05263157894737,
+     "expectancyRNet": -0.2262360049391366,
+     "totalRNet": -12.895452281530785,
+     "paruh1": {
+      "trades": 28,
+      "expectancyRNet": -0.02018214086723898
+     },
+     "paruh2": {
+      "trades": 29,
+      "expectancyRNet": -0.42518456335338256
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "regime4H": {
+    "contraction": {
+     "trades": 44,
+     "winRate": 13.636363636363637,
+     "expectancyRNet": -0.4885705367175484,
+     "totalRNet": -21.49710361557213,
+     "paruh1": {
+      "trades": 19,
+      "expectancyRNet": -0.21908346018608613
+     },
+     "paruh2": {
+      "trades": 25,
+      "expectancyRNet": -0.6933807148814597
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "normal": {
+     "trades": 29,
+     "winRate": 37.93103448275862,
+     "expectancyRNet": 0.4369858258078615,
+     "totalRNet": 12.672588948427983,
+     "paruh1": {
+      "trades": 15,
+      "expectancyRNet": 0.633478651949937
+     },
+     "paruh2": {
+      "trades": 14,
+      "expectancyRNet": 0.22645779779849481
+     },
+     "kecenderungan": "condong positif (konsisten)"
+    },
+    "expansion": {
+     "trades": 12,
+     "winRate": 25,
+     "expectancyRNet": 0.10321715749735133,
+     "totalRNet": 1.238605889968216,
+     "paruh1": {
+      "trades": 6,
+      "expectancyRNet": 0.3857797812539565
+     },
+     "paruh2": {
+      "trades": 6,
+      "expectancyRNet": -0.17934546625925393
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime1D": {
+    "normal": {
+     "trades": 25,
+     "winRate": 24,
+     "expectancyRNet": -0.011411774284761967,
+     "totalRNet": -0.28529435711904916,
+     "paruh1": {
+      "trades": 9,
+      "expectancyRNet": -0.033407986152948724
+     },
+     "paruh2": {
+      "trades": 16,
+      "expectancyRNet": 0.0009610948910930978
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "contraction": {
+     "trades": 46,
+     "winRate": 26.08695652173913,
+     "expectancyRNet": 0.00732285695553987,
+     "totalRNet": 0.33685141995483403,
+     "paruh1": {
+      "trades": 27,
+      "expectancyRNet": 0.3213934896266931
+     },
+     "paruh2": {
+      "trades": 19,
+      "expectancyRNet": -0.43898804210346715
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "expansion": {
+     "trades": 9,
+     "winRate": 0,
+     "expectancyRNet": -1.0220742881724416,
+     "totalRNet": -9.198668593551975,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.0263072392709471
+     },
+     "paruh2": {
+      "trades": 6,
+      "expectancyRNet": -1.019957812623189
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "data kurang": {
+     "trades": 5,
+     "winRate": 40,
+     "expectancyRNet": 0.3122405507080507,
+     "totalRNet": 1.5612027535402535,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 2.356242096505823
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -0.19875983574139233
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "displacement4H": {
+    "kuat": {
+     "trades": 31,
+     "winRate": 22.580645161290324,
+     "expectancyRNet": -0.19553941423145718,
+     "totalRNet": -6.0617218411751725,
+     "paruh1": {
+      "trades": 17,
+      "expectancyRNet": -0.3772047910011032
+     },
+     "paruh2": {
+      "trades": 14,
+      "expectancyRNet": 0.02505425756025586
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "sedang": {
+     "trades": 18,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.4203336591221555,
+     "totalRNet": -7.566005864198798,
+     "paruh1": {
+      "trades": 8,
+      "expectancyRNet": -0.19770748153155662
+     },
+     "paruh2": {
+      "trades": 10,
+      "expectancyRNet": -0.5984346011946344
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "lemah": {
+     "trades": 36,
+     "winRate": 27.77777777777778,
+     "expectancyRNet": 0.1678283035610565,
+     "totalRNet": 6.041818928198033,
+     "paruh1": {
+      "trades": 15,
+      "expectancyRNet": 1.0432276015005575
+     },
+     "paruh2": {
+      "trades": 21,
+      "expectancyRNet": -0.4574569092528728
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "adx4H": {
+    "<20": {
+     "trades": 42,
+     "winRate": 14.285714285714286,
+     "expectancyRNet": -0.4456897558395614,
+     "totalRNet": -18.718969745261578,
+     "paruh1": {
+      "trades": 19,
+      "expectancyRNet": -0.1394647014760081
+     },
+     "paruh2": {
+      "trades": 23,
+      "expectancyRNet": -0.6986582790094533
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "25–35": {
+     "trades": 13,
+     "winRate": 15.384615384615385,
+     "expectancyRNet": -0.42570998593790316,
+     "totalRNet": -5.534229817192741,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.24154809949522207
+     },
+     "paruh2": {
+      "trades": 10,
+      "expectancyRNet": -0.6258874115678408
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥35": {
+     "trades": 15,
+     "winRate": 40,
+     "expectancyRNet": 0.6545342055019527,
+     "totalRNet": 9.81801308252929,
+     "paruh1": {
+      "trades": 8,
+      "expectancyRNet": 0.6834193981601611
+     },
+     "paruh2": {
+      "trades": 7,
+      "expectancyRNet": 0.6215225567497148
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "20–25": {
+     "trades": 15,
+     "winRate": 40,
+     "expectancyRNet": 0.45661851351660626,
+     "totalRNet": 6.849277702749094,
+     "paruh1": {
+      "trades": 10,
+      "expectancyRNet": 0.4112102567514356
+     },
+     "paruh2": {
+      "trades": 5,
+      "expectancyRNet": 0.5474350270469477
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "diSearah": {
+    "berlawanan": {
+     "trades": 62,
+     "winRate": 22.580645161290324,
+     "expectancyRNet": -0.0878289788347355,
+     "totalRNet": -5.445396687753601,
+     "paruh1": {
+      "trades": 31,
+      "expectancyRNet": 0.20409807999638893
+     },
+     "paruh2": {
+      "trades": 31,
+      "expectancyRNet": -0.3797560376658599
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "searah": {
+     "trades": 23,
+     "winRate": 26.08695652173913,
+     "expectancyRNet": -0.09306574301836239,
+     "totalRNet": -2.140512089422335,
+     "paruh1": {
+      "trades": 9,
+      "expectancyRNet": 0.14747024926101096
+     },
+     "paruh2": {
+      "trades": 14,
+      "expectancyRNet": -0.24769602376938812
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "ema4H": {
+    "0/3 searah": {
+     "trades": 50,
+     "winRate": 26,
+     "expectancyRNet": 0.03646970393502059,
+     "totalRNet": 1.8234851967510293,
+     "paruh1": {
+      "trades": 24,
+      "expectancyRNet": 0.5634681886241291
+     },
+     "paruh2": {
+      "trades": 26,
+      "expectancyRNet": -0.44999043577800263
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "3/3 searah": {
+     "trades": 20,
+     "winRate": 30,
+     "expectancyRNet": 0.05328836075009098,
+     "totalRNet": 1.0657672150018196,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 0.4949685874094995
+     },
+     "paruh2": {
+      "trades": 13,
+      "expectancyRNet": -0.1845394536049752
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1/3 searah": {
+     "trades": 10,
+     "winRate": 10,
+     "expectancyRNet": -0.5237988945017612,
+     "totalRNet": -5.237988945017612,
+     "paruh1": {
+      "trades": 6,
+      "expectancyRNet": -1.0284168901213329
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": 0.23312809892759617
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "2/3 searah": {
+     "trades": 5,
+     "winRate": 0,
+     "expectancyRNet": -1.0474344487822353,
+     "totalRNet": -5.237172243911177,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.0544141916268142
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0369648345153664
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema1D": {
+    "3/3 searah": {
+     "trades": 56,
+     "winRate": 19.642857142857142,
+     "expectancyRNet": -0.2541077746023854,
+     "totalRNet": -14.23003537773358,
+     "paruh1": {
+      "trades": 26,
+      "expectancyRNet": -0.2851799972731823
+     },
+     "paruh2": {
+      "trades": 30,
+      "expectancyRNet": -0.22717851495436137
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "1/3 searah": {
+     "trades": 13,
+     "winRate": 23.076923076923077,
+     "expectancyRNet": -0.16243457021999447,
+     "totalRNet": -2.111649412859928,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 1.0763873350412014
+     },
+     "paruh2": {
+      "trades": 9,
+      "expectancyRNet": -0.7130220836694149
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "2/3 searah": {
+     "trades": 11,
+     "winRate": 18.181818181818183,
+     "expectancyRNet": -0.3716510676304454,
+     "totalRNet": -4.0881617439349,
+     "paruh1": {
+      "trades": 6,
+      "expectancyRNet": 0.1823523849562376
+     },
+     "paruh2": {
+      "trades": 5,
+      "expectancyRNet": -1.0364552107344653
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "0/3 searah": {
+     "trades": 5,
+     "winRate": 80,
+     "expectancyRNet": 2.568787551470495,
+     "totalRNet": 12.843937757352474,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 2.4173222506094163
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": 3.1746487549148097
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "cvd24jam": {
+    "berlawanan": {
+     "trades": 32,
+     "winRate": 18.75,
+     "expectancyRNet": -0.34216644569188226,
+     "totalRNet": -10.949326262140232,
+     "paruh1": {
+      "trades": 13,
+      "expectancyRNet": -0.09489073943635778
+     },
+     "paruh2": {
+      "trades": 19,
+      "expectancyRNet": -0.5113550868140831
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "searah": {
+     "trades": 53,
+     "winRate": 26.41509433962264,
+     "expectancyRNet": 0.06346070726347727,
+     "totalRNet": 3.3634174849642955,
+     "paruh1": {
+      "trades": 27,
+      "expectancyRNet": 0.3291797161448076
+     },
+     "paruh2": {
+      "trades": 26,
+      "expectancyRNet": -0.21247826349790433
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   },
+   "rvolTrigger1H": {
+    "<0.8": {
+     "trades": 25,
+     "winRate": 16,
+     "expectancyRNet": -0.362738945360723,
+     "totalRNet": -9.068473634018074,
+     "paruh1": {
+      "trades": 11,
+      "expectancyRNet": -0.6141036545892947
+     },
+     "paruh2": {
+      "trades": 14,
+      "expectancyRNet": -0.16523810239541656
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "1.1–2": {
+     "trades": 32,
+     "winRate": 25,
+     "expectancyRNet": -0.019122817614693394,
+     "totalRNet": -0.6119301636701886,
+     "paruh1": {
+      "trades": 15,
+      "expectancyRNet": 0.8384693015566396
+     },
+     "paruh2": {
+      "trades": 17,
+      "expectancyRNet": -0.7758217462952812
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "0.8–1.1": {
+     "trades": 22,
+     "winRate": 27.272727272727273,
+     "expectancyRNet": -0.01188712943639863,
+     "totalRNet": -0.2615168476007699,
+     "paruh1": {
+      "trades": 11,
+      "expectancyRNet": 0.44675914766217223
+     },
+     "paruh2": {
+      "trades": 11,
+      "expectancyRNet": -0.4705334065349694
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "≥2": {
+     "trades": 6,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.3926686446855161,
+     "totalRNet": 2.3560118681130966,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.0273257413046961
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 1.8126630306757283
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "sesiUTC": {
+    "Asia 00–08": {
+     "trades": 37,
+     "winRate": 18.91891891891892,
+     "expectancyRNet": -0.2507842341956358,
+     "totalRNet": -9.279016665238524,
+     "paruh1": {
+      "trades": 17,
+      "expectancyRNet": 0.26214150503745576
+     },
+     "paruh2": {
+      "trades": 20,
+      "expectancyRNet": -0.6867711125437637
+     },
+     "kecenderungan": "tidak konsisten"
+    },
+    "New York 13–21": {
+     "trades": 19,
+     "winRate": 15.789473684210526,
+     "expectancyRNet": -0.4849862098107002,
+     "totalRNet": -9.214737986403303,
+     "paruh1": {
+      "trades": 9,
+      "expectancyRNet": -0.2688211808738197
+     },
+     "paruh2": {
+      "trades": 10,
+      "expectancyRNet": -0.6795347358538926
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "Malam 21–24": {
+     "trades": 13,
+     "winRate": 38.46153846153846,
+     "expectancyRNet": 0.4382086301882954,
+     "totalRNet": 5.6967121924478406,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 1.1840100181088755
+     },
+     "paruh2": {
+      "trades": 8,
+      "expectancyRNet": -0.027917237262067157
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "London 08–13": {
+     "trades": 16,
+     "winRate": 31.25,
+     "expectancyRNet": 0.32569585512612825,
+     "totalRNet": 5.211133682018052,
+     "paruh1": {
+      "trades": 9,
+      "expectancyRNet": -0.03364359167551031
+     },
+     "paruh2": {
+      "trades": 7,
+      "expectancyRNet": 0.7877037152996635
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "hari": {
+    "akhir pekan": {
+     "trades": 33,
+     "winRate": 15.151515151515152,
+     "expectancyRNet": -0.46578063158376976,
+     "totalRNet": -15.370760842264401,
+     "paruh1": {
+      "trades": 14,
+      "expectancyRNet": -0.4045516561398364
+     },
+     "paruh2": {
+      "trades": 19,
+      "expectancyRNet": -0.5108967187529836
+     },
+     "kecenderungan": "condong negatif (konsisten)"
+    },
+    "hari kerja": {
+     "trades": 52,
+     "winRate": 28.846153846153847,
+     "expectancyRNet": 0.14970869355939354,
+     "totalRNet": 7.784852065088463,
+     "paruh1": {
+      "trades": 26,
+      "expectancyRNet": 0.5122306118921103
+     },
+     "paruh2": {
+      "trades": 26,
+      "expectancyRNet": -0.2128132247733232
+     },
+     "kecenderungan": "tidak konsisten"
+    }
+   }
+  }
+ },
+ "12bulan|lama": {
+  "stat": {
+   "evals": 414245,
+   "dir": 205667,
+   "held": 0,
+   "trig": 43703,
+   "plans": 15,
+   "void": 3,
+   "triggerUnik": 1464,
+   "triggerJadiPlan": 18,
+   "triggerGagalRR": 1445,
+   "triggerSudahSelesai": 1
+  },
+  "all": {
+   "trades": 12,
+   "open": 0,
+   "wins": 4,
+   "winRate": 33.333333333333336,
+   "totalR": 9.7609057910251,
+   "totalRNet": 9.333283972279101,
+   "expectancyR": 0.8134088159187584,
+   "expectancyRNet": 0.7777736643565918,
+   "maxDrawdownRNet": -4.173828526399114,
+   "medianRR": 3.422924901186,
+   "medianRiskPct": 3.3248299319727863
+  },
+  "bySide": {
+   "short": {
+    "trades": 9,
+    "open": 0,
+    "wins": 3,
+    "winRate": 33.333333333333336,
+    "totalR": 9.374086306784413,
+    "totalRNet": 8.9895627232891,
+    "expectancyR": 1.0415651451982681,
+    "expectancyRNet": 0.9988403025876779,
+    "maxDrawdownRNet": -3.144251800056402,
+    "medianRR": 3.422924901186,
+    "medianRiskPct": 2.5755879059350333
+   },
+   "long": {
+    "trades": 3,
+    "open": 0,
+    "wins": 1,
+    "winRate": 33.333333333333336,
+    "totalR": 0.38681948424068757,
+    "totalRNet": 0.34372124898999923,
+    "expectancyR": 0.1289398280802292,
+    "expectancyRNet": 0.11457374966333307,
+    "maxDrawdownRNet": -1.029576726342711,
+    "medianRR": 2.386819484241,
+    "medianRiskPct": 10.53464563034771
+   }
+  },
+  "byMonth": {
+   "2026-07": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0815286085825742,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0815286085825742,
+    "maxDrawdownRNet": -1.0815286085825742,
+    "medianRR": 2.311660164716,
+    "medianRiskPct": 1.234132015214016
+   },
+   "2026-08": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 1.3868194842406876,
+    "totalRNet": 1.3376400876557715,
+    "expectancyR": 0.6934097421203438,
+    "expectancyRNet": 0.6688200438278857,
+    "maxDrawdownRNet": -1.0446503759398498,
+    "medianRR": 4.097744360902,
+    "medianRiskPct": 29.9795158696945
+   },
+   "2026-03": {
+    "trades": 5,
+    "open": 0,
+    "wins": 3,
+    "winRate": 60,
+    "totalR": 13.374086306784413,
+    "totalRNet": 13.13498694908155,
+    "expectancyR": 2.674817261356883,
+    "expectancyRNet": 2.62699738981631,
+    "maxDrawdownRNet": -1.0836951219512199,
+    "medianRR": 4.608695652174,
+    "medianRiskPct": 2.5755879059350333
+   },
+   "2026-10": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0089924882629109,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0089924882629109,
+    "maxDrawdownRNet": -1.0089924882629109,
+    "medianRR": 2.231455399061,
+    "medianRiskPct": 10.53464563034771
+   },
+   "2026-05": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.029576726342711,
+    "expectancyR": -1,
+    "expectancyRNet": -1.029576726342711,
+    "maxDrawdownRNet": -1.029576726342711,
+    "medianRR": 4.015345268542,
+    "medianRiskPct": 3.3248299319727863
+   },
+   "2025-12": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0088197093551317,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0088197093551317,
+    "maxDrawdownRNet": -1.0088197093551317,
+    "medianRR": 2.561307901907,
+    "medianRiskPct": 12.019650655021836
+   },
+   "2025-11": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0104255319148936,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0104255319148936,
+    "maxDrawdownRNet": -1.0104255319148936,
+    "medianRR": 2.648936170213,
+    "medianRiskPct": 10.075026795284028
+   }
+  },
+  "bySymbol": {
+   "ETHUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0815286085825742,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0815286085825742,
+    "maxDrawdownRNet": -1.0815286085825742,
+    "medianRR": 2.311660164716,
+    "medianRiskPct": 1.234132015214016
+   },
+   "QNTUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0446503759398498,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0446503759398498,
+    "maxDrawdownRNet": -1.0446503759398498,
+    "medianRR": 4.097744360902,
+    "medianRiskPct": 2.2649863760217954
+   },
+   "AVAXUSDT": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 6.3424657534247135,
+    "totalRNet": 6.19251035750089,
+    "expectancyR": 3.1712328767123568,
+    "expectancyRNet": 3.096255178750445,
+    "maxDrawdownRNet": -1.0836951219512199,
+    "medianRR": 8.90243902439,
+    "medianRiskPct": 1.4299706170421058
+   },
+   "WLDUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 4.608695652173909,
+    "totalRNet": 4.574739130434779,
+    "expectancyR": 4.608695652173909,
+    "expectancyRNet": 4.574739130434779,
+    "maxDrawdownRNet": 0,
+    "medianRR": 4.608695652174,
+    "medianRiskPct": 2.757793764988012
+   },
+   "USUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0089924882629109,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0089924882629109,
+    "maxDrawdownRNet": -1.0089924882629109,
+    "medianRR": 2.231455399061,
+    "medianRiskPct": 10.53464563034771
+   },
+   "LINKUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 3.422924901185792,
+    "totalRNet": 3.385810276679863,
+    "expectancyR": 3.422924901185792,
+    "expectancyRNet": 3.385810276679863,
+    "maxDrawdownRNet": 0,
+    "medianRR": 3.422924901186,
+    "medianRiskPct": 2.5755879059350333
+   },
+   "ARBUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.029576726342711,
+    "expectancyR": -1,
+    "expectancyRNet": -1.029576726342711,
+    "maxDrawdownRNet": -1.029576726342711,
+    "medianRR": 4.015345268542,
+    "medianRiskPct": 3.3248299319727863
+   },
+   "BTWUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 1,
+    "winRate": 100,
+    "totalR": 2.3868194842406876,
+    "totalRNet": 2.3822904635956212,
+    "expectancyR": 2.3868194842406876,
+    "expectancyRNet": 2.3822904635956212,
+    "maxDrawdownRNet": 0,
+    "medianRR": 2.386819484241,
+    "medianRiskPct": 29.9795158696945
+   },
+   "DOTUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0180728155339807,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0180728155339807,
+    "maxDrawdownRNet": -1.0180728155339807,
+    "medianRR": 2.330097087379,
+    "medianRiskPct": 5.690607734806634
+   },
+   "VTHOUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0088197093551317,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0088197093551317,
+    "maxDrawdownRNet": -1.0088197093551317,
+    "medianRR": 2.561307901907,
+    "medianRiskPct": 12.019650655021836
+   },
+   "MUBARAKUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0104255319148936,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0104255319148936,
+    "maxDrawdownRNet": -1.0104255319148936,
+    "medianRR": 2.648936170213,
+    "medianRiskPct": 10.075026795284028
+   }
+  },
+  "tendencies": {
+   "sisi": {
+    "short": {
+     "trades": 9,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.9988403025876779,
+     "totalRNet": 8.9895627232891,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 1.587963101115932
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.063089492261212
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "long": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.11457374966333307,
+     "totalRNet": 0.34372124898999923,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.11457374966333307
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rr": {
+    "<3": {
+     "trades": 6,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.45759144834231164,
+     "totalRNet": -2.74554869005387,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.012439352268002
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.09725645558337866
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–6": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.8335040093840727,
+     "totalRNet": 2.500512028152218,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 4.574739130434779
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0371135511412803
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥6": {
+     "trades": 2,
+     "winRate": 50,
+     "expectancyRNet": 3.096255178750445,
+     "totalRNet": 6.19251035750089,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 3.096255178750445
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–4": {
+     "trades": 1,
+     "winRate": 100,
+     "expectancyRNet": 3.385810276679863,
+     "totalRNet": 3.385810276679863,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 3.385810276679863
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "risikoPersen": {
+    "1–2": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 1.7036605829727722,
+     "totalRNet": 5.1109817489183165,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 3.096255178750445
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0815286085825742
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "2–4": {
+     "trades": 4,
+     "winRate": 50,
+     "expectancyRNet": 1.4715805762080203,
+     "totalRNet": 5.886322304832081,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 3.9802747035573205
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0371135511412803
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥8": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": -0.16148681648432872,
+     "totalRNet": -0.6459472659373149,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0096226206350125
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6866489876663552
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–8": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0180728155339807,
+     "totalRNet": -1.0180728155339807,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0180728155339807
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lokasiZona": {
+    "premium": {
+     "trades": 8,
+     "winRate": 37.5,
+     "expectancyRNet": 1.2516820102801716,
+     "totalRNet": 10.013456082241373,
+     "paruh1": {
+      "trades": 6,
+      "expectancyRNet": 2.020760236194443
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0555526674626425
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "discount": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": -0.17004302749056782,
+     "totalRNet": -0.6801721099622713,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0088197093551317
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.10954919979762012
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "zonaFVG": {
+    "tidak": {
+     "trades": 10,
+     "winRate": 40,
+     "expectancyRNet": 1.1360176497168213,
+     "totalRNet": 11.360176497168213,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 2.6285268465401272
+     },
+     "paruh2": {
+      "trades": 5,
+      "expectancyRNet": -0.35649154710648495
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "ya": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0134462624445562,
+     "totalRNet": -2.0268925248891123,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0134462624445562
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "pengujianZona": {
+    "ulang": {
+     "trades": 8,
+     "winRate": 50,
+     "expectancyRNet": 1.6767274201713718,
+     "totalRNet": 13.413819361370974,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 2.6285268465401272
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.09039504289011206
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "pertama": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0201338472729684,
+     "totalRNet": -4.080535389091874,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0134462624445562
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0268214321013804
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lamaUjiJam": {
+    "12–48": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0293534054336495,
+     "totalRNet": -4.117413621734598,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0134462624445562
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0452605484227426
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–12": {
+     "trades": 6,
+     "winRate": 50,
+     "expectancyRNet": 1.8490773406127579,
+     "totalRNet": 11.094464043676547,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 2.4392059890051936
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥48": {
+     "trades": 2,
+     "winRate": 50,
+     "expectancyRNet": 1.178116775168576,
+     "totalRNet": 2.356233550337152,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 3.385810276679863
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.029576726342711
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "fase4H": {
+    "pullback": {
+     "trades": 12,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.7777736643565918,
+     "totalRNet": 9.333283972279101,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 1.587963101115932
+     },
+     "paruh2": {
+      "trades": 5,
+      "expectancyRNet": -0.35649154710648495
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er4H": {
+    "choppy": {
+     "trades": 10,
+     "winRate": 30,
+     "expectancyRNet": 0.6965546511133217,
+     "totalRNet": 6.965546511133217,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 1.7496008493331285
+     },
+     "paruh2": {
+      "trades": 5,
+      "expectancyRNet": -0.35649154710648495
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "sedang": {
+     "trades": 2,
+     "winRate": 50,
+     "expectancyRNet": 1.1838687305729412,
+     "totalRNet": 2.3677374611458823,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.1838687305729412
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er1D": {
+    "sedang": {
+     "trades": 5,
+     "winRate": 40,
+     "expectancyRNet": 0.511645326760368,
+     "totalRNet": 2.5582266338018402,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.1510575773643215
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.0853704930243991
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "choppy": {
+     "trades": 7,
+     "winRate": 28.571428571428573,
+     "expectancyRNet": 0.9678653340681801,
+     "totalRNet": 6.775057338477261,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 1.7627253106165763
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.019284607302811
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime4H": {
+    "normal": {
+     "trades": 6,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.26074676234064126,
+     "totalRNet": 1.5644805740438474,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.43109848179117044
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.09039504289011206
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "contraction": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 1.7378274293260931,
+     "totalRNet": 5.213482287978279,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 3.1290663319590646
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0446503759398498
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "expansion": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.8517737034189913,
+     "totalRNet": 2.555321110256974,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.7821567992599425
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0089924882629109
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime1D": {
+    "contraction": {
+     "trades": 9,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.9988403025876779,
+     "totalRNet": 8.9895627232891,
+     "paruh1": {
+      "trades": 7,
+      "expectancyRNet": 1.587963101115932
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.063089492261212
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "normal": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.019284607302811,
+     "totalRNet": -2.038569214605622,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.019284607302811
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "data kurang": {
+     "trades": 1,
+     "winRate": 100,
+     "expectancyRNet": 2.3822904635956212,
+     "totalRNet": 2.3822904635956212,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": 2.3822904635956212
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "displacement4H": {
+    "sedang": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0326308387757726,
+     "totalRNet": -4.13052335510309,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0104255319148936
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0400326077293987
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "lemah": {
+     "trades": 7,
+     "winRate": 57.142857142857146,
+     "expectancyRNet": 2.0688400204165958,
+     "totalRNet": 14.481880142916172,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 2.6288480110520798
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "kuat": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0180728155339807,
+     "totalRNet": -1.0180728155339807,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0180728155339807
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "adx4H": {
+    "25–35": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0336488762534597,
+     "totalRNet": -3.100946628760379,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0104255319148936
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0452605484227426
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "<20": {
+     "trades": 4,
+     "winRate": 50,
+     "expectancyRNet": 1.2258898771838544,
+     "totalRNet": 4.903559508735418,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.7829597105398234
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥35": {
+     "trades": 5,
+     "winRate": 40,
+     "expectancyRNet": 1.506134218460812,
+     "totalRNet": 7.53067109230406,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 2.140061954661693
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.029576726342711
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "diSearah": {
+    "berlawanan": {
+     "trades": 8,
+     "winRate": 50,
+     "expectancyRNet": 1.6767274201713718,
+     "totalRNet": 13.413819361370974,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 2.6285268465401272
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.09039504289011206
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "searah": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0201338472729684,
+     "totalRNet": -4.080535389091874,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0134462624445562
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0268214321013804
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema4H": {
+    "0/3 searah": {
+     "trades": 7,
+     "winRate": 42.857142857142854,
+     "expectancyRNet": 1.5761374202039051,
+     "totalRNet": 11.032961941427336,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 3.5382649411538827
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0400326077293987
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3/3 searah": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": -0.1723131093083352,
+     "totalRNet": -0.6892524372333408,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0134462624445562
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0104255319148936,
+     "totalRNet": -1.0104255319148936,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0104255319148936
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema1D": {
+    "0/3 searah": {
+     "trades": 6,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 1.0763704684987596,
+     "totalRNet": 6.458222810992558,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 3.192773544726917
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0400326077293987
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3/3 searah": {
+     "trades": 5,
+     "winRate": 20,
+     "expectancyRNet": -0.3399355938296469,
+     "totalRNet": -1.6996779691482344,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": -1.012439352268002
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1/3 searah": {
+     "trades": 1,
+     "winRate": 100,
+     "expectancyRNet": 4.574739130434779,
+     "totalRNet": 4.574739130434779,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 4.574739130434779
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "cvd24jam": {
+    "berlawanan": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": 0.3636603268116456,
+     "totalRNet": 1.4546413072465825,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 4.574739130434779
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0400326077293987
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "searah": {
+     "trades": 8,
+     "winRate": 37.5,
+     "expectancyRNet": 0.9848303331290649,
+     "totalRNet": 7.878642665032519,
+     "paruh1": {
+      "trades": 6,
+      "expectancyRNet": 1.0901670962294576
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6688200438278857
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rvolTrigger1H": {
+    "<0.8": {
+     "trades": 6,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.4710843731545517,
+     "totalRNet": 2.82650623892731,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.7821567992599425
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -0.18445183989814373
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1.1–2": {
+     "trades": 4,
+     "winRate": 50,
+     "expectancyRNet": 2.1498231411645357,
+     "totalRNet": 8.599292564658143,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 3.214647646865998
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0446503759398498
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "0.8–1.1": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0836951219512199,
+     "totalRNet": -1.0836951219512199,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0836951219512199
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥2": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0088197093551317,
+     "totalRNet": -1.0088197093551317,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0088197093551317
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "sesiUTC": {
+    "Asia 00–08": {
+     "trades": 4,
+     "winRate": 50,
+     "expectancyRNet": 1.467507077567289,
+     "totalRNet": 5.870028310269156,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 3.9802747035573205
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0452605484227426
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "New York 13–21": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0267350426474908,
+     "totalRNet": -2.0534700852949817,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0088197093551317
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0446503759398498
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "London 08–13": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 1.7273616085286652,
+     "totalRNet": 5.182084825585996,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 1.7273616085286652
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "Malam 21–24": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.1115469739063099,
+     "totalRNet": 0.3346409217189297,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0180728155339807
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": 0.6763568686264552
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "hari": {
+    "hari kerja": {
+     "trades": 8,
+     "winRate": 50,
+     "expectancyRNet": 1.676928147991342,
+     "totalRNet": 13.415425183930736,
+     "paruh1": {
+      "trades": 5,
+      "expectancyRNet": 2.6288480110520798
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": 0.09039504289011206
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "akhir pekan": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0205353029129087,
+     "totalRNet": -4.082141211651635,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.014249173724437
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0268214321013804
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   }
+  }
+ },
+ "panel2024|baru_K10_K11": {
+  "stat": {
+   "evals": 36576,
+   "dir": 14669,
+   "held": 1084,
+   "trig": 3488,
+   "plans": 9,
+   "void": 1,
+   "triggerUnik": 129,
+   "triggerJadiPlan": 12,
+   "triggerGagalRR": 111,
+   "triggerSudahSelesai": 6
+  },
+  "all": {
+   "trades": 8,
+   "open": 0,
+   "wins": 1,
+   "winRate": 12.5,
+   "totalR": -3.6735807860262017,
+   "totalRNet": -4.07063608836247,
+   "expectancyR": -0.4591975982532752,
+   "expectancyRNet": -0.5088295110453087,
+   "maxDrawdownRNet": -6.360574681029927,
+   "medianRR": 3.326419213974,
+   "medianRiskPct": 4.662208006203349
+  },
+  "bySide": {
+   "short": {
+    "trades": 5,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -5,
+    "totalRNet": -5.205170494983415,
+    "expectancyR": -1,
+    "expectancyRNet": -1.041034098996683,
+    "maxDrawdownRNet": -5.205170494983415,
+    "medianRR": 2.532224532225,
+    "medianRiskPct": 2.557251908396935
+   },
+   "long": {
+    "trades": 3,
+    "open": 0,
+    "wins": 1,
+    "winRate": 33.333333333333336,
+    "totalR": 1.3264192139737983,
+    "totalRNet": 1.1345344066209448,
+    "expectancyR": 0.4421397379912661,
+    "expectancyRNet": 0.37817813554031493,
+    "maxDrawdownRNet": -1.1554041860465132,
+    "medianRR": 3.326419213974,
+    "medianRiskPct": 5.185688405797102
+   }
+  },
+  "byMonth": {
+   "2024-05": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0775513041338587,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0775513041338587,
+    "maxDrawdownRNet": -1.0775513041338587,
+    "medianRR": 2.248154527559,
+    "medianRiskPct": 1.2978365664813836
+   },
+   "2024-06": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.1554041860465132,
+    "expectancyR": -1,
+    "expectancyRNet": -1.1554041860465132,
+    "maxDrawdownRNet": -1.1554041860465132,
+    "medianRR": 4.479069767442,
+    "medianRiskPct": 0.6414195958161474
+   },
+   "2024-04": {
+    "trades": 2,
+    "open": 0,
+    "wins": 1,
+    "winRate": 50,
+    "totalR": 2.3264192139737983,
+    "totalRNet": 2.289938592667458,
+    "expectancyR": 1.1632096069868991,
+    "expectancyRNet": 1.144969296333729,
+    "maxDrawdownRNet": -1.0155335689045937,
+    "medianRR": 3.326419213974,
+    "medianRiskPct": 6.236914600550962
+   },
+   "2024-08": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.043620198469683,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0218100992348416,
+    "maxDrawdownRNet": -2.043620198469683,
+    "medianRR": 2.532224532225,
+    "medianRiskPct": 4.723412543825485
+   },
+   "2024-09": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.0839989923798727,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0419994961899364,
+    "maxDrawdownRNet": -2.0839989923798727,
+    "medianRR": 5.502109704641,
+    "medianRiskPct": 2.557251908396935
+   }
+  },
+  "bySymbol": {
+   "BTCUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0775513041338587,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0775513041338587,
+    "maxDrawdownRNet": -1.0775513041338587,
+    "medianRR": 2.248154527559,
+    "medianRiskPct": 1.2978365664813836
+   },
+   "SOLUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.1554041860465132,
+    "expectancyR": -1,
+    "expectancyRNet": -1.1554041860465132,
+    "maxDrawdownRNet": -1.1554041860465132,
+    "medianRR": 4.479069767442,
+    "medianRiskPct": 0.6414195958161474
+   },
+   "DOGEUSDT": {
+    "trades": 6,
+    "open": 0,
+    "wins": 1,
+    "winRate": 16.666666666666668,
+    "totalR": -1.6735807860262017,
+    "totalRNet": -1.837680598182098,
+    "expectancyR": -0.278930131004367,
+    "expectancyRNet": -0.30628009969701636,
+    "maxDrawdownRNet": -4.127619190849556,
+    "medianRR": 3.326419213974,
+    "medianRiskPct": 4.723412543825485
+   }
+  },
+  "tendencies": {
+   "sisi": {
+    "short": {
+     "trades": 5,
+     "winRate": 0,
+     "expectancyRNet": -1.041034098996683,
+     "totalRNet": -5.205170494983415,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0775513041338587
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "long": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.37817813554031493,
+     "totalRNet": 1.1345344066209448,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.37817813554031493
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rr": {
+    "<3": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0341762678770339,
+     "totalRNet": -4.1367050715081355,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0465424365192262
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0218100992348416
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–6": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0798010594754621,
+     "totalRNet": -3.2394031784263864,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0419994961899364
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–4": {
+     "trades": 1,
+     "winRate": 100,
+     "expectancyRNet": 3.3054721615720517,
+     "totalRNet": 3.3054721615720517,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": 3.3054721615720517
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "risikoPersen": {
+    "1–2": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0775513041338587,
+     "totalRNet": -1.0775513041338587,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0775513041338587
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "<1": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.1554041860465132,
+     "totalRNet": -1.1554041860465132,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–8": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": 0.061579598549443726,
+     "totalRNet": 0.2463183941977749,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.144969296333729
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0218100992348416
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "2–4": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0419994961899364,
+     "totalRNet": -2.0839989923798727,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0419994961899364
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lokasiZona": {
+    "discount": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0775513041338587,
+     "totalRNet": -1.0775513041338587,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0775513041338587
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "premium": {
+     "trades": 7,
+     "winRate": 14.285714285714286,
+     "expectancyRNet": -0.4275835406040874,
+     "totalRNet": -2.9930847842286115,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.37817813554031493
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "zonaFVG": {
+    "tidak": {
+     "trades": 8,
+     "winRate": 12.5,
+     "expectancyRNet": -0.5088295110453087,
+     "totalRNet": -4.07063608836247,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "pengujianZona": {
+    "ulang": {
+     "trades": 7,
+     "winRate": 14.285714285714286,
+     "expectancyRNet": -0.43552671770191503,
+     "totalRNet": -3.048687023913405,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0352233754668305
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "pertama": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0219490644490645,
+     "totalRNet": -1.0219490644490645,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0219490644490645
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lamaUjiJam": {
+    "12–48": {
+     "trades": 5,
+     "winRate": 20,
+     "expectancyRNet": -0.17106076372868612,
+     "totalRNet": -0.8553038186434305,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.1139604287190965
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0277415586938745
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3–12": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.099899350407223,
+     "totalRNet": -2.199798700814446,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥48": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0155335689045937,
+     "totalRNet": -1.0155335689045937,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0155335689045937
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "fase4H": {
+    "pullback": {
+     "trades": 8,
+     "winRate": 12.5,
+     "expectancyRNet": -0.5088295110453087,
+     "totalRNet": -4.07063608836247,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er4H": {
+    "sedang": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0442297835501309,
+     "totalRNet": -3.132689350650393,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0465424365192262
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0396044776119404
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "choppy": {
+     "trades": 5,
+     "winRate": 20,
+     "expectancyRNet": -0.18758934754241544,
+     "totalRNet": -0.9379467377120771,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.0750339877627693
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.029338237745872
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er1D": {
+    "choppy": {
+     "trades": 8,
+     "winRate": 12.5,
+     "expectancyRNet": -0.5088295110453087,
+     "totalRNet": -4.07063608836247,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime4H": {
+    "contraction": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0747552847422308,
+     "totalRNet": -4.299021138968923,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.116477745090186
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0330328243942755
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "normal": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": 0.05709626265161327,
+     "totalRNet": 0.2283850506064531,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.144969296333729
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0307767710305025
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime1D": {
+    "normal": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0403905008678473,
+     "totalRNet": -3.121171502603542,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0775513041338587
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0218100992348416
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "contraction": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0798010594754621,
+     "totalRNet": -3.2394031784263864,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0419994961899364
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "expansion": {
+     "trades": 2,
+     "winRate": 50,
+     "expectancyRNet": 1.144969296333729,
+     "totalRNet": 2.289938592667458,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.144969296333729
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "displacement4H": {
+    "sedang": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": 0.047679038628245185,
+     "totalRNet": 0.19071615451298074,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.40412909617786646
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0216711340206186
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "lemah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.1554041860465132,
+     "totalRNet": -1.1554041860465132,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "kuat": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.035316018942979,
+     "totalRNet": -3.1059480568289373,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.035316018942979
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "adx4H": {
+    "<20": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.0747552847422308,
+     "totalRNet": -4.299021138968923,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.116477745090186
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0330328243942755
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥35": {
+     "trades": 2,
+     "winRate": 50,
+     "expectancyRNet": 1.144969296333729,
+     "totalRNet": 2.289938592667458,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.144969296333729
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "25–35": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0219490644490645,
+     "totalRNet": -1.0219490644490645,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0219490644490645
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "20–25": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0396044776119404,
+     "totalRNet": -1.0396044776119404,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0396044776119404
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "diSearah": {
+    "berlawanan": {
+     "trades": 6,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.31180623125800405,
+     "totalRNet": -1.8708373875480242,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.40412909617786646
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0277415586938745
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "searah": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.099899350407223,
+     "totalRNet": -2.199798700814446,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema4H": {
+    "0/3 searah": {
+     "trades": 6,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.33404875152424546,
+     "totalRNet": -2.004292509145473,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0306378058162795
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0219490644490645,
+     "totalRNet": -1.0219490644490645,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0219490644490645
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0443945147679325,
+     "totalRNet": -1.0443945147679325,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema1D": {
+    "2/3 searah": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0458264626021283,
+     "totalRNet": -3.137479387806385,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": -1.0465424365192262
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "3/3 searah": {
+     "trades": 4,
+     "winRate": 25,
+     "expectancyRNet": 0.02661194426396385,
+     "totalRNet": 0.1064477770558554,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.0750339877627693
+     },
+     "paruh2": {
+      "trades": 2,
+      "expectancyRNet": -1.0218100992348416
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0396044776119404,
+     "totalRNet": -1.0396044776119404,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0396044776119404
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "cvd24jam": {
+    "berlawanan": {
+     "trades": 5,
+     "winRate": 20,
+     "expectancyRNet": -0.19299319239239568,
+     "totalRNet": -0.9649659619619784,
+     "paruh1": {
+      "trades": 4,
+      "expectancyRNet": 0.01424577562177154
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0219490644490645
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "searah": {
+     "trades": 3,
+     "winRate": 0,
+     "expectancyRNet": -1.0352233754668305,
+     "totalRNet": -3.1056701264004913,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0352233754668305
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rvolTrigger1H": {
+    "<0.8": {
+     "trades": 3,
+     "winRate": 33.333333333333336,
+     "expectancyRNet": 0.40412909617786646,
+     "totalRNet": 1.2123872885335993,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.40412909617786646
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1.1–2": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.1554041860465132,
+     "totalRNet": -1.1554041860465132,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥2": {
+     "trades": 4,
+     "winRate": 0,
+     "expectancyRNet": -1.031904797712389,
+     "totalRNet": -4.127619190849556,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 4,
+      "expectancyRNet": -1.031904797712389
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "sesiUTC": {
+    "Asia 00–08": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0775513041338587,
+     "totalRNet": -1.0775513041338587,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0775513041338587
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "New York 13–21": {
+     "trades": 5,
+     "winRate": 20,
+     "expectancyRNet": -0.18663134011121701,
+     "totalRNet": -0.933156700556085,
+     "paruh1": {
+      "trades": 2,
+      "expectancyRNet": 1.0750339877627693
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0277415586938745
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "London 08–13": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0155335689045937,
+     "totalRNet": -1.0155335689045937,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0155335689045937
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "Malam 21–24": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0443945147679325,
+     "totalRNet": -1.0443945147679325,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "hari": {
+    "hari kerja": {
+     "trades": 6,
+     "winRate": 16.666666666666668,
+     "expectancyRNet": -0.31180623125800405,
+     "totalRNet": -1.8708373875480242,
+     "paruh1": {
+      "trades": 3,
+      "expectancyRNet": 0.40412909617786646
+     },
+     "paruh2": {
+      "trades": 3,
+      "expectancyRNet": -1.0277415586938745
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "akhir pekan": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.099899350407223,
+     "totalRNet": -2.199798700814446,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.1554041860465132
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0443945147679325
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   }
+  }
+ },
+ "panel2024|lama": {
+  "stat": {
+   "evals": 36576,
+   "dir": 17909,
+   "held": 0,
+   "trig": 5549,
+   "plans": 2,
+   "void": 0,
+   "triggerUnik": 128,
+   "triggerJadiPlan": 2,
+   "triggerGagalRR": 126,
+   "triggerSudahSelesai": 0
+  },
+  "all": {
+   "trades": 2,
+   "open": 0,
+   "wins": 0,
+   "winRate": 0,
+   "totalR": -2,
+   "totalRNet": -2.1181667436522917,
+   "expectancyR": -1,
+   "expectancyRNet": -1.0590833718261459,
+   "maxDrawdownRNet": -2.1181667436522917,
+   "medianRR": 4.568181818182,
+   "medianRiskPct": 3.667929899581983
+  },
+  "bySide": {
+   "short": {
+    "trades": 2,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -2,
+    "totalRNet": -2.1181667436522917,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0590833718261459,
+    "maxDrawdownRNet": -2.1181667436522917,
+    "medianRR": 4.568181818182,
+    "medianRiskPct": 3.667929899581983
+   }
+  },
+  "byMonth": {
+   "2024-03": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0277633345613821,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0277633345613821,
+    "maxDrawdownRNet": -1.0277633345613821,
+    "medianRR": 2.374882312006,
+    "medianRiskPct": 3.667929899581983
+   },
+   "2024-10": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0904034090909096,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0904034090909096,
+    "maxDrawdownRNet": -1.0904034090909096,
+    "medianRR": 4.568181818182,
+    "medianRiskPct": 1.1123048726537261
+   }
+  },
+  "bySymbol": {
+   "BTCUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0277633345613821,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0277633345613821,
+    "maxDrawdownRNet": -1.0277633345613821,
+    "medianRR": 2.374882312006,
+    "medianRiskPct": 3.667929899581983
+   },
+   "SOLUSDT": {
+    "trades": 1,
+    "open": 0,
+    "wins": 0,
+    "winRate": 0,
+    "totalR": -1,
+    "totalRNet": -1.0904034090909096,
+    "expectancyR": -1,
+    "expectancyRNet": -1.0904034090909096,
+    "maxDrawdownRNet": -1.0904034090909096,
+    "medianRR": 4.568181818182,
+    "medianRiskPct": 1.1123048726537261
+   }
+  },
+  "tendencies": {
+   "sisi": {
+    "short": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rr": {
+    "<3": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "4–6": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "risikoPersen": {
+    "2–4": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "1–2": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lokasiZona": {
+    "premium": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "zonaFVG": {
+    "tidak": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "pengujianZona": {
+    "pertama": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "ulang": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "lamaUjiJam": {
+    "12–48": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "fase4H": {
+    "pullback": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er4H": {
+    "choppy": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "er1D": {
+    "choppy": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime4H": {
+    "expansion": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "contraction": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "regime1D": {
+    "expansion": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "contraction": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "displacement4H": {
+    "sedang": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "kuat": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "adx4H": {
+    "25–35": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "≥35": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "diSearah": {
+    "searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "berlawanan": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema4H": {
+    "1/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "0/3 searah": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "ema1D": {
+    "0/3 searah": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "cvd24jam": {
+    "berlawanan": {
+     "trades": 2,
+     "winRate": 0,
+     "expectancyRNet": -1.0590833718261459,
+     "totalRNet": -2.1181667436522917,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "rvolTrigger1H": {
+    "1.1–2": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "0.8–1.1": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "sesiUTC": {
+    "New York 13–21": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "London 08–13": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   },
+   "hari": {
+    "hari kerja": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0277633345613821,
+     "totalRNet": -1.0277633345613821,
+     "paruh1": {
+      "trades": 1,
+      "expectancyRNet": -1.0277633345613821
+     },
+     "paruh2": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "kecenderungan": "sampel kecil"
+    },
+    "akhir pekan": {
+     "trades": 1,
+     "winRate": 0,
+     "expectancyRNet": -1.0904034090909096,
+     "totalRNet": -1.0904034090909096,
+     "paruh1": {
+      "trades": 0,
+      "expectancyRNet": null
+     },
+     "paruh2": {
+      "trades": 1,
+      "expectancyRNet": -1.0904034090909096
+     },
+     "kecenderungan": "sampel kecil"
+    }
+   }
+  }
+ }
+}
