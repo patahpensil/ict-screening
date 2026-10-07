@@ -47,3 +47,12 @@ Skrip: `research/riset-3-gaya-2026-10-07/riset3.js` (mode `dev` dan `holdout`), 
 - 8 kandidat × 2 arah = 16 pengujian. Peluang ada satu yang lolos dev **dan** holdout karena kebetulan tidak nol (perkiraan kasar ±10–15% untuk seluruh keluarga uji), sehingga forward test (PAPER) tetap wajib.
 - Drawdown dihitung dari P&L yang sudah terealisasi; penurunan sementara pada posisi terbuka yang berkorelasi (crypto bergerak bersama) bisa lebih dalam.
 - Intraday hanya memakai data 1H (tanpa 15m); urutan SL/TP di dalam satu candle 1H diasumsikan SL lebih dulu.
+
+## 6. Amandemen 1 — dikunci 7 Okt 2026 setelah hasil dev, SEBELUM holdout dibuka
+
+Keputusan pemilik setelah melihat hasil dev ([`HASIL_RISET_3_GAYA_DEV_2026-10-07.md`](HASIL_RISET_3_GAYA_DEV_2026-10-07.md)):
+
+1. **Penyimpangan yang disadari dari bagian 4.** Finalis holdout = P3 SHORT (satu-satunya yang lulus dev), **ditambah empat kandidat yang lolos syarat R per trade (≥ +0,10R) tetapi gagal karena drawdown atau jumlah trade**: P3 LONG, S3 LONG, S2 LONG, P1 LONG. Alasan: holdout point-in-time menguji apakah keunggulan LONG nyata atau hasil bias pemilihan pair. Akibatnya, jumlah pengujian di holdout naik dari 1 menjadi 5, sehingga peluang lolos karena kebetulan ikut naik. Forward test (PAPER) tetap wajib.
+2. **Urutan pemilihan posisi.** Sinyal yang muncul pada waktu yang sama diurutkan **acak**, diulang 500 kali. Sebuah finalis **lulus holdout** bila semua syarat bagian 4 (dengan paruh 2022 dan 2023) terpenuhi di **≥ 50% urutan acak**. Hasil menurut urutan abjad dilaporkan sebagai pembanding saja.
+3. Kandidat yang lolos R per trade tetapi drawdown-nya > 20% pada risiko 1% dilaporkan sebagai **"lulus keunggulan, gagal risiko"**, beserta risiko per trade yang dibutuhkan agar drawdown ≤ 20%. Mengubah risiko per trade adalah keputusan pemilik.
+4. Holdout hanya menghitung dan menyimpan kelima finalis ini; tiga kandidat lain dan gaya intraday tidak dinilai di holdout.
