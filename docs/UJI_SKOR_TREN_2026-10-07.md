@@ -61,3 +61,32 @@ Diskalakan ke volatilitas tahunan 20%:
 - **Funding tidak dihitung.** Di pasar naik, posisi LONG biasanya membayar funding; hasil LONG nyata akan lebih rendah.
 - Jendela 30 hari yang tumpang-tindih membuat jumlah sampel tampak lebih besar daripada jumlah kejadian independen.
 - Hanya ±2 tahun data crypto; bukti jangka panjang konsep ini berasal dari futures tradisional.
+
+## 7. Perbandingan alat screening gaya Carver untuk crypto (7 Okt 2026)
+
+Parameter dikunci sebelum uji, mengikuti publikasi Carver (podcast *The Algorithmic Advantage* ep. 033 dan pysystemtrade):
+
+| Alat | Padanan crypto |
+|---|---|
+| Trend | EWMAC + breakout (bagian 2) |
+| Relative momentum | Return ternormalisasi-volatilitas relatif terhadap indeks crypto berbobot sama; horizon 20/40/80 hari, EWMA span H/4 |
+| Carry | −(funding harian, EWMA 30 hari × 365) / volatilitas tahunan. Skor tinggi = funding negatif (LONG dibayar) |
+| Gabungan | Rata-rata z-score lintas pair dari tiga skor |
+
+Ukuran: **IC** = korelasi peringkat (Spearman) skor hari ini dengan return ke depan, dirata-rata harian; t disesuaikan untuk jendela tumpang-tindih (sampel independen ≈ hari / horizon). Selisih = 10 teratas − 10 terbawah, sesudah fee.
+
+| Alat | IC 7h · Okt24–Mar26 | IC 30h · Okt24–Mar26 | IC 7h · Apr–Okt26 | IC 30h · Apr–Okt26 |
+|---|---|---|---|---|
+| **Trend** | +0,037 (t 1,3) | +0,056 (t 1,1) | −0,005 (t −0,1) | +0,034 (t 0,5) |
+| Relative momentum | −0,001 (t −0,1) | −0,001 (t 0,0) | −0,023 (t −0,8) | −0,016 (t −0,3) |
+| Carry (funding) | **−0,043 (t −3,1)** | **−0,063 (t −2,3)** | **−0,043 (t −2,0)** | −0,074 (t −1,6) |
+| Gabungan | +0,010 (t 0,4) | +0,015 (t 0,3) | −0,028 (t −0,8) | −0,014 (t −0,2) |
+
+Selisih 10 teratas − 10 terbawah (30 hari): Trend +3,3% dan +8,8%; Relative momentum −1,0% dan +8,2%; Carry +2,0% dan −40,4%; Gabungan −0,7% dan +7,2%.
+
+**Bacaan:**
+1. **Trend** adalah satu-satunya alat yang arahnya positif di 3 dari 4 pengukuran, tetapi lemah (IC ±0,03–0,06, t ≈ 1, belum signifikan).
+2. **Relative momentum** tidak punya daya ramal (IC ≈ 0) di crypto.
+3. **Carry (funding) bekerja terbalik dari logika Carver**, dan inilah sinyal paling konsisten: di keempat pengukuran IC negatif (t −1,6 sampai −3,1). Artinya koin dengan **funding positif tinggi** (LONG ramai dan membayar) justru cenderung naik lebih banyak; di Apr–Okt 2026 10 koin dengan funding paling positif naik +34,9% di atas pasar dalam 30 hari. Funding di crypto tampaknya berperilaku sebagai **ukuran sentimen/keramaian**, bukan carry.
+   - **Peringatan besar:** pair dipilih dari volume **saat ini**. Koin yang reli kencang dan ramai (funding tinggi) cenderung masuk daftar volume teratas sekarang, sehingga survivorship bias bisa menciptakan pola ini. Arah tanda juga baru ditemukan dari uji ini. Harus diuji di data ke depan sebelum dipercaya.
+4. **Menggabungkan** ketiganya tidak membantu; alat yang lemah atau terbalik justru melemahkan trend.

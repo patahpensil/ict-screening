@@ -1,0 +1,150 @@
+{
+ "Okt24–Mar26": {
+  "tr_7": {
+   "hari": 542,
+   "IC": 0.03690362495104381,
+   "IC_t": 1.2632797543342067,
+   "teratasVsPasar": 0.006171262611444481,
+   "terbawahVsPasar": -0.006495686062004675,
+   "selisihTeratasTerbawah": 0.010666948673449151,
+   "selisihPositif": 61.07011070110701
+  },
+  "rel_7": {
+   "hari": 542,
+   "IC": -0.001270993675488512,
+   "IC_t": -0.05857020746865736,
+   "teratasVsPasar": 0.007506125451518812,
+   "terbawahVsPasar": -0.0037940076912870027,
+   "selisihTeratasTerbawah": 0.00930013314280582,
+   "selisihPositif": 57.38007380073801
+  },
+  "carry_7": {
+   "hari": 542,
+   "IC": -0.04269564628805548,
+   "IC_t": -3.059137588501945,
+   "teratasVsPasar": 0.012096008930745528,
+   "terbawahVsPasar": 0.004621418471752595,
+   "selisihTeratasTerbawah": 0.005474590458992895,
+   "selisihPositif": 39.66789667896679
+  },
+  "gab_7": {
+   "hari": 542,
+   "IC": 0.009798799736919547,
+   "IC_t": 0.3706868942444659,
+   "teratasVsPasar": 0.0011483351163282477,
+   "terbawahVsPasar": -0.0066012184086891405,
+   "selisihTeratasTerbawah": 0.005749553525017398,
+   "selisihPositif": 61.99261992619926
+  },
+  "tr_30": {
+   "hari": 542,
+   "IC": 0.05622059736751675,
+   "IC_t": 1.1014486553945397,
+   "teratasVsPasar": 0.01933631373788048,
+   "terbawahVsPasar": -0.015566310053192199,
+   "selisihTeratasTerbawah": 0.03290262379107266,
+   "selisihPositif": 64.94464944649447
+  },
+  "rel_30": {
+   "hari": 542,
+   "IC": -0.0011844460310629357,
+   "IC_t": -0.02938276712906108,
+   "teratasVsPasar": -0.001550130222603484,
+   "terbawahVsPasar": 0.006336660056424881,
+   "selisihTeratasTerbawah": -0.009886790279028345,
+   "selisihPositif": 52.2140221402214
+  },
+  "carry_30": {
+   "hari": 542,
+   "IC": -0.06294162424662801,
+   "IC_t": -2.3195506024383876,
+   "teratasVsPasar": 0.06039548220748792,
+   "terbawahVsPasar": 0.038587357220312826,
+   "selisihTeratasTerbawah": 0.0198081249871751,
+   "selisihPositif": 33.025830258302584
+  },
+  "gab_30": {
+   "hari": 542,
+   "IC": 0.014847914708056626,
+   "IC_t": 0.3019851857896125,
+   "teratasVsPasar": -0.010155642806180433,
+   "terbawahVsPasar": -0.004840625807549957,
+   "selisihTeratasTerbawah": -0.00731501699863049,
+   "selisihPositif": 56.82656826568266
+  }
+ },
+ "Apr–Okt26": {
+  "tr_7": {
+   "hari": 182,
+   "IC": -0.004792318389270677,
+   "IC_t": -0.1412125394737625,
+   "teratasVsPasar": -0.007224179688582895,
+   "terbawahVsPasar": 0.009866793675712245,
+   "selisihTeratasTerbawah": -0.019090973364295143,
+   "selisihPositif": 47.8021978021978
+  },
+  "rel_7": {
+   "hari": 182,
+   "IC": -0.023487942809540054,
+   "IC_t": -0.7586949324044003,
+   "teratasVsPasar": -0.019815481941866067,
+   "terbawahVsPasar": -0.0025674756655228092,
+   "selisihTeratasTerbawah": -0.019248006276343266,
+   "selisihPositif": 41.75824175824176
+  },
+  "carry_7": {
+   "hari": 182,
+   "IC": -0.04274864727848841,
+   "IC_t": -1.9678743046919345,
+   "teratasVsPasar": -0.007802246134150164,
+   "terbawahVsPasar": 0.05215961991830324,
+   "selisihTeratasTerbawah": -0.06196186605245337,
+   "selisihPositif": 39.56043956043956
+  },
+  "gab_7": {
+   "hari": 182,
+   "IC": -0.027840615042494285,
+   "IC_t": -0.837586105537251,
+   "teratasVsPasar": -0.0035955001073750305,
+   "terbawahVsPasar": 0.00219246859545403,
+   "selisihTeratasTerbawah": -0.007787968702829057,
+   "selisihPositif": 47.252747252747255
+  },
+  "tr_30": {
+   "hari": 159,
+   "IC": 0.0335029296428542,
+   "IC_t": 0.4859005606529064,
+   "teratasVsPasar": 0.05856896781509008,
+   "terbawahVsPasar": -0.03145032196681057,
+   "selisihTeratasTerbawah": 0.08801928978190064,
+   "selisihPositif": 57.23270440251572
+  },
+  "rel_30": {
+   "hari": 159,
+   "IC": -0.016406239920259216,
+   "IC_t": -0.2610896012660765,
+   "teratasVsPasar": 0.01831731511220921,
+   "terbawahVsPasar": -0.06590656945571056,
+   "selisihTeratasTerbawah": 0.08222388456791978,
+   "selisihPositif": 48.42767295597484
+  },
+  "carry_30": {
+   "hari": 159,
+   "IC": -0.07385374875592556,
+   "IC_t": -1.5908089204697609,
+   "teratasVsPasar": -0.053495041326451,
+   "terbawahVsPasar": 0.3488250337060869,
+   "selisihTeratasTerbawah": -0.4043200750325379,
+   "selisihPositif": 35.22012578616352
+  },
+  "gab_30": {
+   "hari": 159,
+   "IC": -0.013860373073231519,
+   "IC_t": -0.20175169854068178,
+   "teratasVsPasar": 0.017844803467622954,
+   "terbawahVsPasar": -0.0561314997985678,
+   "selisihTeratasTerbawah": 0.07197630326619074,
+   "selisihPositif": 55.34591194968554
+  }
+ }
+}
