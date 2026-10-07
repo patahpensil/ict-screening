@@ -137,7 +137,7 @@ function tendencies(trades,mid,overall){
   const live=new Set(info.symbols.filter(x=>x.quoteAsset==='USDT'&&x.contractType==='PERPETUAL'&&x.status==='TRADING').map(x=>x.symbol));
   const top=tick24.filter(x=>live.has(x.symbol)&&/^[A-Z0-9]+$/.test(x.symbol)).sort((a,b)=>+b.quoteVolume-+a.quoteVolume).map(x=>x.symbol);
   for(const run of cfg.runs){
-    if(!Array.isArray(run.symbols))run.symbols=[...new Set([...top.slice(0,run.symbols.top),...(run.symbols.plus||[])])];
+    if(!Array.isArray(run.symbols))run.symbols=[...new Set([...top.slice(run.symbols.skip||0,run.symbols.top),...(run.symbols.plus||[])])];
     console.log(run.name,run.symbols.length,'pair:',run.symbols.join(','));
     const from=Date.parse(run.from),to=Date.parse(run.to),warm=from-WINDOW*DAY;
     for(const sym of run.symbols){
