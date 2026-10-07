@@ -10,6 +10,9 @@ const CFG=MODE==='holdout'
   ?{dir:'holdout',from:Date.parse('2022-01-01T00:00:00Z'),to:Date.parse('2024-01-01T00:00:00Z'),half:Date.parse('2023-01-01T00:00:00Z')}
   :{dir:'data',from:Date.parse('2024-10-06T00:00:00Z'),to:Date.parse('2026-10-06T00:00:00Z'),half:Date.parse('2025-10-06T00:00:00Z')};
 const RISK=0.01,MAX_OPEN=5,DD_LIMIT=0.20,MC_RUNS=10000;
+// Amandemen 1 (dikunci sebelum holdout dibuka): holdout hanya menilai lima finalis pilihan pemilik.
+const FINALIS=MODE==='holdout'?[['P3 Posisi · Turtle 55/20 1D','short'],['P3 Posisi · Turtle 55/20 1D','long'],['S3 Swing · breakout 20×4H searah tren 1D','long'],['S2 Swing · konsensus CTI 4H, TP 2R','long'],['P1 Posisi · skor tren Carver 1D','long']]:null;
+const isFinal=(k,side)=>!FINALIS||FINALIS.some(([a,b])=>a===k&&(side==null||b===side));
 
 // ---------- indikator (semantik Pine) ----------
 const sma=(x,n)=>{const o=new Array(x.length).fill(null);let s=0,k=0;for(let i=0;i<x.length;i++){if(x[i]==null){s=0;k=0;continue;}s+=x[i];k++;if(k>n){s-=x[i-n];k=n;}if(k===n)o[i]=s/n;}return o;};
@@ -209,18 +212,20 @@ function stat(t){
     const d1=rd('1d'),h4=rd('4h'),h1=rd('1h');if(!d1||!h4||!h1||d1.length<60){continue;}
     const ff=path.join(CFG.dir,sym+'_funding.json'),fund=fs.existsSync(ff)?JSON.parse(fs.readFileSync(ff,'utf8')):null;
     const gen=generate(d1,h4,h1);
-    for(const [k,{c,s}] of Object.entries(gen))all[k].push(...simulate(sym,c,s.filter(x=>inUniverse(sym,c[x.i].ct)),fund));
+    for(const [k,{c,s}] of Object.entries(gen))if(isFinal(k))all[k].push(...simulate(sym,c,s.filter(x=>inUniverse(sym,c[x.i].ct)),fund));
     if(++done%25===0)console.log(new Date().toISOString().slice(11,19),MODE,done,'/',syms.length);
   }
   const res={mode:MODE,periode:[new Date(CFG.from).toISOString().slice(0,10),new Date(CFG.to).toISOString().slice(0,10)],pair:done,kandidat:{}};
+  for(const k of Object.keys(all))for(const side of ['long','short'])if(!isFinal(k,side))all[k]=all[k].filter(x=>x.side!==side);
   for(const [k,t] of Object.entries(all)){
+    if(!isFinal(k))continue;
     const r=res.kandidat[k]={gaya:CAND[k].gaya};
-    for(const side of ['long','short']){const ts=t.filter(x=>x.side===side);r[side]={tanpaBatas:stat(ts),batas5:stat(capPortfolio(ts))};}
+    for(const side of ['long','short']){if(!isFinal(k,side))continue;const ts=t.filter(x=>x.side===side);r[side]={tanpaBatas:stat(ts),batas5:stat(capPortfolio(ts))};}
   }
   fs.writeFileSync('hasil-riset3-'+MODE+'.json',JSON.stringify(res,null,1));
-  fs.writeFileSync('trade-riset3-'+MODE+'.json',JSON.stringify(Object.fromEntries(Object.entries(all).map(([k,t])=>[k,t.map(x=>[x.sym,x.t,x.exitT,x.side,x.o,+x.rNet.toFixed(4)])]))));
+  fs.writeFileSync('trade-riset3-'+MODE+'.json',JSON.stringify(Object.fromEntries(Object.entries(all).filter(([k])=>isFinal(k)).map(([k,t])=>[k,t.map(x=>[x.sym,x.t,x.exitT,x.side,x.o,+x.rNet.toFixed(4)])]))));
   const f=v=>v==null?'—':(v>=0?'+':'')+v.toFixed(2);
-  for(const [k,r] of Object.entries(res.kandidat)){console.log('\n'+k);for(const side of ['long','short']){const s=r[side].batas5,u=r[side].tanpaBatas;
+  for(const [k,r] of Object.entries(res.kandidat)){console.log('\n'+k);for(const side of ['long','short']){if(!r[side])continue;const s=r[side].batas5,u=r[side].tanpaBatas;
     console.log(' ',side.toUpperCase().padEnd(5),'maks 5 posisi:',String(s.n).padStart(4),'trade',f(s.exp)+'R','| paruh',f(s.paruh1.exp),f(s.paruh2.exp),'| DD',(100*s.ddHistoris).toFixed(0)+'%','MC95',s.ddMC95==null?'—':(100*s.ddMC95).toFixed(0)+'%',s.lulus?'LULUS':'gagal','|| tanpa batas:',u.n,'trade',f(u.exp)+'R');}}
   console.log('\nSELESAI');
 })().catch(e=>{console.error('ERR',e.stack);process.exit(1);});
