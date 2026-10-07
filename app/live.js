@@ -1,4 +1,4 @@
-/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan level exit 20 hari terkini.
+/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan level exit terkini (swing 20 hari, intraday 20 candle 1H).
    HANYA tampilan — tidak pernah masuk penilaian engine Malomo (port dari tampilan Decision engine lama). */
 (function(root){
   'use strict';
@@ -82,10 +82,11 @@
       }catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }
-  // Level exit 20 hari terkini (engine turtle-v1), ±30 detik; candle 1D di-cache sampai candle berikutnya close.
+  // Level exit terkini, ±30 detik: swing = 20 hari (1D), intraday = 20 candle 1H. Candle di-cache sampai candle berikutnya close.
   async function pollStructure(tracks){
     for(const sym of liveSymbols(tracks)){
-      try{const e=Trend.evaluate(await MalomoMarket.candles(sym,'1d',400),{now:MalomoMarket.serverNow()});structure[sym]={exitLong:e.exitLong,exitShort:e.exitShort,at:Date.now()};}
+      const intraday=tracks.some(r=>r.symbol===sym&&r.status==='running'&&r.engine==='intraday-v1');
+      try{const e=intraday?await MalomoMarket.evaluateIntraday(sym):Trend.evaluate(await MalomoMarket.candles(sym,'1d',400),{now:MalomoMarket.serverNow()});structure[sym]={exitLong:e.exitLong,exitShort:e.exitShort,at:Date.now()};}
       catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }

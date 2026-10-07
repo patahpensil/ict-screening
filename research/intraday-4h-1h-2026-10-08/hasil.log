@@ -1,0 +1,4 @@
+../data 2024-09-10 → 2026-10-06 | pair: 147 | risiko 0,5% | biaya 0,07%/sisi
+ L=21 | 3639 trade +0.07R win 26% (LONG 2071 +0.17 · SHORT 1568 -0.06) | paruh +0.18 -0.02 | total +257.38R ≈ 129% | DD harian 42% MC95 91% | median tahan 20 jam | gagal
+ L=30 | 3380 trade +0.06R win 26% (LONG 1930 +0.17 · SHORT 1450 -0.08) | paruh +0.19 -0.04 | total +211.75R ≈ 106% | DD harian 38% MC95 86% | median tahan 19 jam | gagal
+ L=55 | 2795 trade +0.11R win 26% (LONG 1635 +0.22 · SHORT 1160 -0.04) | paruh +0.29 -0.01 | total +316.14R ≈ 158% | DD harian 29% MC95 60% | median tahan 19 jam | gagal

@@ -1,8 +1,17 @@
-/* Orkestrasi aplikasi. Semua keputusan pasar didelegasikan ke engine breakout 55/20 (Trend, turtle-v1). */
+/* Orkestrasi aplikasi. Keputusan pasar didelegasikan ke dua engine breakout: swing 55/20 1D (Trend, turtle-v1) dan
+   intraday 4H/1H (Intraday, intraday-v1). Keduanya masuk Decision dan Jurnal yang sama, dibedakan label SWING/INTRADAY. */
 (function(root){
   'use strict';
   const U=MalomoUI,S=MalomoStore,M=MalomoMarket;
-  let scanning=false,lastScanAt=0,scanProgress='',detailToken=0,renderAt=0,lastPrices=new Map(),polling=false;
+  let detailToken=0,renderAt=0,lastPrices=new Map(),polling=false,view='swing';
+  // Dua scanner dengan pondasi sama. Scan berjalan bergantian (satu per satu) agar tidak membebani batas request Binance.
+  const MODES={
+    swing:{engine:'turtle-v1',E:Trend,title:'Breakout Swing 55/20 · Top 100',store:'lastScan',run:o=>M.scan(o),global:'lastMalomoScan'},
+    intraday:{engine:'intraday-v1',E:Intraday,title:'Breakout Intraday 4H/1H · Top 100',store:'lastScanIntraday',run:o=>M.scanIntraday(o),global:'lastIntradayScan'},
+  };
+  const state={swing:{scanning:false,lastAt:0,progress:''},intraday:{scanning:false,lastAt:0,progress:''}};
+  const anyScanning=()=>state.swing.scanning||state.intraday.scanning;
+  const modeOf=engine=>engine==='intraday-v1'?'intraday':'swing';
   const id=()=>Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
   const symbol=v=>{const s=String(v||'').trim().toUpperCase();return s.endsWith('USDT')?s:s+'USDT';};
   function on(name,fn,event='click'){U.$(name)?.addEventListener(event,fn);}
@@ -50,11 +59,11 @@
     if(changed){S.write('priceAlerts',alerts);saveTracks(tracks);transitions.forEach(([r,b])=>transition(r,b));U.priceAlerts();U.decision();}
   }
   const fmtScore=v=>Number.isFinite(v)?(v>0?'+':'')+v.toFixed(1):'—';
-  const exitName=r=>r.outcome==='exit20'?'exit 20 hari':r.outcome==='tp'?'TP':r.trailing?'trailing stop':'SL';
+  const exitName=r=>r.outcome==='exit20'?(r.engine==='intraday-v1'?'exit 20 candle 1H':'exit 20 hari'):r.outcome==='tp'?'TP':r.trailing?'trailing stop':'SL';
   // Label tahap validasi ikut tersimpan di jurnal supaya bukti PAPER bisa dipisah dari sinyal yang kelak lulus uji.
   const stageOf=r=>r.stage||(r.engine==='trend-v1'?'PAPER':'');
-  function setupLabel(r){return (r.engine==='turtle-v1'?'Breakout 55/20':r.engine==='trend-v1'?'Tren Carver · skor '+fmtScore(r.forecastAtSignal):'Malomo · close 1H')+(stageOf(r)?' · '+stageOf(r):'');}
-  const stopNote=r=>r.engine==='turtle-v1'?' (2 × ATR20). Keluar saat close 1D menembus '+(r.side==='long'?'low':'high')+' 20 hari.':r.trailing?' (trailing 0,5 × volatilitas tahunan).':'.';
+  function setupLabel(r){return (r.engine==='turtle-v1'?'Breakout Swing 55/20':r.engine==='intraday-v1'?'Breakout Intraday 4H/1H':r.engine==='trend-v1'?'Tren Carver · skor '+fmtScore(r.forecastAtSignal):'Malomo · close 1H')+(stageOf(r)?' · '+stageOf(r):'');}
+  const stopNote=r=>r.engine==='turtle-v1'?' (2 × ATR20). Keluar saat close 1D menembus '+(r.side==='long'?'low':'high')+' 20 hari.':r.engine==='intraday-v1'?' (2 × ATR20 1H). Keluar saat close 1H menembus '+(r.side==='long'?'low':'high')+' 20 candle 1H.':r.trailing?' (trailing 0,5 × volatilitas tahunan).':'.';
   // Jurnal otomatis: setiap pair yang harganya menyentuh entry dicatat saat itu juga (status open),
   // lalu entri yang sama diperbarui saat posisi selesai. Data ini menjadi bukti kinerja aplikasi ke depan.
   function journalOpen(r){
@@ -93,7 +102,7 @@
     const flag='malomo_journal_reset_20261008';if(localStorage.getItem(flag))return;
     const all=S.read('journal');
     if(all.length)localStorage.setItem('malomo_journal_backup_20261008',JSON.stringify(all));
-    const keep=all.filter(e=>e.auto&&String(e.setup||'').startsWith('Breakout 55/20'));
+    const keep=all.filter(e=>e.auto&&String(e.setup||'').startsWith('Breakout'));
     S.write('journal',keep);localStorage.setItem(flag,String(Date.now()));
     if(all.length>keep.length)log('🧹 '+(all.length-keep.length)+' entri jurnal lama dihapus. Jurnal kini hanya berisi sinyal breakout 55/20.');
   }
@@ -121,69 +130,79 @@
   // Hasil disimpan ringkas agar langsung tampil saat aplikasi dibuka lagi (hanya untuk tampilan;
   // pemantauan Trading Plan selalu memakai hasil scan yang baru).
   function slimScan(r){
-    const keep=['engine','side','status','plan','decision','last','atr','atrPct','high55','low55','exitLong','exitShort','distLong','distShort','volume30'];
-    return {engine:'turtle-v1',at:r.at,universe:r.universe,errors:r.errors,candidates:r.candidates.map(c=>({symbol:c.symbol,quoteVolume:c.quoteVolume,error:c.error,metrics:c.metrics,
+    const keep=['engine','side','status','plan','decision','last','atr','atrPct','high55','low55','exitLong','exitShort','distLong','distShort','volume30','signalAt'];
+    return {engine:r.engine,at:r.at,universe:r.universe,errors:r.errors,candidates:r.candidates.map(c=>({symbol:c.symbol,quoteVolume:c.quoteVolume,error:c.error,metrics:c.metrics,
       evaluation:Object.fromEntries(keep.map(k=>[k,c.evaluation[k]]))}))};
+  }
+  const lastResult=mode=>root[MODES[mode].global];
+  // Panel hasil scan hanya menampilkan mode yang sedang dibuka; scan mode lain tetap berjalan di belakang.
+  function show(mode,note){
+    if(view!==mode)return;
+    const r=lastResult(mode),st=state[mode];
+    if(r)U.scan(r,note!==undefined?note:st.scanning?st.progress:null);else U.text('heroModeStatus',st.scanning?st.progress:'Memulai scan…');
   }
   // Tombol Scan: tampilkan hasil terakhir seketika; scan baru hanya dimulai bila tidak ada yang sedang berjalan
   // dan hasil terakhir sudah lewat jeda. Menutup panel tidak membatalkan scan.
-  function openScan(){
-    U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Breakout Swing 55/20 · Top 100');
-    if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);else U.text('heroModeStatus',scanning?scanProgress:'Memulai scan…');
-    if(!scanning&&Date.now()-lastScanAt>=SCAN_GAP)scan();
+  function openScan(mode='swing'){
+    view=mode;U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle',MODES[mode].title);
+    show(mode);
+    if(!anyScanning()&&Date.now()-state[mode].lastAt>=SCAN_GAP)scan(mode);
   }
-  async function scan(){
-    if(scanning)return;scanning=true;scanProgress='memperbarui…';
-    U.$('heroModeStatus').classList.add('show');
+  async function scan(mode='swing'){
+    const st=state[mode],cfg=MODES[mode];
+    if(anyScanning())return;st.scanning=true;st.progress='memperbarui…';
+    if(view===mode)U.$('heroModeStatus').classList.add('show');
     try{
-      const result=await M.scan({progress:(n,total)=>{
-        scanProgress=root.lastMalomoScan?'memperbarui '+n+'/'+total:'Scan '+n+'/'+total+' pair (Top 100 dipilih dari volume 30 hari)…';
-        if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,scanProgress);else U.text('heroModeStatus',scanProgress);
+      const result=await cfg.run({progress:(n,total)=>{
+        st.progress=lastResult(mode)?'memperbarui '+n+'/'+total:'Scan '+n+'/'+total+' pair (Top 100 dipilih dari volume 30 hari)…';
+        if(view===mode){if(lastResult(mode))U.scanStatus(lastResult(mode),st.progress);else U.text('heroModeStatus',st.progress);}
       }});
-      for(const row of result.candidates)row.metrics=MalomoMarketData.metrics(row.evaluation);
-      root.lastMalomoScan=result;lastScanAt=Date.now();U.scan(result);
-      S.write('lastScan',slimScan(result));
+      // Banner CVD/ADX memakai candle 1D: intraday meminjam dari hasil scan swing untuk pair yang sama (bila ada).
+      const daily=new Map((root.lastMalomoScan?.candidates||[]).map(r=>[r.symbol,r.metrics]));
+      for(const row of result.candidates)row.metrics=mode==='swing'?MalomoMarketData.metrics(row.evaluation):daily.get(row.symbol)||null;
+      root[cfg.global]=result;st.lastAt=Date.now();st.scanning=false;show(mode,null);
+      S.write(cfg.store,slimScan(result));
       syncTracks(result);
       await manageRunning(result);
-      refreshMarketData();
-    }catch(e){if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,'pembaruan gagal: '+e.message);else U.text('heroModeStatus','Scan gagal: '+e.message);lastScanAt=Date.now();}
-    finally{scanning=false;scanProgress='';}
+      refreshMarketData(mode);
+    }catch(e){st.lastAt=Date.now();if(view===mode){if(lastResult(mode))U.scanStatus(lastResult(mode),'pembaruan gagal: '+e.message);else U.text('heroModeStatus','Scan gagal: '+e.message);}}
+    finally{st.scanning=false;st.progress='';}
   }
   // Data pasar pelengkap untuk semua kandidat; daftar dirender ulang berkala selama data berdatangan.
-  function refreshMarketData(){
-    if(!root.lastMalomoScan)return;
+  function refreshMarketData(mode){
+    const r=lastResult(mode);if(!r)return;
     let shownAt=0;
-    MalomoMarketData.refresh(root.lastMalomoScan.candidates.map(r=>r.symbol),()=>{
-      if(Date.now()-shownAt>1500){shownAt=Date.now();U.scan(root.lastMalomoScan,scanning?scanProgress:null);}
-    }).then(()=>U.scan(root.lastMalomoScan,scanning?scanProgress:null));
+    MalomoMarketData.refresh(r.candidates.map(x=>x.symbol),()=>{
+      if(Date.now()-shownAt>1500){shownAt=Date.now();show(mode);}
+    }).then(()=>show(mode));
   }
-  // Tombol Refresh: paksa scan baru dan data pasar terbaru, tanpa menunggu jeda otomatis.
+  // Tombol Refresh: paksa scan baru (mode yang sedang dibuka) dan data pasar terbaru, tanpa menunggu jeda otomatis.
   function forceRefresh(){
     MalomoMarketData.invalidate();
-    if(scanning){if(root.lastMalomoScan)U.scanStatus(root.lastMalomoScan,scanProgress+' (sedang berjalan)');return;}
-    scan();
+    if(anyScanning()){const r=lastResult(view);if(r)U.scanStatus(r,(state[view].progress||'scan lain')+' (sedang berjalan)');return;}
+    scan(view);
   }
-  let ddWarned=false;
+  const ddWarned={};
   function syncTracks(result){
-    const tracks=S.read('tracks'),history=S.read('history'),now=Date.now();
+    const cfg=MODES[modeOf(result.engine)],E=cfg.E,tracks=S.read('tracks'),history=S.read('history'),now=Date.now();
     const current=new Map();
     for(const row of result.candidates){const rec=MalomoTracker.create(row.symbol,row.evaluation,now);if(rec)current.set(row.symbol,rec);}
     // Hanya pair yang benar-benar terbaca tanpa error pada scan ini yang boleh menggugurkan rencana armed.
     const failed=new Set([...result.errors.map(e=>e.symbol),...result.candidates.filter(r=>r.error).map(r=>r.symbol)]);
     const scanned=new Set(result.universe.filter(s=>!failed.has(s)));
-    for(const r of tracks.filter(r=>scanned.has(r.symbol)))if(MalomoTracker.expire(r,current.get(r.symbol),now))recordClose(r);
-    // Drawdown jurnal ≥ 20% → sinyal baru dihentikan (posisi yang sudah berjalan tetap dipantau sampai keluar).
-    const dd=Trend.drawdown(history);
-    if(dd.current>=Trend.RULES.maxDrawdown){if(!ddWarned)log('⛔ Drawdown jurnal '+(100*dd.current).toFixed(1)+'% ≥ '+(100*Trend.RULES.maxDrawdown)+'% — sinyal baru dihentikan.');ddWarned=true;saveTracks(tracks);U.decision();return;}
-    ddWarned=false;
-    // Satu pair satu rencana aktif; maks 5 per arah. Kandidat sudah urut volume 30 hari terbesar (prioritas slot).
+    for(const r of tracks.filter(r=>r.engine===result.engine&&scanned.has(r.symbol)))if(MalomoTracker.expire(r,current.get(r.symbol),now))recordClose(r);
+    // Drawdown jurnal engine ini ≥ 20% → sinyal baru engine ini dihentikan (posisi berjalan tetap dipantau sampai keluar).
+    const dd=Trend.drawdown(history,result.engine);
+    if(dd.current>=E.RULES.maxDrawdown){if(!ddWarned[result.engine])log('⛔ Drawdown jurnal '+cfg.title.split(' · ')[0]+' '+(100*dd.current).toFixed(1)+'% ≥ '+(100*E.RULES.maxDrawdown)+'% — sinyal baru dihentikan.');ddWarned[result.engine]=true;saveTracks(tracks);U.decision();return;}
+    ddWarned[result.engine]=false;
+    // Satu pair satu rencana aktif (swing dan intraday digabung); maks 5 per arah per engine. Kandidat sudah urut volume 30 hari terbesar.
     // Sinyal = masuk sekarang: posisi langsung RUNNING di harga terkini (SL ikut digeser, jarak 2 × ATR20 tetap) dan
     // langsung tercatat di Jurnal. Tidak menunggu harga kembali ke harga saat scan dimulai — saat breakout, harga
     // sering sudah bergerak menjauh selama scan berjalan sehingga rencana tidak pernah tersentuh.
-    const slots=side=>tracks.filter(x=>x.status!=='closed'&&x.side===side&&x.engine==='turtle-v1').length,opened=[];
+    const slots=side=>tracks.filter(x=>x.status!=='closed'&&x.side===side&&x.engine===result.engine).length,opened=[];
     const live=new Map(M.getTickers().map(t=>[t.symbol,t.lastPrice]));
     for(const rec of current.values()){
-      if(!(slots(rec.side)<Trend.RULES.maxPerSide&&MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id)))continue;
+      if(!(slots(rec.side)<E.RULES.maxPerSide&&MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id)))continue;
       const px=live.get(rec.symbol)>0?live.get(rec.symbol):rec.entry,long=rec.side==='long',sl=long?px-rec.risk:px+rec.risk;
       if(long&&!(sl>0))continue;
       Object.assign(rec,{entry:px,sl,initialSl:sl});MalomoTracker.advance(rec,{low:px,high:px},now);
@@ -191,20 +210,22 @@
     }
     saveTracks(tracks);opened.forEach(r=>transition(r,'armed'));U.decision();
   }
-  // Posisi RUNNING dicek pada close 1D: turtle-v1 keluar bila close menembus low/high 20 hari; rekaman trend-v1 lama
-  // menaikkan trailing stop. Candle dikumpulkan dulu, lalu track dibaca-ulang dan ditulis sinkron agar tidak menimpa
-  // perubahan status yang terjadi di sela jaringan.
+  // Posisi RUNNING dicek pada close candle: swing (turtle-v1) keluar bila close 1D menembus low/high 20 hari, intraday
+  // bila close 1H menembus low/high 20 candle 1H; rekaman trend-v1 lama menaikkan trailing stop. Candle dikumpulkan dulu,
+  // lalu track dibaca-ulang dan ditulis sinkron agar tidak menimpa perubahan status yang terjadi di sela jaringan.
+  const EXIT_TF={'turtle-v1':'1d','trend-v1':'1d','intraday-v1':'1h'};
   async function manageRunning(result){
-    const rows=new Map((result?.candidates||[]).map(r=>[r.symbol,r.evaluation.candles]));
-    const daily=r=>r.status==='running'&&(r.engine==='turtle-v1'||r.engine==='trend-v1');
-    const need=[...new Set(S.read('tracks').filter(daily).map(r=>r.symbol))];
+    const rows=new Map((result?.candidates||[]).map(r=>[r.symbol+'|'+result.engine,result.engine==='intraday-v1'?r.evaluation.candles1h:r.evaluation.candles]));
+    const watched=r=>r.status==='running'&&EXIT_TF[r.engine];
+    const need=[...new Set(S.read('tracks').filter(watched).map(r=>r.symbol+'|'+r.engine))];
     const got=new Map();
-    for(const sym of need){try{got.set(sym,rows.get(sym)||Trend.closed(await M.candles(sym,'1d',400),M.serverNow()));}catch{/* dicoba lagi pada scan berikutnya */}}
+    for(const key of need){const [sym,engine]=key.split('|');try{got.set(key,rows.get(key)||Trend.closed(await M.candles(sym,EXIT_TF[engine],400),M.serverNow()));}catch{/* dicoba lagi pada scan berikutnya */}}
     const tracks=S.read('tracks'),transitions=[];let changed=false;
     for(const r of tracks){
-      if(!daily(r)||!got.has(r.symbol))continue;
-      if(r.engine==='turtle-v1'){const x=Trend.exitSignal(r,got.get(r.symbol));if(x){MalomoTracker.exit(r,x.price,x.at);recordClose(r);transitions.push([r,'running']);changed=true;}}
-      else{const before=r.sl;Trend.trail(r,got.get(r.symbol));if(r.sl!==before)changed=true;}
+      const key=r.symbol+'|'+r.engine;if(!watched(r)||!got.has(key))continue;
+      if(r.engine==='trend-v1'){const before=r.sl;Trend.trail(r,got.get(key));if(r.sl!==before)changed=true;continue;}
+      const x=(r.engine==='intraday-v1'?Intraday:Trend).exitSignal(r,got.get(key));
+      if(x){MalomoTracker.exit(r,x.price,x.at);recordClose(r);transitions.push([r,'running']);changed=true;}
     }
     if(changed){saveTracks(tracks);transitions.forEach(([r,b])=>transition(r,b));U.decision();}
   }
@@ -215,13 +236,13 @@
     for(const r of tracks)if(r.status==='running'&&!(r.oiBase>0)&&MalomoLive.data(r.symbol).oi>0){r.oiBase=MalomoLive.data(r.symbol).oi;changed=true;}
     if(changed)saveTracks(tracks);
   }
-  async function detail(sym,tf='4h',modal=true){
+  async function detail(sym,tf='4h',modal=true,mode='swing'){
     const token=++detailToken;const s=symbol(sym);U.$('searchResults').classList.remove('show');U.text('wsAnalysisSymbolInput',s);
     U.$('wsAnalysisSymbolInput').value=s;
     if(modal){U.panels();U.$('modalBackdrop').classList.add('show');}
-    U.html('modalBody','<div class="modal-loading"><span class="loader"></span>Memuat breakout 55/20…</div>');
+    U.html('modalBody','<div class="modal-loading"><span class="loader"></span>Memuat breakout '+(mode==='intraday'?'intraday 4H/1H':'swing 55/20')+'…</div>');
     try{
-      const evaluation=await M.evaluate(s);
+      const evaluation=mode==='intraday'?await M.evaluateIntraday(s):await M.evaluate(s);
       if(token!==detailToken)return;U.detail(s,evaluation,tf);
       MalomoMarketData.ensure(s).then(()=>{if(token===detailToken)U.detail(s,evaluation,tf);}).catch(()=>{});
     }catch(e){if(token===detailToken){const msg='<div class="empty-state">Gagal memuat: '+U.esc(e.message)+'</div>';U.html('modalBody',msg);U.html('wsAnalysisBody',msg);U.status(e.message,true);}}
@@ -237,11 +258,11 @@
     if(target.dataset.ws){U.workspace(target.dataset.ws);return;}
     if(target.dataset.filter){U.setFilter(target.dataset.filter);return;}
     if(target.dataset.sort){U.setSort(target.dataset.sort);return;}
-    if(target.dataset.tf){if(U.getSelected())await detail(U.getSelected().symbol,target.dataset.tf,U.$('modalBackdrop').classList.contains('show'));return;}
+    if(target.dataset.tf){const sel=U.getSelected();if(sel)await detail(sel.symbol,target.dataset.tf,U.$('modalBackdrop').classList.contains('show'),modeOf(sel.evaluation.engine));return;}
     if(target.dataset.agent){const d=U.getSelected();if(d){try{await navigator.clipboard.writeText(JSON.stringify({role:target.dataset.agent,symbol:d.symbol,bias:d.evaluation.bias,status:d.evaluation.status,zone:d.evaluation.zone,plan:d.evaluation.plan},null,2));log('Ringkasan berhasil disalin.');}catch{log('Clipboard tidak tersedia.');}}return;}
     const a=target.dataset.action,s=target.dataset.symbol;
     if(a==='star'){event.stopPropagation();star(s);}
-    else if(a==='detail')await detail(s);
+    else if(a==='detail')await detail(s,'4h',true,target.dataset.mode==='intraday'?'intraday':'swing');
     else if(a==='journal-edit')U.journalForm(target.dataset.id);
     else if(a==='save-plan')savePlan();
     else if(a==='use-plan'){const p=U.getSelected()?.evaluation.plan;if(p){U.$('calcEntry').value=p.entry;U.$('calcSl').value=p.sl;U.$('calcRiskPct').value=Trend.RULES.riskPct;U.workspace('wsTrading');log('Entry dan SL diterapkan ke kalkulator.');}}
@@ -256,7 +277,8 @@
     on('modeResultsClose',()=>U.panels());on('scanRefreshBtn',forceRefresh);
     for(const name of ['modalCloseBtn','alertDrawerClose','settingsDrawerClose','historyPanelClose','journalModalClose'])on(name,()=>{detailToken++;U.panels();});
     for(const name of ['modalBackdrop','journalModalBackdrop'])on(name,e=>{if(e.target===U.$(name))U.$(name).classList.remove('show');});
-    on('modeIntradayBtn',openScan);on('scanTopBtn',openScan);
+    on('modeIntradayBtn',()=>openScan('swing'));on('scanTopBtn',()=>openScan('swing'));
+    on('modeIntradayScanBtn',()=>openScan('intraday'));on('scanIntradayBtn',()=>openScan('intraday'));
     on('decisionQuickBtn',()=>U.workspace('wsDecision'));on('marketQuickBtn',()=>U.workspace('wsScanner'));
     on('sqWatchlist',()=>{U.workspace('wsScanner');U.setFilter('watchlist');});on('sqFunding',()=>{U.workspace('wsScanner');U.setFilter('fundingext');});
     for(const name of ['sqAlerts','alertBtn','topbarAlertBtn'])on(name,()=>{U.alerts();U.panel('alertDrawer');});on('sqSettings',()=>U.panel('settingsDrawer'));
@@ -273,20 +295,22 @@
     on('tgTestBtn',async()=>{try{await telegram('Test notifikasi ICT Screening');U.text('tgStatus','Test berhasil dikirim.');}catch(e){U.text('tgStatus',e.message);}});
     on('scrollTopBtn',()=>window.scrollTo({top:0,behavior:'smooth'}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){detailToken++;U.panels();U.closeSidebar();}});
     window.addEventListener('popstate',()=>{U.panels();U.workspace('wsHome');});
-    setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Breakout 55/20 · turtle-v1');
+    setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Breakout Swing 55/20 + Intraday 4H/1H');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
     retireLegacy();resetJournal();
-    U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh().then(()=>{if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);if(!scanning&&!document.hidden)scan();});M.connect();setInterval(refresh,45000);
+    U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh().then(async()=>{show(view);if(!anyScanning()&&!document.hidden){await scan('swing');await scan('intraday');}});M.connect();setInterval(refresh,45000);
     // Decision: data tampilan real-time untuk posisi RUNNING (OI ±15 dtk, CVD & orderbook WebSocket, struktur 4H ±30 dtk).
     MalomoLive.sync(S.read('tracks'));
     setInterval(()=>{MalomoLive.tick();MalomoLive.sync(S.read('tracks'));if(U.getActive()==='wsDecision')U.decision();},1000);
     setInterval(pollOI,15000);setInterval(()=>MalomoLive.pollStructure(S.read('tracks')),30000);
     pollOI();MalomoLive.pollStructure(S.read('tracks'));
     // Hasil scan lama dari engine sebelumnya diabaikan karena formatnya berbeda.
-    const saved=S.read('lastScan',null);if(saved&&saved.engine==='turtle-v1'&&Array.isArray(saved.candidates)){root.lastMalomoScan=saved;U.scan(saved);}
-    setInterval(()=>{if(!scanning&&Date.now()-lastScanAt>=SCAN_GAP&&!document.hidden&&M.getTickers().length)scan();},10000);
+    for(const [mode,cfg] of Object.entries(MODES)){const saved=S.read(cfg.store,null);if(saved&&saved.engine===cfg.engine&&Array.isArray(saved.candidates))root[cfg.global]=saved;}
+    show(view);
+    // Mode yang paling lama belum di-scan dijalankan lebih dulu; satu scan pada satu waktu.
+    setInterval(()=>{if(anyScanning()||document.hidden||!M.getTickers().length)return;const due=Object.keys(MODES).filter(m=>Date.now()-state[m].lastAt>=SCAN_GAP).sort((a,b)=>state[a].lastAt-state[b].lastAt);if(due.length)scan(due[0]);},10000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
     if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js').catch(()=>U.status('Cache offline tidak tersedia.'));
   }
-  root.MalomoApp={start,scan,detail,refresh,star,calculate,catchUp};
+  root.MalomoApp={start,scan,openScan,detail,refresh,star,calculate,catchUp};
 })(globalThis);

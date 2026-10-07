@@ -51,7 +51,7 @@
     if(side&&N>0){
       const long=side==='long',risk=RULES.slAtr*N,sl=long?entry-risk:entry+risk;
       if(!long||sl>0)plan={entry,sl,initialSl:sl,risk,atr:N,tp:null,rr:null,signalClose:x.close,signalAt:x.ct,
-        exitLevel:long?exitLong:exitShort,breakoutLevel:long?high55:low55,stage:VALIDATION.stage};
+        exitLevel:long?exitLong:exitShort,breakoutLevel:long?high55:low55,stage:VALIDATION.stage,style:'swing'};
     }
     const fmt=v=>(v>=0?'+':'')+v.toFixed(1)+'%';
     const status=side?(plan?'breakout '+side.toUpperCase()+' 55 hari':'breakout tanpa rencana valid')
@@ -70,9 +70,9 @@
     }
     return null;
   }
-  // Drawdown jurnal dari hasil R posisi turtle-v1 yang sudah selesai (risiko 0,5% per trade), urut waktu keluar.
-  function drawdown(history){
-    const rs=(history||[]).filter(x=>x.engine==='turtle-v1'&&Number.isFinite(x.r)).sort((a,b)=>(a.closedAt||0)-(b.closedAt||0));
+  // Drawdown jurnal dari hasil R posisi satu engine (default turtle-v1) yang sudah selesai (risiko 0,5% per trade), urut waktu keluar.
+  function drawdown(history,engine='turtle-v1'){
+    const rs=(history||[]).filter(x=>x.engine===engine&&Number.isFinite(x.r)).sort((a,b)=>(a.closedAt||0)-(b.closedAt||0));
     let e=1,pk=1,dd=0;for(const x of rs){e+=x.r*RULES.riskPct/100;pk=Math.max(pk,e);dd=Math.max(dd,(pk-e)/pk);}
     return {current:(pk-e)/pk,max:dd,trades:rs.length};
   }

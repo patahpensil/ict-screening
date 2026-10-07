@@ -100,7 +100,24 @@
     await Promise.all([worker(),worker(),worker()]);
     // Universe akhir: Top 100 menurut quote volume 30 hari dari candle 1D (urutan = prioritas slot).
     const candidates=Trend.topByVolume30(rows);
-    return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates,errors};
+    return {engine:'turtle-v1',at:Date.now(),universe:universe.map(x=>x.symbol),candidates,errors};
   }
-  root.MalomoMarket={refresh,connect,candles,evaluate,scan,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,serverNow,getLive:()=>alive>0&&Date.now()-alive<20000};
+  // Intraday: 4H menentukan arah (dan volume 30 hari untuk Top 100), 1H untuk SL dan exit.
+  async function evaluateIntraday(symbol){
+    const [c4,c1]=await Promise.all([candles(symbol,'4h',400),candles(symbol,'1h',400)]),t=tickers.find(x=>x.symbol===symbol);
+    return Intraday.evaluate(c4,c1,{now:serverNow(),lastPrice:t?.lastPrice});
+  }
+  // Tahap 1 mengunduh 4H untuk 250 pair; tahap 2 mengunduh 1H hanya untuk Top 100 hasil tahap 1.
+  async function scanIntraday(options={}){
+    const progress=options.progress||(()=>{});
+    if(!tickers.length)await refresh();
+    const universe=Trend.rankUniverse(tickers).slice(0,Intraday.RULES.prefilter),first=[],errors=[];
+    const total=universe.length+Intraday.RULES.universe;let done=0;
+    async function pool(items,fn){let k=0;const worker=async()=>{while(k<items.length){const item=items[k++];try{await fn(item);}catch(e){errors.push({symbol:item.symbol,error:e.message});}progress(++done,total);}};await Promise.all([worker(),worker(),worker()]);}
+    await pool(universe,async row=>{const e=Intraday.evaluate4h(await candles(row.symbol,'4h',400),{now:serverNow()});if(e.volume30!=null)first.push({symbol:row.symbol,quoteVolume:row.quoteVolume,lastPrice:row.lastPrice,evaluation:e});});
+    const top=Intraday.topByVolume30(first),rows=[];done=universe.length;
+    await pool(top,async row=>{const e=Intraday.evaluate(await candles(row.symbol,'4h',400),await candles(row.symbol,'1h',400),{now:serverNow(),lastPrice:row.lastPrice});rows.push({symbol:row.symbol,quoteVolume:row.quoteVolume,evaluation:e});});
+    return {engine:'intraday-v1',at:Date.now(),universe:universe.map(x=>x.symbol),candidates:Intraday.topByVolume30(rows),errors};
+  }
+  root.MalomoMarket={refresh,connect,candles,evaluate,scan,evaluateIntraday,scanIntraday,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,serverNow,getLive:()=>alive>0&&Date.now()-alive<20000};
 })(globalThis);
