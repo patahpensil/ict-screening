@@ -6,6 +6,8 @@ const server=http.createServer((req,res)=>{let f=path.join(root,decodeURICompone
 const prices=[8,9,10,12,10,9,8,9,10,11,10,9,9.5,10,11,12,13,15,13,12,11,12,13];
 // 320 candle 1D di kisaran sempit; close terakhir 13 (= harga ticker): BTC menembus high 55 hari (LONG), ETH menembus low 55 hari (SHORT).
 const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from({length:n},(_,i)=>{const p=i===n-1?13:base*(1+0.02*Math.sin(i/5));const t=now-(n-i)*86400000;return [t,p,p*1.01,p*0.99,p,10,t+86399999,100,0,0,60];});};
+// 400 candle 4H/1H untuk scan intraday: 4H kisaran sempit lalu close 4H terakhir 13 (BTC breakout naik, ETH turun); 1H di sekitar 13.
+const intra=(sym,tf,now)=>{const step=tf==='4h'?14400000:3600000,n=400,base=sym==='BTCUSDT'?10:16;return Array.from({length:n},(_,i)=>{const p=tf==='4h'?(i===n-1?13:base*(1+0.02*Math.sin(i/5))):13*(1+0.01*Math.sin(i/3));const t=now-(n-i)*step;return [t,p,p*1.005,p*0.995,p,10,t+step-1,100+i%7,0,0,60];});};
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox']});
@@ -23,6 +25,7 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
         else if(u.pathname.endsWith('premiumIndex'))data=['BTCUSDT','ETHUSDT'].map(symbol=>({symbol,lastFundingRate:0.0001}));
         else if(u.searchParams.get('interval')==='1d')data=daily(u.searchParams.get('symbol'),now);
         else if(u.searchParams.get('interval')==='1m')data=Array.from({length:Number(u.searchParams.get('limit'))},(_,i)=>{const t=now-(Number(u.searchParams.get('limit'))-1-i)*60000;return [t,10,11,9,10,1,t+59999,10];});
+        else if(['4h','1h'].includes(u.searchParams.get('interval')))data=intra(u.searchParams.get('symbol'),u.searchParams.get('interval'),now);
         else data=prices.map((p,i)=>{const t=now-(prices.length-i)*3600000;return [t,p,p+.2,p-.2,p,10,t+3599999,100];});
         await route.fulfill({json:data});
       });
@@ -36,7 +39,7 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       await nav('wsScanner');assert(await page.locator('#tbody .coin-row').count()===2);
       await page.locator('#tbody .crow-star').first().click();assert.equal(await page.evaluate(()=>MalomoStore.read('watchlist').length),1);
       await page.locator('#searchBox').fill('BTC');assert.equal(await page.locator('#tbody .coin-row').count(),1);await page.locator('#searchBox').fill('');
-      await page.locator('#tbody .coin-row').first().click();await page.waitForFunction(()=>document.getElementById('modalBody').textContent.includes('BREAKOUT 55/20'));
+      await page.locator('#tbody .coin-row').first().click();await page.waitForFunction(()=>document.getElementById('modalBody').textContent.includes('BREAKOUT SWING 55/20'));
       const modal=await page.locator('#modalBody').innerText();for(const part of ['High 55 hari','Low 55 hari','Exit LONG (low 20 hari)','ATR 20 hari','RISIKO','DATA PASAR'])assert(modal.includes(part),'detail tanpa '+part);await page.locator('#mhStarBtn').click();await page.locator('#modalCloseBtn').click();
       await nav('wsHome');await page.locator('#modeIntradayBtn').click();await page.waitForFunction(()=>window.lastMalomoScan&&document.querySelectorAll('#modeResultsList .scan-card').length===2);
       assert((await page.locator('#modeResultsList .scan-col').nth(0).innerText()).includes('BTC'));assert((await page.locator('#modeResultsList .scan-col').nth(1).innerText()).includes('ETH'));assert((await page.locator('#modeResultsList').innerText()).includes('SINYAL PAPER'));assert((await page.locator('#modeResultsList').innerText()).includes('drawdown 24%'));assert((await page.locator('#modeResultsList').innerText()).includes('BREAKOUT LONG'));assert((await page.locator('#modeResultsList').innerText()).includes('BREAKOUT SHORT'));assert.equal((await page.locator('#modeResultsClose').innerText()).trim(),'← Back');assert.equal((await page.locator('#scanRefreshBtn').innerText()).trim(),'⟳ Refresh');assert.deepEqual((await page.locator('#modeResultsList .scan-col-head').allInnerTexts()).map(t=>t.split(' ')[0]),['LONG','SHORT']);assert((await page.locator('#modeResultsList .md-chip').count())>0,'banner data pasar tidak tampil');await page.locator('#modeResultsClose').click();
@@ -45,20 +48,35 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       // Scan membuat rencana ARMED (BTC LONG, ETH SHORT) di harga ticker 13; tick berikutnya menyentuh entry.
       await page.waitForFunction(()=>MalomoStore.read('tracks').filter(r=>r.engine==='turtle-v1'&&r.status==='running').length===2);
       // Jurnal otomatis: setiap pair yang menyentuh entry langsung tercatat (status open).
-      let auto=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto));
-      assert.equal(auto.length,2);assert(auto.every(e=>e.status==='open'&&e.setup.startsWith('Breakout 55/20')&&e.setup.endsWith('PAPER')&&e.notes.startsWith('PAPER')&&Number(e.entry)===13));
+      let auto=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto&&String(e.setup).startsWith('Breakout Swing')));
+      assert.equal(auto.length,2);assert(auto.every(e=>e.status==='open'&&e.setup.startsWith('Breakout Swing 55/20')&&e.setup.endsWith('PAPER')&&e.notes.startsWith('PAPER')&&Number(e.entry)===13));
       await nav('wsDecision');await page.waitForFunction(()=>document.querySelectorAll('#decisionList .dec-card').length===2);
       const card=await page.locator('#decisionList .dec-card').first().innerText();
-      for(const part of ['RUNNING','SL','ENTRY','RISIKO','OPEN INTEREST','CVD (TAKER)','ORDERBOOK','EXIT 20 HARI','Breakout 55/20','PAPER'])assert(card.includes(part),'kartu Decision tanpa '+part);
+      for(const part of ['RUNNING','SWING','SL','ENTRY','RISIKO','OPEN INTEREST','CVD (TAKER)','ORDERBOOK','EXIT 20 HARI','Breakout Swing 55/20','PAPER'])assert(card.includes(part),'kartu Decision tanpa '+part);
       assert.equal(await page.locator('#decisionCount').innerText(),'2');
       // SL BTC dipindah ke atas harga: posisi selesai dalam untung dan entri jurnal yang sama diperbarui.
       await page.evaluate(()=>{const t=MalomoStore.read('tracks');for(const r of t)if(r.symbol==='BTCUSDT')r.sl=14;MalomoStore.write('tracks',t);});
       await page.evaluate(()=>MalomoApp.refresh());
       await page.waitForFunction(()=>MalomoStore.read('journal').some(e=>e.auto&&e.symbol==='BTCUSDT'&&e.status==='win'));
-      auto=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto));
+      auto=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto&&String(e.setup).startsWith('Breakout Swing')));
       assert.equal(auto.length,2,'entri jurnal harus diperbarui, bukan diduplikasi');
       const btc=auto.find(e=>e.symbol==='BTCUSDT');assert.equal(Number(btc.exit),14);assert(btc.notes.includes('di SL'));assert.equal(auto.find(e=>e.symbol==='ETHUSDT').status,'open');
-      assert.equal(await page.evaluate(()=>MalomoStore.read('tracks').filter(r=>r.status==='running').length),1);
+      assert.equal(await page.evaluate(()=>MalomoStore.read('tracks').filter(r=>r.engine==='turtle-v1'&&r.status==='running').length),1);
+      await page.evaluate(()=>MalomoStore.write('tracks',[]));
+      // Intraday: scan khusus, sinyal langsung RUNNING, masuk Decision yang sama dengan label INTRADAY dan tercatat di Jurnal.
+      await page.waitForFunction(async()=>{await MalomoApp.scan('intraday');return MalomoStore.read('tracks').filter(r=>r.engine==='intraday-v1'&&r.status==='running').length===2;},null,{polling:1000,timeout:60000});
+      const intraJournal=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto&&String(e.setup).startsWith('Breakout Intraday 4H/1H')));
+      assert.equal(intraJournal.length,2);assert(intraJournal.every(e=>e.status==='open'&&e.setup.endsWith('PAPER')&&e.notes.includes('20 candle 1H')));
+      await nav('wsHome');await page.locator('#modeIntradayScanBtn').click();
+      await page.waitForFunction(()=>document.getElementById('modeResultsTitle').textContent.includes('Intraday')&&document.querySelectorAll('#modeResultsList .scan-card').length===2);
+      const intraList=await page.locator('#modeResultsList').innerText();for(const part of ['BREAKOUT LONG INTRADAY','BREAKOUT SHORT INTRADAY','PAPER INTRADAY'])assert(intraList.includes(part),'scan intraday tanpa '+part);
+      await page.locator('#modeResultsClose').click();
+      await nav('wsDecision');await page.waitForFunction(()=>document.querySelectorAll('#decisionList .dec-card').length===2);
+      const intraCard=await page.locator('#decisionList .dec-card').first().innerText();
+      for(const part of ['RUNNING','INTRADAY','Breakout Intraday 4H/1H','EXIT 20 CANDLE 1H','ATR20 1H','PAPER'])assert(intraCard.includes(part),'kartu Decision intraday tanpa '+part);
+      await page.locator('#decisionList .dec-card').first().click();await page.waitForFunction(()=>document.getElementById('modalBody').textContent.includes('BREAKOUT INTRADAY · 4H/1H'));
+      const intraModal=await page.locator('#modalBody').innerText();for(const part of ['High 55 candle 4H','Exit LONG (low 20 candle 1H)','ATR 20 candle 1H'])assert(intraModal.includes(part),'detail intraday tanpa '+part);
+      await page.locator('#modalCloseBtn').click();
       await page.evaluate(()=>MalomoStore.write('tracks',[]));
       const journalBefore=await page.evaluate(()=>MalomoStore.read('journal').length);
       await nav('wsReview');await page.locator('#journalAddBtn').click();await page.locator('#jfSymbol').fill('BTC');await page.locator('#jfEntry').fill('10');await page.locator('#jfSl').fill('9');await page.locator('#jfPnlUsd').fill('5');await page.locator('#jfNotes').fill('<b>catatan pengguna</b>');await page.locator('#journalForm button[type="submit"]').click();assert.equal(await page.locator('#journalList .journal-entry').count(),journalBefore+1);assert.equal(await page.locator('#journalList .je-notes b').count(),0);
@@ -66,15 +84,15 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       await nav('wsHome');
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'page must not overflow horizontally');
       if(process.env.SCREENSHOT_DIR){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,viewport.width+'.png'),fullPage:true,animations:'disabled'});}
-      assert.deepEqual(errors,[]);console.log('PASS browser '+viewport.width+'px: navigation, market, watchlist, search, detail breakout 55/20, scan LONG/SHORT, entry→RUNNING→jurnal otomatis, SL→jurnal diperbarui, Decision, calculator, responsive width');await context.close();
+      assert.deepEqual(errors,[]);console.log('PASS browser '+viewport.width+'px: navigation, market, watchlist, search, detail breakout swing, scan LONG/SHORT, entry→RUNNING→jurnal otomatis, SL→jurnal diperbarui, scan intraday→Decision INTRADAY→jurnal, Decision, calculator, responsive width');await context.close();
     }
     const offlineContext=await browser.newContext(),offlinePage=await offlineContext.newPage();
     await offlinePage.addInitScript(()=>{window.WebSocket=class{constructor(){this.readyState=1;}close(){this.readyState=3;}};});
     await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
     await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
     await offlinePage.goto('http://127.0.0.1:'+server.address().port);
-    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v99'));
-    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v99');return !!await c.match('./app/main.js');});
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v101'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v101');return !!await c.match('./app/main.js');});
     // `controller` bisa sudah terisi sebelum service worker siap menangani navigasi; tanpa menunggu
     // `ready`, reload offline kadang lolos dari service worker dan gagal (flaky di CI dan Chrome lokal).
     await offlinePage.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));

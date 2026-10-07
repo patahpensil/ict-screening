@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node scripts/selftest.js && node scripts/check.js && node scripts/test-trend.js && node scripts/test-transport.js",
+    "test": "node scripts/selftest.js && node scripts/check.js && node scripts/test-trend.js && node scripts/test-intraday.js && node scripts/test-transport.js",
     "test:browser": "node scripts/smoke-browser.js"
   },
   "devDependencies": {"playwright": "1.56.1"}

@@ -1,7 +1,8 @@
-const CACHE_NAME = "ict-screening-v99";
+const CACHE_NAME = "ict-screening-v101";
 const SHELL_FILES = [
   "./index.html",
   "./engine/trend.js",
+  "./engine/intraday.js",
   "./app/storage.js",
   "./app/market.js",
   "./app/tracker.js",
@@ -16,7 +17,7 @@ const SHELL_FILES = [
 ];
 
 // Shell dan modul aplikasi memakai network-first, dengan fallback offline.
-const NETWORK_FIRST_FILES = ["index.html", "manifest.json", "engine/trend.js", "app/storage.js", "app/market.js", "app/tracker.js", "app/live.js", "app/marketdata.js", "app/ui.js", "app/main.js"];
+const NETWORK_FIRST_FILES = ["index.html", "manifest.json", "engine/trend.js", "engine/intraday.js", "app/storage.js", "app/market.js", "app/tracker.js", "app/live.js", "app/marketdata.js", "app/ui.js", "app/main.js"];
 
 // Origin lintas-domain yang tetap boleh di-cache karena memang bagian dari shell app (font UI).
 // Selain ini + origin sendiri, TIDAK ADA yang boleh disentuh cache — lihat catatan di handler fetch.

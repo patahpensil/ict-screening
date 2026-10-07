@@ -324,7 +324,7 @@
   .sort-pill.active{background:var(--mint-dim); border-color:var(--mint); color:var(--mint);}
 
   /* ===== COIN LIST (beginner-friendly rows) ===== */
-  /* Hasil Scan Breakout: dua kolom LONG/SHORT, satu kolom di layar sempit; banner data pasar per pair. */
+  /* Hasil Scan Breakout Swing: dua kolom LONG/SHORT, satu kolom di layar sempit; banner data pasar per pair. */
   .scan-split{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
   @media(max-width:560px){ .scan-split{grid-template-columns:1fr;} }
   .scan-col{min-width:0;}
@@ -1025,16 +1025,18 @@
   </div>
 
   <div class="ws-card">
-    <div class="ws-card-title">SCAN BREAKOUT 55/20 — 1D</div>
+    <div class="ws-card-title">SCAN BREAKOUT — SWING 1D · INTRADAY 4H/1H</div>
     <div class="hero-mode-pills" style="grid-template-columns:1fr;">
-      <button class="hero-mode-pill" id="modeIntradayBtn">Scan Breakout<span class="hmp-sub">Close 1D menembus high/low 55 hari · Top 100 volume 30 hari</span></button>
+      <button class="hero-mode-pill" id="modeIntradayBtn">Scan Breakout Swing<span class="hmp-sub">Close 1D menembus high/low 55 hari · Top 100 volume 30 hari</span></button>
+      <button class="hero-mode-pill" id="modeIntradayScanBtn">Scan Breakout Intraday<span class="hmp-sub">Close 4H menembus high/low 55 candle 4H · SL &amp; exit dari 1H</span></button>
     </div>
   </div>
 
   <div class="ws-card" id="aksiCepatCard">
     <div class="ws-card-title">AKSI CEPAT</div>
     <div class="hero-mode-pills" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
-      <button class="hero-mode-pill" id="scanTopBtn">⚡ Scan Breakout · Top 100</button>
+      <button class="hero-mode-pill" id="scanTopBtn">⚡ Scan Breakout Swing · Top 100</button>
+      <button class="hero-mode-pill" id="scanIntradayBtn">⚡ Scan Breakout Intraday · Top 100</button>
       <button class="hero-mode-pill" id="decisionQuickBtn">🧭 Decision <span class="badge-count" id="decisionCount" style="display:none;">0</span></button>
       <button class="hero-mode-pill" id="marketQuickBtn">📊 Market / Semua Pair</button>
     </div>
@@ -1158,7 +1160,7 @@
     <button class="back-to-home-btn" onclick="goHome()">← Back</button>
     <div class="ws-header"><span class="ws-title">DECISION</span></div>
     <div class="ws-sub">Pair yang harganya sudah menyentuh level Entry — tampil RUNNING sampai kena TP atau SL, lalu hilang dari sini</div>
-    <div class="ws-note">ℹ️ Daftar ini untuk kamu <b>tinjau sebelum eksekusi manual</b> di Binance. Setiap sinyal Scan Breakout dipantau selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini sebagai RUNNING <b>dan otomatis tercatat di Jurnal</b>, sampai keluar di SL atau exit 20 hari. Hasil dicatat berdasarkan level plan, belum termasuk fee, slippage, dan funding. App tidak mengirim order ke Binance. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
+    <div class="ws-note">ℹ️ Daftar ini untuk kamu <b>tinjau sebelum eksekusi manual</b> di Binance. Setiap sinyal Scan Breakout Swing dan Intraday dipantau (label SWING / INTRADAY) selama app terbuka; begitu harga menyentuh Entry, pair pindah ke sini sebagai RUNNING <b>dan otomatis tercatat di Jurnal</b>, sampai keluar di SL atau exit (swing: 20 hari, intraday: 20 candle 1H). Hasil dicatat berdasarkan level plan, belum termasuk fee, slippage, dan funding. App tidak mengirim order ke Binance. <span class="sim-tag">ALAT BANTU, BUKAN JAMINAN</span></div>
     <div class="ws-note">📡 <b>Data real-time saat RUNNING:</b> <b>OI</b> (polling ±15 dtk), <b>CVD</b> &amp; <b>orderbook</b> (WebSocket) dan <b>level exit 20 hari</b> terkini. Data ini <b>hanya tampilan</b> — tidak memengaruhi sinyal. Satu pair hanya punya satu posisi aktif; LONG dan SHORT tidak bisa berjalan bersamaan di pair yang sama.</div>
     <div id="decisionList"></div>
     <div class="ws-note" id="decisionArmedNote" style="margin-top:6px;"></div>
@@ -1241,8 +1243,9 @@
         <button class="btn" id="notifPermBtn" style="margin-top:10px; width:100%;">🔔 Izinkan Notifikasi Browser</button>
         <div class="notif-status" id="notifStatus"></div>
 
-        <div class="drawer-title" style="margin-top:20px;">🧩 Aturan Scan Breakout 55/20</div>
+        <div class="drawer-title" style="margin-top:20px;">🧩 Aturan Scan Breakout Swing 55/20</div>
         <div class="sop-note">Top 100 menurut volume 30 hari → close 1D menembus high/low 55 hari → entry saat harga menyentuh → keluar di SL (2 × ATR20) atau saat close 1D menembus low/high 20 hari. Maks 5 posisi per arah (prioritas volume terbesar); sinyal baru berhenti bila drawdown jurnal ≥ 20%.</div>
+        <div class="sop-note"><b>Intraday 4H/1H:</b> close 4H menembus high/low 55 candle 4H → SL = entry ∓ 2 × ATR20 1H → keluar saat close 1H menembus low/high 20 candle 1H. Risiko 0,5%, maks 5 posisi per arah (slot terpisah dari swing). Satu pair hanya satu posisi, swing atau intraday.</div>
         <div class="settings-grid">
           <div class="setting-field"><label>Entry</label><select disabled><option>Harga saat sinyal (breakout 55 hari)</option></select></div>
           <div class="setting-field"><label>Stop Loss</label><select disabled><option>Entry ∓ 2 × ATR20 · exit close 1D tembus 20 hari</option></select></div>
@@ -1373,6 +1376,7 @@
   </button>
 
 <script src="engine/trend.js"></script>
+<script src="engine/intraday.js"></script>
 <script src="app/storage.js"></script>
 <script src="app/market.js"></script>
 <script src="app/tracker.js"></script>

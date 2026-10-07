@@ -3,11 +3,12 @@
    (Trend.exitSignal, dicek sesudah scan). Rekaman trend-v1 lama keluar lewat trailing stop (Trend.trail). */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.MalomoTracker=api;})(globalThis,function(){
   'use strict';
-  // Satu rencana per pair, arah, dan hari sinyal (close 1D tempat breakout dibaca).
+  // Satu rencana per pair, arah, dan candle sinyal. Close 1D (swing) dan close 4H (intraday) bisa jatuh di waktu yang
+  // sama (00:00 UTC), jadi id selain swing diberi nama engine agar tidak tertukar di histori dan Jurnal.
   function create(symbol,evaluation,at){
     if(!evaluation||!evaluation.plan||!evaluation.side)return null;
-    const p=evaluation.plan;
-    return Object.assign({id:symbol+'|'+evaluation.side+'|'+p.signalAt,symbol,side:evaluation.side,createdAt:at,lastAt:at,status:'armed',engine:evaluation.engine||'turtle-v1'},p);
+    const p=evaluation.plan,engine=evaluation.engine||'turtle-v1';
+    return Object.assign({id:symbol+'|'+evaluation.side+'|'+p.signalAt+(engine==='turtle-v1'?'':'|'+engine),symbol,side:evaluation.side,createdAt:at,lastAt:at,status:'armed',engine},p);
   }
   function close(record,outcome,price,at){
     record.status='closed';record.outcome=outcome;record.exit=price;record.closedAt=at;
