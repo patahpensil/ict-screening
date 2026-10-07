@@ -1,4 +1,4 @@
-/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan struktur 4H.
+/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan skor tren 1D terkini.
    HANYA tampilan — tidak pernah masuk penilaian engine Malomo (port dari tampilan Decision engine lama). */
 (function(root){
   'use strict';
@@ -82,14 +82,11 @@
       }catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }
-  // Struktur 4H dari engine Malomo (candle close), ±30 detik.
+  // Skor tren 1D terkini (engine trend-v1), ±30 detik; candle 1D di-cache sampai candle berikutnya close.
   async function pollStructure(tracks){
     for(const sym of liveSymbols(tracks)){
-      try{
-        const f=Malomo.frame(await MalomoMarket.candles(sym,'4h'));
-        const ev=f.structure.event;
-        structure[sym]=ev?{type:ev.type,direction:ev.direction,level:ev.level,barsAgo:f.candles.length-1-ev.index,t:f.candles[ev.index]?.ct??null,status:f.structure.status}:null;
-      }catch{/* dicoba lagi pada siklus berikutnya */}
+      try{const e=Trend.evaluate(await MalomoMarket.candles(sym,'1d',400),{now:MalomoMarket.serverNow()});structure[sym]={forecast:e.forecast,at:Date.now()};}
+      catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }
   root.MalomoLive={sync,tick,pollOI,pollStructure,data:sym=>data[sym]||{},structure:sym=>structure[sym]};

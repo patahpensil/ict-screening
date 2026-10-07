@@ -21,7 +21,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const WATCHED = ['index.html', 'sw.js', 'engine/malomo.js', 'app/storage.js', 'app/market.js', 'app/tracker.js', 'app/live.js', 'app/marketdata.js', 'app/ui.js', 'app/main.js'];
+const WATCHED = ['index.html', 'sw.js', 'engine/trend.js', 'app/storage.js', 'app/market.js', 'app/tracker.js', 'app/live.js', 'app/marketdata.js', 'app/ui.js', 'app/main.js'];
 
 function git(args) {
   return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();

@@ -150,7 +150,7 @@ const inline=blocks.filter(b=>!(/\bsrc\s*=/.test(b[1])));
 const external=blocks.filter(b=>/\bsrc\s*=/.test(b[1]));
 const modulePaths=external.map(b=>(b[1].match(/src=["']([^"']+)["']/)||[])[1]);
 if(inline.length!==1 || modulePaths.length!==8 || modulePaths.some(p=>!p||p.includes('..')||p.includes(':')))
-  fail('struktur','Harus ada satu bootstrap inline dan delapan modul lokal Malomo');
+  fail('struktur','Harus ada satu bootstrap inline dan delapan modul lokal aplikasi');
 const block=inline[0];
 const jsStart=block?block.index+block[0].indexOf('>')+1:0;
 const jsEnd=block?block.index+block[0].lastIndexOf('</script>'):html.length;

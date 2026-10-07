@@ -1,15 +1,30 @@
-# Validasi implementasi Malomo
+# Validasi implementasi — engine skor tren (trend-v1)
 
-- `npm test`: lulus. Self-test pemeriksa, pemeriksaan sintaks/DOM, 51 skenario engine/tracker, serta pengujian transport dan penyimpanan.
-- `scripts/smoke-browser.js`: lulus pada viewport desktop 1440×1000 dan mobile 390×844. Navigasi, data pasar, watchlist, pencarian, detail, scanner, jurnal, escaping catatan, kalkulator, dan tidak ada overflow horizontal/page error. Binance dimock; tidak mengirim order/notifikasi.
-- Uji PWA offline: lulus. Halaman utama dan seluruh modul baru terbaca dari shell cache saat jaringan dimatikan; fallback navigasi root diperbaiki.
-- CSS dalam `index.html` sama persis dengan branch main sebelum revisi. Shell menggunakan layout/panel yang ada; isi penilaian disesuaikan dengan PRD.
-- Audit data pengguna: 62.310 candle arsip BTC/ETH/SOL/BNB/DOGE/XRP, 1D/4H/1H Januari–November 2024. Evaluasi 222 snapshot mingguan 21 Maret–30 November 2024. Semua swing yang dipakai telah terkonfirmasi sebelum waktu snapshot; setiap Trading Plan yang muncul memiliki konfirmasi entry dan RR ≥2.2. Tidak ditemukan exception.
-- Audit historis di atas memeriksa runtime dan invariant; tidak menghitung hit rate, biaya, atau hasil pembobotan. Tidak merupakan bukti keunggulan trading.
-- Versi cache PWA dinaikkan v86 → v88, lalu v89 untuk perbaikan audit dan v90 untuk addendum keputusan, v91 untuk teks Decision, dan v92 untuk porting tampilan Decision 6 Okt 2026, seluruh modul baru terdaftar di shell cache, dan data Binance tidak dicache service worker.
+Diperbarui: 7 Oktober 2026 (penggantian engine Malomo dengan skor tren Carver). Riwayat validasi engine Malomo ada di git history file ini.
 
-Probe REST Binance live dari lingkungan pengujian menghasilkan HTTP 451. Integrasi transport diuji dengan data terkendali; koneksi live belum dapat dibuktikan dari lingkungan ini.
+## Pengujian otomatis
 
-## Keterbatasan yang ditampilkan
+- `npm test`: lulus.
+  - Self-test pemeriksa dan pemeriksaan statis (sintaks, DOM, delapan modul lokal).
+  - `scripts/test-trend.js` (17 pemeriksaan): **skor aplikasi identik dengan implementasi riset yang diuji** pada tren naik, turun, dan datar; sinyal LONG/SHORT/tanpa sinyal; batas ±20; rencana (entry, stop awal 0,5 × volatilitas tahunan, tanpa TP); candle belum close diabaikan; data < 300 hari tanpa skor; kausal; hasil hitung dipakai ulang; tracker ARMED → RUNNING → stop; trailing stop LONG dan SHORT tidak pernah dilonggarkan; keluar dalam untung = win; satu pair satu rencana; rencana lama dengan TP tetap ditangani; data pasar (ADX, CVD 1D, orderbook, parsing); ranking universe.
+  - `scripts/test-transport.js`: cakupan USDT perpetual, retry rate limit, jam server, cache candle sampai close, scan skor tren 1D (400 candle), impor rencana tren tanpa TP, kontinuitas jurnal pengguna.
+- `scripts/smoke-browser.js`: lulus di Chrome pada 1440×1000 dan 390×844, plus PWA offline.
+  - Detail pair menampilkan skor tiap aturan, risiko dan trailing stop, data pasar.
+  - Scan dua kolom: BTC (tren naik) di LONG, ETH (tren turun) di SHORT, label SINYAL.
+  - **Alur jurnal otomatis:** scan membuat 2 rencana ARMED → tick menyentuh entry → keduanya RUNNING → 2 entri jurnal `open` tercatat otomatis → trailing stop BTC tersentuh di atas entry → entri jurnal yang sama diperbarui menjadi `win` (tidak terduplikasi), pair BTC menunggu sinyal baru.
+  - Kartu Decision: TRAILING STOP, ENTRY, STOP AWAL, sel SKOR TREN 1D.
+  - Tidak ada error halaman dan tidak ada luapan horizontal.
 
-Magnitude Candle Range/ATR, label Displacement, regime volatilitas, dan Trend Efficiency dihitung sesuai addendum keputusan pemilik (docs/ADDENDUM_PRD_2026-10-06.md); semuanya informasi atau evidence, bukan gate. K-6 masih terbuka. Hasil TP/SL yang dicatat berdasarkan level plan, bukan fill nyata; tampilan Decision memakai kartu engine lama dengan OI/CVD/orderbook/struktur 4H real-time (hanya tampilan); satu pair satu rencana aktif. Lihat README untuk keputusan operasional dan batas pemantauan.
+## Uji dengan data Binance sungguhan (VPS, 7 Okt 2026)
+
+Modul aplikasi yang sama (`engine/trend.js`, `app/market.js`, `app/marketdata.js`, `app/tracker.js`) dijalankan di Node terhadap Binance:
+
+- Scan pertama 51 detik / 250 request; scan ulang 0 detik / 0 request (cache candle + hasil hitung).
+- Universe 250 pair, 219 dinilai (sisanya < 300 hari data), 20 sinyal LONG, 8 sinyal SHORT, 0 error.
+- 28 rencana terbentuk dengan format benar (tanpa TP, stop awal = entry ∓ jarak trailing).
+- Jarak trailing stop pada sinyal teratas 22–52% dari harga (volatilitas crypto tinggi).
+- WebSocket `/market/stream` dan `/public/stream` mengirim data (diverifikasi sebelumnya dari VPS).
+
+## Keterbatasan
+
+Lihat [PRD_TREND_CARVER.md](PRD_TREND_CARVER.md) bagian 6 dan [UJI_SKOR_TREN_2026-10-07.md](UJI_SKOR_TREN_2026-10-07.md). Keunggulan konsep di crypto kecil dan belum signifikan secara statistik; jurnal otomatis dipakai untuk mengumpulkan bukti ke depan.
