@@ -1,4 +1,4 @@
-/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan skor tren 1D terkini.
+/* Data real-time untuk posisi RUNNING di Decision: OI, CVD, orderbook, dan level exit 20 hari terkini.
    HANYA tampilan — tidak pernah masuk penilaian engine Malomo (port dari tampilan Decision engine lama). */
 (function(root){
   'use strict';
@@ -82,10 +82,10 @@
       }catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }
-  // Skor tren 1D terkini (engine trend-v1), ±30 detik; candle 1D di-cache sampai candle berikutnya close.
+  // Level exit 20 hari terkini (engine turtle-v1), ±30 detik; candle 1D di-cache sampai candle berikutnya close.
   async function pollStructure(tracks){
     for(const sym of liveSymbols(tracks)){
-      try{const e=Trend.evaluate(await MalomoMarket.candles(sym,'1d',400),{now:MalomoMarket.serverNow()});structure[sym]={forecast:e.forecast,at:Date.now()};}
+      try{const e=Trend.evaluate(await MalomoMarket.candles(sym,'1d',400),{now:MalomoMarket.serverNow()});structure[sym]={exitLong:e.exitLong,exitShort:e.exitShort,at:Date.now()};}
       catch{/* dicoba lagi pada siklus berikutnya */}
     }
   }

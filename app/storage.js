@@ -12,8 +12,9 @@
     }
     if(value.watchlist&&value.watchlist.some(x=>typeof x!=='string'))throw new Error('Watchlist harus berisi nama pair');
     for(const key of ['journal','history','tracks','priceAlerts'])if(value[key]?.some(x=>!x||typeof x!=='object'))throw new Error('Entry '+key+' tidak valid');
-    // Engine trend-v1 tidak punya TP/RR (keluar lewat trailing stop); engine malomo-v1 lama wajib punya keduanya.
-    const validTrack=x=>['malomo-v1','trend-v1'].includes(x.engine)&&['long','short'].includes(x.side)&&['armed','running','closed'].includes(x.status)&&[x.entry,x.sl,x.risk,x.lastAt].every(Number.isFinite)&&x.risk>0&&(x.engine==='trend-v1'||[x.tp,x.rr].every(Number.isFinite));
+    // Engine turtle-v1 dan trend-v1 tidak punya TP/RR (keluar lewat exit/trailing); engine malomo-v1 lama wajib punya keduanya.
+    const noTp=x=>x.engine==='turtle-v1'||x.engine==='trend-v1';
+    const validTrack=x=>['malomo-v1','trend-v1','turtle-v1'].includes(x.engine)&&['long','short'].includes(x.side)&&['armed','running','closed'].includes(x.status)&&[x.entry,x.sl,x.risk,x.lastAt].every(Number.isFinite)&&x.risk>0&&(noTp(x)||[x.tp,x.rr].every(Number.isFinite));
     if(value.tracks?.some(x=>!validTrack(x)))throw new Error('Data pemantauan harus berasal dari engine aplikasi ini');
     for(const key of ['watchlist','journal','history','tracks','priceAlerts'])if(value[key]!==undefined)write(key,value[key]);
   }

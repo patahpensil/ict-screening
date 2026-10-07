@@ -76,7 +76,7 @@
     });
   }
   function tickSize(symbol){const f=(symbols.get(symbol)?.filters||[]).find(x=>x.filterType==='PRICE_FILTER');return f?Number(f.tickSize):null;}
-  // Candle 1D yang dibutuhkan skor tren: EMA 256 dan breakout 160 butuh sejarah panjang (400 candle).
+  // Candle 1D untuk breakout 55/20: 400 candle agar ATR Wilder sudah stabil (sama dengan riwayat panjang di riset).
   async function evaluate(symbol){
     const d=await candles(symbol,'1d',400),t=tickers.find(x=>x.symbol===symbol);
     return Trend.evaluate(d,{now:serverNow(),lastPrice:t?.lastPrice,tickSize:tickSize(symbol)});
@@ -92,14 +92,15 @@
         try{
           const d=await candles(row.symbol,'1d',400);
           const evaluation=Trend.evaluate(d,{now:serverNow(),lastPrice:row.lastPrice,tickSize:tickSize(row.symbol)});
-          if(evaluation.forecast!=null)rows.push({symbol:row.symbol,quoteVolume:row.quoteVolume,evaluation});
+          if(evaluation.candles.length>=Trend.RULES.minCandles)rows.push({symbol:row.symbol,quoteVolume:row.quoteVolume,evaluation});
         }catch(e){errors.push({symbol:row.symbol,error:e.message});}
         progress(++done,universe.length);
       }
     }
     await Promise.all([worker(),worker(),worker()]);
-    rows.sort((a,b)=>b.evaluation.forecast-a.evaluation.forecast||a.symbol.localeCompare(b.symbol));
-    return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates:rows,errors};
+    // Universe akhir: Top 100 menurut quote volume 30 hari dari candle 1D (urutan = prioritas slot).
+    const candidates=Trend.topByVolume30(rows);
+    return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates,errors};
   }
   root.MalomoMarket={refresh,connect,candles,evaluate,scan,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,serverNow,getLive:()=>alive>0&&Date.now()-alive<20000};
 })(globalThis);
