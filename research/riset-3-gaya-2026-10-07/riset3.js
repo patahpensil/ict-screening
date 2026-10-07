@@ -218,6 +218,7 @@ function stat(t){
     for(const side of ['long','short']){const ts=t.filter(x=>x.side===side);r[side]={tanpaBatas:stat(ts),batas5:stat(capPortfolio(ts))};}
   }
   fs.writeFileSync('hasil-riset3-'+MODE+'.json',JSON.stringify(res,null,1));
+  fs.writeFileSync('trade-riset3-'+MODE+'.json',JSON.stringify(Object.fromEntries(Object.entries(all).map(([k,t])=>[k,t.map(x=>[x.sym,x.t,x.exitT,x.side,x.o,+x.rNet.toFixed(4)])]))));
   const f=v=>v==null?'—':(v>=0?'+':'')+v.toFixed(2);
   for(const [k,r] of Object.entries(res.kandidat)){console.log('\n'+k);for(const side of ['long','short']){const s=r[side].batas5,u=r[side].tanpaBatas;
     console.log(' ',side.toUpperCase().padEnd(5),'maks 5 posisi:',String(s.n).padStart(4),'trade',f(s.exp)+'R','| paruh',f(s.paruh1.exp),f(s.paruh2.exp),'| DD',(100*s.ddHistoris).toFixed(0)+'%','MC95',s.ddMC95==null?'—':(100*s.ddMC95).toFixed(0)+'%',s.lulus?'LULUS':'gagal','|| tanpa batas:',u.n,'trade',f(u.exp)+'R');}}
