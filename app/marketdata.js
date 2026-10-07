@@ -1,5 +1,5 @@
 /* Data pasar pelengkap per pair: OI, rasio long/short, taker buy/sell, orderbook, CVD, ADX, volume.
-   HANYA tampilan — tidak pernah masuk penilaian engine Malomo. Dikumpulkan lengkap dulu supaya nanti
+   HANYA tampilan — tidak pernah masuk penilaian engine skor tren. Dikumpulkan lengkap dulu supaya nanti
    bisa disaring mana yang benar-benar bermanfaat setelah engine teruji. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.MalomoMarketData=api;})(globalThis,function(){
   'use strict';
@@ -38,10 +38,10 @@
     if(!(bidUsd+askUsd>0))return null;
     return {bidUsd,askUsd,bidPct:100*bidUsd/(bidUsd+askUsd),spreadPct:bid>0?100*(ask-bid)/bid:null};
   }
-  // Metrik yang dihitung dari candle hasil scan (tanpa request tambahan).
+  // Metrik dari candle 1D hasil scan (tanpa request tambahan).
   function metrics(evaluation){
-    const frames=evaluation?.frames||{};
-    return {adx4h:adx(frames['4h']?.candles),cvd24h:cvd(frames['1h']?.candles,24),cvd1h:cvd(frames['1h']?.candles,1)};
+    const c=evaluation?.candles||[];
+    return {adx1d:adx(c),cvd1d:cvd(c,1),cvd7d:cvd(c,7)};
   }
   function parse(res){
     const [oi,accounts,top,taker,book]=res,d={};

@@ -8,8 +8,6 @@
   // Status "candle sudah close" dibandingkan dengan jam server Binance, bukan jam perangkat:
   // jam PC yang lebih cepat beberapa detik akan membuat candle yang masih berjalan terbaca close.
   const serverNow=()=>Date.now()+clockOffset;
-  // Batas kesegaran data 60m: satu menit penuh ditambah jeda jaringan.
-  const freshness=minute+5000;
   const notify=()=>listeners.forEach(fn=>fn(tickers));
   async function request(path){
     const start=tail.then(()=>new Promise(resolve=>setTimeout(resolve,200)));
@@ -31,7 +29,7 @@
     const value=cache.get(key);if(value&&serverNow()<value.until)return value.data;
     if(pending.has(key))return pending.get(key);
     const job=fetchRows().then(all=>{
-      const now=serverNow(),data=Malomo.closed(all,now);
+      const now=serverNow(),data=Trend.closed(all,now);
       const lastCt=all.reduce((m,c)=>Math.max(m,Number(c.ct)||0),0);
       const until=(lastCt>now?lastCt:lastCt+(TF_MS[tf]||60000))+1000;
       cache.delete(key);cache.set(key,{data,until});
@@ -78,39 +76,30 @@
     });
   }
   function tickSize(symbol){const f=(symbols.get(symbol)?.filters||[]).find(x=>x.filterType==='PRICE_FILTER');return f?Number(f.tickSize):null;}
+  // Candle 1D yang dibutuhkan skor tren: EMA 256 dan breakout 160 butuh sejarah panjang (400 candle).
   async function evaluate(symbol){
-    const data=await Promise.all(['1d','4h','1h'].map(tf=>candles(symbol,tf)));
-    return Malomo.evaluate(Object.fromEntries(['1d','4h','1h'].map((tf,i)=>[tf,data[i]])),{tickSize:tickSize(symbol),now:serverNow()});
-  }
-  async function volume60(symbol){
-    const c=(await candles(symbol,'1m',61)).slice(-60);
-    if(c.length!==60||serverNow()-c[c.length-1].ct>freshness||c.some(x=>!Number.isFinite(x.quoteVolume))||c.some((x,i)=>i&&x.t-c[i-1].t!==minute))throw new Error('Quote Volume 60 menit belum lengkap');
-    return {value:c.reduce((s,x)=>s+x.quoteVolume,0),through:c[c.length-1].ct};
+    const d=await candles(symbol,'1d',400),t=tickers.find(x=>x.symbol===symbol);
+    return Trend.evaluate(d,{now:serverNow(),lastPrice:t?.lastPrice,tickSize:tickSize(symbol)});
   }
   async function scan(options={}){
     const progress=options.progress||(()=>{});
     const cancelled=options.cancelled||(()=>false);
     if(!tickers.length)await refresh();
-    const universe=Malomo.rankUniverse(tickers),rows=[],errors=[];let i=0,done=0;
+    const universe=Trend.rankUniverse(tickers),rows=[],errors=[];let i=0,done=0;
     async function worker(){
       while(i<universe.length&&!cancelled()){
         const row=universe[i++];
         try{
-          const [d,h]=await Promise.all([candles(row.symbol,'1d'),candles(row.symbol,'4h')]);
-          const df=Malomo.frame(d),hf=Malomo.frame(h),bias=Malomo.direction(df,hf);
-          if(bias){const v=await volume60(row.symbol);rows.push({symbol:row.symbol,quoteVolume60m:v.value,volumeThrough:v.through,evaluation:{bias,frames:{'1d':df,'4h':hf}}});}
+          const d=await candles(row.symbol,'1d',400);
+          const evaluation=Trend.evaluate(d,{now:serverNow(),lastPrice:row.lastPrice,tickSize:tickSize(row.symbol)});
+          if(evaluation.forecast!=null)rows.push({symbol:row.symbol,quoteVolume:row.quoteVolume,evaluation});
         }catch(e){errors.push({symbol:row.symbol,error:e.message});}
         progress(++done,universe.length);
       }
     }
-    await Promise.all([worker(),worker()]);
-    const selected=Malomo.rankCandidates(rows);
-    for(const row of selected){
-      if(cancelled())break;
-      try{const l=await candles(row.symbol,'1h');row.evaluation=Malomo.evaluate({'1d':row.evaluation.frames['1d'].candles,'4h':row.evaluation.frames['4h'].candles,'1h':l},{tickSize:tickSize(row.symbol),now:serverNow()});}
-      catch(e){row.error=e.message;errors.push({symbol:row.symbol,error:e.message});}
-    }
-    return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates:selected,errors};
+    await Promise.all([worker(),worker(),worker()]);
+    rows.sort((a,b)=>b.evaluation.forecast-a.evaluation.forecast||a.symbol.localeCompare(b.symbol));
+    return {at:Date.now(),universe:universe.map(x=>x.symbol),candidates:rows,errors};
   }
   root.MalomoMarket={refresh,connect,candles,evaluate,scan,request,subscribe:fn=>listeners.add(fn),getTickers:()=>tickers,serverNow,getLive:()=>alive>0&&Date.now()-alive<20000};
 })(globalThis);

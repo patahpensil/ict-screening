@@ -1,33 +1,41 @@
-/* Pemantauan Trading Plan untuk eksekusi manual: entry dikonfirmasi engine; SL keluar tanpa menunggu retest. Tidak mengirim order. */
+/* Pemantauan rencana untuk eksekusi manual: ARMED -> entry tersentuh -> RUNNING -> keluar di stop. Tidak mengirim order.
+   Rencana tren (engine trend-v1) tidak punya TP: keluar hanya lewat trailing stop yang dinaikkan engine (Trend.trail). */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.MalomoTracker=api;})(globalThis,function(){
   'use strict';
+  // Satu rencana per pair, arah, dan hari sinyal (close 1D tempat skor dibaca).
   function create(symbol,evaluation,at){
-    if(!evaluation.plan||!evaluation.trigger.ready)return null;
-    const p=evaluation.plan;return Object.assign({id:symbol+'|'+evaluation.side+'|'+evaluation.trigger.ct,symbol,side:evaluation.side,createdAt:at,lastAt:at,status:'armed',engine:'malomo-v1'},p);
+    if(!evaluation||!evaluation.plan||!evaluation.side)return null;
+    const p=evaluation.plan;
+    return Object.assign({id:symbol+'|'+evaluation.side+'|'+p.signalAt,symbol,side:evaluation.side,createdAt:at,lastAt:at,status:'armed',engine:'trend-v1'},p);
   }
   function advance(record,candle,at){
     if(record.status==='closed'||at<record.lastAt)return record;
-    const long=record.side==='long',sl=long?candle.low<=record.sl:candle.high>=record.sl,tp=long?candle.high>=record.tp:candle.low<=record.tp;
+    const long=record.side==='long',hasTp=Number.isFinite(record.tp);
+    const sl=long?candle.low<=record.sl:candle.high>=record.sl,tp=hasTp&&(long?candle.high>=record.tp:candle.low<=record.tp);
     const close=(outcome,price)=>{record.status='closed';record.outcome=outcome;record.exit=price;record.closedAt=at;record.r=(price-record.entry)*(long?1:-1)/record.risk;};
     if(record.status==='armed'){
       const entered=candle.low<=record.entry&&candle.high>=record.entry;
-      if(entered){record.status='running';record.runningAt=at;if(sl)close('sl',record.sl);}
+      if(entered){record.status='running';record.runningAt=at;record.filledAt=at;record.peak=record.entry;if(sl)close('sl',record.sl);}
       else if(sl||tp){record.status='closed';record.outcome='void';record.closedAt=at;record.r=null;}
     }else if(sl)close('sl',record.sl);else if(tp)close('tp',record.tp);
     record.lastAt=at;return record;
   }
-  // Rencana yang belum terisi gugur bila scan terbaru tidak lagi menghasilkan plan yang sama.
-  // Posisi RUNNING tidak disentuh: keluarnya hanya lewat SL/TP.
+  // Rencana yang belum terisi gugur bila scan terbaru tidak lagi menghasilkan rencana yang sama.
+  // Posisi RUNNING tidak disentuh: keluarnya hanya lewat stop.
   function expire(record,current,at){
     if(record.status!=='armed'||(current&&current.id===record.id))return false;
     record.status='closed';record.outcome='void';record.closedAt=at;record.r=null;record.voidReason='rencana tidak lagi dihasilkan engine pada scan terbaru';
     return true;
   }
   // Satu pair hanya boleh punya satu rencana aktif (ARMED atau RUNNING), apa pun arahnya.
-  // Engine lama bisa mendaftarkan LONG dan SHORT untuk pair yang sama dari mode berbeda; ini mencegahnya.
-  // Panggil setelah expire(): rencana ARMED lama yang tidak lagi dihasilkan engine sudah gugur lebih dulu.
   function admit(tracks,record){
     return !tracks.some(x=>x.id===record.id||(x.symbol===record.symbol&&x.status!=='closed'));
   }
-  return {create,advance,expire,admit};
+  // Status jurnal dari hasil R: trailing stop bisa menutup posisi dalam kondisi untung.
+  function journalStatus(record){
+    if(record.status!=='closed')return 'open';
+    if(!Number.isFinite(record.r))return 'breakeven';
+    return record.r>0.02?'win':record.r<-0.02?'loss':'breakeven';
+  }
+  return {create,advance,expire,admit,journalStatus};
 });
