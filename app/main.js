@@ -87,6 +87,16 @@
     S.write('journal',journal);saveTracks(tracks.filter(r=>!ids.has(r.id)));
     log('🧹 '+old.length+' posisi lama mesin Carver dibuang dari Decision (tidak dihitung sebagai hasil).');
   }
+  // Permintaan pemilik 8 Okt 2026: semua entri jurnal lama dihapus sekali. Entri otomatis breakout 55/20 dipertahankan
+  // (bukti forward). Salinan lengkap disimpan di malomo_journal_backup_20261008 untuk berjaga-jaga.
+  function resetJournal(){
+    const flag='malomo_journal_reset_20261008';if(localStorage.getItem(flag))return;
+    const all=S.read('journal');
+    if(all.length)localStorage.setItem('malomo_journal_backup_20261008',JSON.stringify(all));
+    const keep=all.filter(e=>e.auto&&String(e.setup||'').startsWith('Breakout 55/20'));
+    S.write('journal',keep);localStorage.setItem(flag,String(Date.now()));
+    if(all.length>keep.length)log('🧹 '+(all.length-keep.length)+' entri jurnal lama dihapus. Jurnal kini hanya berisi sinyal breakout 55/20.');
+  }
   async function catchUp(){
     if(polling)return;polling=true;
     try{
@@ -167,9 +177,19 @@
     if(dd.current>=Trend.RULES.maxDrawdown){if(!ddWarned)log('⛔ Drawdown jurnal '+(100*dd.current).toFixed(1)+'% ≥ '+(100*Trend.RULES.maxDrawdown)+'% — sinyal baru dihentikan.');ddWarned=true;saveTracks(tracks);U.decision();return;}
     ddWarned=false;
     // Satu pair satu rencana aktif; maks 5 per arah. Kandidat sudah urut volume 30 hari terbesar (prioritas slot).
-    const slots=side=>tracks.filter(x=>x.status!=='closed'&&x.side===side&&x.engine==='turtle-v1').length;
-    for(const rec of current.values())if(slots(rec.side)<Trend.RULES.maxPerSide&&MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id))tracks.push(rec);
-    saveTracks(tracks);U.decision();
+    // Sinyal = masuk sekarang: posisi langsung RUNNING di harga terkini (SL ikut digeser, jarak 2 × ATR20 tetap) dan
+    // langsung tercatat di Jurnal. Tidak menunggu harga kembali ke harga saat scan dimulai — saat breakout, harga
+    // sering sudah bergerak menjauh selama scan berjalan sehingga rencana tidak pernah tersentuh.
+    const slots=side=>tracks.filter(x=>x.status!=='closed'&&x.side===side&&x.engine==='turtle-v1').length,opened=[];
+    const live=new Map(M.getTickers().map(t=>[t.symbol,t.lastPrice]));
+    for(const rec of current.values()){
+      if(!(slots(rec.side)<Trend.RULES.maxPerSide&&MalomoTracker.admit(tracks,rec)&&!history.some(x=>x.trackId===rec.id)))continue;
+      const px=live.get(rec.symbol)>0?live.get(rec.symbol):rec.entry,long=rec.side==='long',sl=long?px-rec.risk:px+rec.risk;
+      if(long&&!(sl>0))continue;
+      Object.assign(rec,{entry:px,sl,initialSl:sl});MalomoTracker.advance(rec,{low:px,high:px},now);
+      tracks.push(rec);opened.push(rec);
+    }
+    saveTracks(tracks);opened.forEach(r=>transition(r,'armed'));U.decision();
   }
   // Posisi RUNNING dicek pada close 1D: turtle-v1 keluar bila close menembus low/high 20 hari; rekaman trend-v1 lama
   // menaikkan trailing stop. Candle dikumpulkan dulu, lalu track dibaca-ulang dan ditulis sinkron agar tidak menimpa
@@ -255,7 +275,7 @@
     window.addEventListener('popstate',()=>{U.panels();U.workspace('wsHome');});
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Breakout 55/20 · turtle-v1');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
-    retireLegacy();
+    retireLegacy();resetJournal();
     U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh().then(()=>{if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);if(!scanning&&!document.hidden)scan();});M.connect();setInterval(refresh,45000);
     // Decision: data tampilan real-time untuk posisi RUNNING (OI ±15 dtk, CVD & orderbook WebSocket, struktur 4H ±30 dtk).
     MalomoLive.sync(S.read('tracks'));

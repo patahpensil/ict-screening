@@ -14,7 +14,7 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       const context=await browser.newContext({viewport,serviceWorkers:'block'}),page=await context.newPage(),errors=[];
       page.on('pageerror',e=>errors.push(e.message));
       await page.addInitScript(()=>{window.WebSocket=class{constructor(){this.readyState=1;}close(){this.readyState=3;}};});
-      await page.addInitScript(()=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','1');localStorage.setItem('malomo_tracks',JSON.stringify([{id:'OLDUSDT|long|1',symbol:'OLDUSDT',side:'long',engine:'trend-v1',status:'running',entry:10,sl:5,risk:5,gap:5,trailing:true,lastAt:Date.now(),createdAt:1,runningAt:1}]));localStorage.setItem('pp_trade_journal',JSON.stringify([{id:'j-old',trackId:'OLDUSDT|long|1',auto:true,symbol:'OLDUSDT',direction:'long',status:'open',entry:10,notes:'lama'}]));});
+      await page.addInitScript(()=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','1');localStorage.setItem('malomo_tracks',JSON.stringify([{id:'OLDUSDT|long|1',symbol:'OLDUSDT',side:'long',engine:'trend-v1',status:'running',entry:10,sl:5,risk:5,gap:5,trailing:true,lastAt:Date.now(),createdAt:1,runningAt:1}]));localStorage.setItem('pp_trade_journal',JSON.stringify([{id:'j-old',trackId:'OLDUSDT|long|1',auto:true,symbol:'OLDUSDT',direction:'long',status:'open',entry:10,notes:'lama'},{id:'j-manual',symbol:'XUSDT',status:'win',notes:'manual lama'},{id:'j-turtle',auto:true,setup:'Breakout 55/20 · PAPER',symbol:'ZROUSDT',status:'open'}]));});
       await page.route('https://fonts.googleapis.com/**',r=>r.abort());await page.route('https://fonts.gstatic.com/**',r=>r.abort());
       await page.route('https://fapi.binance.com/**',async route=>{
         const u=new URL(route.request().url()),now=Math.floor(Date.now()/60000)*60000;let data;
@@ -28,8 +28,10 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       });
       await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>MalomoMarket.getTickers().length===2);
       assert.equal(await page.evaluate(()=>MalomoStore.read('tracks').filter(r=>r.engine==='trend-v1').length),0,'posisi Carver lama harus dibuang');
-      assert.equal(await page.evaluate(()=>MalomoStore.read('journal').find(e=>e.id==='j-old').status),'cancelled');
-      await page.evaluate(()=>MalomoStore.write('journal',MalomoStore.read('journal').filter(e=>e.id!=='j-old')));
+      // Jurnal lama dihapus sekali (cadangan disimpan); entri breakout 55/20 dipertahankan.
+      assert.deepEqual(await page.evaluate(()=>MalomoStore.read('journal').map(e=>e.id)),['j-turtle']);
+      assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('malomo_journal_backup_20261008')).length),3);
+      await page.evaluate(()=>MalomoStore.write('journal',[]));
       const nav=async ws=>{if(viewport.width<700)await page.locator('#hamburgerBtn').click();await page.locator(`[data-ws="${ws}"]`).first().click();};
       await nav('wsScanner');assert(await page.locator('#tbody .coin-row').count()===2);
       await page.locator('#tbody .crow-star').first().click();assert.equal(await page.evaluate(()=>MalomoStore.read('watchlist').length),1);
@@ -41,9 +43,7 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
       // Dibuka lagi: hasil terakhir tampil seketika (tanpa menunggu scan ulang) dan tersimpan untuk pembukaan berikutnya.
       await page.locator('#modeIntradayBtn').click();assert.equal(await page.locator('#modeResultsList .scan-card').count(),2);assert.equal(await page.evaluate(()=>MalomoStore.read('lastScan',null).candidates.length),2);await page.locator('#modeResultsClose').click();
       // Scan membuat rencana ARMED (BTC LONG, ETH SHORT) di harga ticker 13; tick berikutnya menyentuh entry.
-      await page.waitForFunction(()=>MalomoStore.read('tracks').filter(r=>r.engine==='turtle-v1').length===2);
-      await page.evaluate(()=>MalomoApp.refresh());
-      await page.waitForFunction(()=>MalomoStore.read('tracks').filter(r=>r.status==='running').length===2);
+      await page.waitForFunction(()=>MalomoStore.read('tracks').filter(r=>r.engine==='turtle-v1'&&r.status==='running').length===2);
       // Jurnal otomatis: setiap pair yang menyentuh entry langsung tercatat (status open).
       let auto=await page.evaluate(()=>MalomoStore.read('journal').filter(e=>e.auto));
       assert.equal(auto.length,2);assert(auto.every(e=>e.status==='open'&&e.setup.startsWith('Breakout 55/20')&&e.setup.endsWith('PAPER')&&e.notes.startsWith('PAPER')&&Number(e.entry)===13));
@@ -73,8 +73,8 @@ const daily=(sym,now)=>{const base=sym==='BTCUSDT'?10:16,n=320;return Array.from
     await offlinePage.route('https://fapi.binance.com/**',r=>r.fulfill({status:503,body:'Unavailable'}));
     await offlinePage.route('https://fonts.googleapis.com/**',r=>r.abort());
     await offlinePage.goto('http://127.0.0.1:'+server.address().port);
-    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v98'));
-    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v98');return !!await c.match('./app/main.js');});
+    await offlinePage.waitForFunction(async()=>navigator.serviceWorker.controller&&await caches.has('ict-screening-v99'));
+    await offlinePage.waitForFunction(async()=>{const c=await caches.open('ict-screening-v99');return !!await c.match('./app/main.js');});
     // `controller` bisa sudah terisi sebelum service worker siap menangani navigasi; tanpa menunggu
     // `ready`, reload offline kadang lolos dari service worker dan gagal (flaky di CI dan Chrome lokal).
     await offlinePage.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));
