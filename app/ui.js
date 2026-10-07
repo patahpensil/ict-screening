@@ -61,9 +61,13 @@
   }
   // note: progres pembaruan yang sedang berjalan; hasil lama tetap tampil sampai hasil baru selesai.
   const score=v=>Number.isFinite(v)?(v>0?'+':'')+v.toFixed(1):'—';
+  // Tahap validasi sinyal. Rekaman trend-v1 lama (sebelum label ini) juga PAPER.
+  const stageOf=r=>r&&(r.stage||(r.engine==='trend-v1'?'PAPER':''));
+  const pct=v=>Number.isFinite(v)?(v>=0?'+':'')+v.toFixed(1)+'%':'—';
+  const paperNote=()=>Trend.VALIDATION.stage!=='PAPER'?'':'<div class="sop-note" style="border-left:3px solid var(--amber);margin-bottom:8px;">⚠ <b>PAPER</b> — breakout 55/20 lulus syarat untung di tiga periode uji (2019–2021: 98 trade, +1,39R per trade), tetapi <b>'+esc(Trend.VALIDATION.note)+'</b>. Sinyal tampil dan dicatat otomatis di Jurnal; keputusan eksekusi ada di pemilik.</div>';
   function scanStatus(result,note){
     const c=result.candidates,longs=c.filter(x=>x.evaluation.side==='long').length,shorts=c.filter(x=>x.evaluation.side==='short').length,errors=result.errors.length;
-    text('heroModeStatus',`✓ Tren Carver: ${c.length} pair dinilai · ${longs} sinyal LONG · ${shorts} sinyal SHORT · hasil ${new Date(result.at).toLocaleTimeString('id-ID')}${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}${note?' · '+note:''}`);
+    text('heroModeStatus',`✓ Breakout 55/20 (${Trend.VALIDATION.stage}): ${c.length} pair Top 100 · ${longs} breakout LONG · ${shorts} breakout SHORT · hasil ${new Date(result.at).toLocaleTimeString('id-ID')}${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}${note?' · '+note:''}`);
   }
   const SHOW_PER_SIDE=40;
   function scan(result,note){
@@ -71,18 +75,20 @@
     scanStatus(result,note);
     text('scLastScan',new Date(result.at).toLocaleTimeString('id-ID'));
     const bySymbol=new Map(MalomoMarket.getTickers().map(x=>[x.symbol,x]));
-    const row=r=>{
+    // side: 'long'/'short'. Kartu menunjukkan breakout (sinyal) atau jarak close ke level breakout 55 hari.
+    const row=(r,side)=>{
       const m=r.evaluation,d=bySymbol.get(r.symbol);if(!d)return '';
-      const strong=!!m.side,long=m.forecast>0;
-      const badge=`<span class="badge-pill scan-status ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'} · skor ${score(m.forecast)} · ${strong?'SINYAL (|skor| ≥ '+Trend.RULES.entry+')':'pantau, belum mencapai ambang'}${Number.isFinite(m.volDailyPct)?' · volatilitas harian '+m.volDailyPct.toFixed(1)+'%':''}</span>`;
+      const long=side==='long',hit=m.side===side,dist=long?m.distLong:m.distShort;
+      const badge=`<span class="badge-pill scan-status ${hit?(long?'score-hi':'score-lo'):'score-mid'}">${hit?'BREAKOUT '+side.toUpperCase()+' · SINYAL '+esc(Trend.VALIDATION.stage)+' · SL '+fp(m.plan?.sl)+' · exit 20h '+fp(m.plan?.exitLevel):'pantau · '+pct(-dist)+' lagi ke '+(long?'high':'low')+' 55 hari ('+fp(long?m.high55:m.low55)+')'}${Number.isFinite(m.atrPct)?' · ATR20 '+m.atrPct.toFixed(1)+'%':''}</span>`;
       return scanCard(d,badge,marketChips(r.symbol,r.metrics,d));
     };
-    // Kolom LONG: skor positif tertinggi; kolom SHORT: skor negatif terendah. Sisi SHORT tidak andal di uji (lihat docs).
-    const longs=result.candidates.filter(r=>r.evaluation.forecast>0).sort((a,b)=>b.evaluation.forecast-a.evaluation.forecast).slice(0,SHOW_PER_SIDE);
-    const shorts=result.candidates.filter(r=>r.evaluation.forecast<0).sort((a,b)=>a.evaluation.forecast-b.evaluation.forecast).slice(0,SHOW_PER_SIDE);
-    const col=(title,cls,list,note)=>`<section class="scan-col"><div class="scan-col-head ${cls}">${title} · ${list.filter(r=>r.evaluation.side).length} sinyal${note?'<span style="display:block;font-weight:600;letter-spacing:0;margin-top:3px;">'+note+'</span>':''}</div><div class="coin-list">${list.map(row).join('')||'<div class="empty-state">Tidak ada pair.</div>'}</div></section>`;
-    html('modeResultsList',result.candidates.length?`<div class="scan-split">${col('LONG','long',longs,'')}${col('SHORT','short',shorts,'⚠ sisi SHORT tidak andal di uji (rugi saat pasar naik)')}</div>`:'<div class="empty-state">Belum ada pair dengan data 1D yang cukup.</div>');
-    html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()}</div><div>Entry ${price(p.entry)} · stop awal ${price(p.sl)} (trailing)</div><div class="badge-pill ${r.evaluation.side==='long'?'score-hi':'score-lo'}">Skor tren ${score(r.evaluation.forecast)}</div></div>`;}).join('')||'<div class="empty-state">Belum ada sinyal tren (|skor| ≥ 10).</div>');
+    // Kolom LONG: yang sudah menembus high 55 hari lalu yang paling dekat; SHORT: cermin terhadap low 55 hari.
+    // Pair yang sudah breakout ke satu arah tidak ditampilkan sebagai kandidat arah sebaliknya.
+    const pick=side=>{const k=side==='long'?'distLong':'distShort',o=side==='long'?'short':'long';return result.candidates.filter(r=>Number.isFinite(r.evaluation[k])&&r.evaluation.side!==o).sort((a,b)=>b.evaluation[k]-a.evaluation[k]).slice(0,SHOW_PER_SIDE);};
+    const longs=pick('long'),shorts=pick('short');
+    const col=(title,side,list)=>`<section class="scan-col"><div class="scan-col-head ${side}">${title} · ${list.filter(r=>r.evaluation.side===side).length} breakout</div><div class="coin-list">${list.map(r=>row(r,side)).join('')||'<div class="empty-state">Tidak ada pair.</div>'}</div></section>`;
+    html('modeResultsList',result.candidates.length?paperNote()+`<div class="scan-split">${col('LONG','long',longs)}${col('SHORT','short',shorts)}</div>`:'<div class="empty-state">Belum ada pair dengan data 1D yang cukup.</div>');
+    html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()} · ${esc(Trend.VALIDATION.stage)}</div><div>Entry ${price(p.entry)} · SL ${price(p.sl)} · exit 20 hari ${price(p.exitLevel)}</div><div class="badge-pill ${r.evaluation.side==='long'?'score-hi':'score-lo'}">Breakout 55 hari</div></div>`;}).join('')||'<div class="empty-state">Belum ada breakout 55 hari di Top 100.</div>');
   }
   function detail(symbol,m,tf='1d'){
     selected={symbol,evaluation:m,tf};
@@ -90,16 +96,17 @@
     text('mhSym',symbol.replace(/USDT$/,'/USDT'));text('mhPrice',price(t?.lastPrice||m.last));
     $('mhStarBtn').textContent=MalomoStore.read('watchlist').includes(symbol)?'★':'☆';
     document.querySelectorAll('.tf-btn').forEach(b=>b.classList.toggle('active',b.dataset.tf===tf));
-    const p=m.plan,side=m.side,title=side?side.toUpperCase()+' · SKOR '+score(m.forecast):'PANTAU · SKOR '+score(m.forecast);
-    const rules=(m.rules||[]).map(r=>row(esc(r.name),score(r.value))).join('');
-    const gapPct=Number.isFinite(m.gap)&&m.last?100*m.gap/m.last:null;
-    const analysis=`<div class="trend-banner ${side==='long'?'score-hi':side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(title)}</div><div class="tb-sub">${esc(m.status)}</div></div>`
-      +card('SKOR TREN CARVER · 1D',rules+row('<b>Gabungan</b>','<b>'+score(m.forecast)+'</b> (batas ±'+Trend.RULES.cap+', sinyal di ±'+Trend.RULES.entry+')')+'<div class="sop-note">Skor = rata-rata 8 aturan Carver (EWMAC dan breakout) pada candle 1D yang sudah close. Positif = tren naik, negatif = tren turun.</div>')
-      +card('RISIKO & TRAILING STOP',row('Volatilitas harian',Number.isFinite(m.volDailyPct)?m.volDailyPct.toFixed(2)+'%':'—')+row('Jarak trailing stop',gapPct!=null?gapPct.toFixed(1)+'% ('+price(m.gap)+') · 0,5 × volatilitas tahunan':'—')+'<div class="sop-note">Stop mengikuti close 1D terbaik sejak entry dan tidak pernah dilonggarkan. Tidak ada TP tetap: tren dibiarkan berjalan.</div>');
-    const validation=card('SYARAT SINYAL',row('Skor gabungan',score(m.forecast))+row('Ambang sinyal','|skor| ≥ '+Trend.RULES.entry)+row('Status',side?'✓ '+side.toUpperCase():'○ belum mencapai ambang')+(side==='short'?row('Catatan','⚠ sisi SHORT tidak andal di uji'):''));
+    const p=m.plan,side=m.side,R=Trend.RULES,title=side?'BREAKOUT '+side.toUpperCase()+' · 55 HARI':'PANTAU · BELUM BREAKOUT';
+    const slPct=Number.isFinite(m.atr)&&m.last?100*R.slAtr*m.atr/m.last:null;
+    const balance=Number($('calcBalance')?.value),size=p?Trend.positionSize(balance,p):null;
+    const analysis=`<div class="trend-banner ${side==='long'?'score-hi':side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(title)}</div><div class="tb-sub">${esc(m.status)}${side?' · '+esc(Trend.VALIDATION.stage)+' — '+esc(Trend.VALIDATION.note):''}</div></div>`
+      +card('BREAKOUT 55/20 · 1D',row('Close 1D terakhir',price(m.last))+row('High 55 hari sebelumnya',price(m.high55)+' · jarak '+pct(-m.distLong))+row('Low 55 hari sebelumnya',price(m.low55)+' · jarak '+pct(-m.distShort))+row('Exit LONG (low 20 hari)',price(m.exitLong))+row('Exit SHORT (high 20 hari)',price(m.exitShort))+'<div class="sop-note">Close 1D di atas high 55 hari → LONG; di bawah low 55 hari → SHORT. Keluar saat close 1D menembus low (LONG) / high (SHORT) 20 hari. Tanpa TP tetap.</div>')
+      +card('RISIKO',row('N = ATR 20 hari',price(m.atr)+(Number.isFinite(m.atrPct)?' ('+m.atrPct.toFixed(1)+'%)':''))+row('Jarak SL (2 × N)',slPct!=null?slPct.toFixed(1)+'%':'—')+row('Risiko per trade',R.riskPct+'% modal')+row('Batas posisi','maks '+R.maxPerSide+' per arah · satu per pair')+'<div class="sop-note">SL tetap di entry ∓ 2 × N. Sinyal baru dihentikan bila drawdown jurnal ≥ '+(100*R.maxDrawdown)+'%.</div>');
+    const validation=card('SYARAT SINYAL',row('Breakout 55 hari',side?'✓ '+side.toUpperCase():'○ belum')+row('Universe','Top '+R.universe+' volume 30 hari')+row('Tahap validasi',esc(Trend.VALIDATION.stage)+' — '+esc(Trend.VALIDATION.note)));
     const decision=card('KEPUTUSAN',`<div class="decision-btns"><div class="decision-btn buy ${m.decision==='LONG'?'active':''}"><div class="db-label">LONG</div></div><div class="decision-btn wait ${m.decision==='SKIP'?'active':''}"><div class="db-label">SKIP</div></div><div class="decision-btn sell ${m.decision==='SHORT'?'active':''}"><div class="db-label">SHORT</div></div></div><div class="sop-note">${esc(m.status)}.</div>`);
-    const marketCard=card('DATA PASAR · PELENGKAP',marketChips(symbol,MalomoMarketData.metrics(m),t)+'<div class="sop-note">Hanya tampilan; tidak memengaruhi skor tren.</div>');
-    const trading=p?`<div class="entry-card ${side}"><div class="entry-card-head">${side.toUpperCase()} · RENCANA TREN</div>${row('Entry (harga saat sinyal)',price(p.entry))}${row('Stop awal (trailing)',price(p.sl))}${row('Jarak stop',gapPct!=null?gapPct.toFixed(1)+'%':'—')}${row('Target','Tanpa TP — keluar di trailing stop')}<div class="entry-caveat">Begitu harga menyentuh entry, posisi masuk Decision dan otomatis tercatat di Jurnal.</div><button class="btn btn-primary" data-action="save-plan">📌 Simpan ke Histori Setup</button><button class="btn" data-action="use-plan">🧮 Pakai di Kalkulator</button></div>`:card('RENCANA','<div class="empty-state">'+esc(m.status)+' — rencana dibuat saat |skor| ≥ '+Trend.RULES.entry+'.</div>');
+    const marketCard=card('DATA PASAR · PELENGKAP',marketChips(symbol,MalomoMarketData.metrics(m),t)+'<div class="sop-note">Hanya tampilan; tidak memengaruhi sinyal.</div>');
+    const sizeText=size?price(size.qty)+' koin · notional $'+price(+size.notional.toFixed(2))+' · risiko $'+price(+size.riskUsd.toFixed(2)):'isi Modal di Kalkulator';
+    const trading=p?`<div class="entry-card ${side}"><div class="entry-card-head">${side.toUpperCase()} · BREAKOUT 55/20 · ${esc(p.stage||Trend.VALIDATION.stage)}</div>${paperNote()}${row('Entry (harga saat sinyal)',price(p.entry))}${row('SL (2 × ATR20)',price(p.sl))}${row('Exit','close 1D menembus '+(side==='long'?'low':'high')+' 20 hari (sekarang '+price(p.exitLevel)+')')}${row('Ukuran posisi ('+Trend.RULES.riskPct+'%)',sizeText)}${row('Target','Tanpa TP — tren dibiarkan berjalan')}<div class="entry-caveat">Begitu harga menyentuh entry, posisi masuk Decision dan otomatis tercatat di Jurnal.</div><button class="btn btn-primary" data-action="save-plan">📌 Simpan ke Histori Setup</button><button class="btn" data-action="use-plan">🧮 Pakai di Kalkulator</button></div>`:card('RENCANA','<div class="empty-state">'+esc(m.status)+' — rencana dibuat saat close 1D menembus level 55 hari.</div>');
     html('wsAnalysisBody',analysis);html('wsValidationBody',validation);html('wsDecisionBody',decision);html('wsTradingSetupBody',trading);html('modalBody',analysis+marketCard+validation+decision+trading);
   }
   function journal(){
@@ -122,20 +129,20 @@
   }
   function history(){
     const data=MalomoStore.read('history');text('historyStats',data.length+' Trading Plan tersimpan');
-    html('historyList',data.map(e=>`<div class="ws-card"><div class="ws-card-title">${esc(e.symbol)} · ${esc(e.side)} · ${esc(e.outcome||'tersimpan')}</div>${row('Entry / SL / TP',price(e.entry)+' / '+price(e.sl)+' / '+(Number.isFinite(Number(e.tp))&&e.tp!==null?price(e.tp):'trailing'))}${row('Hasil',Number.isFinite(e.r)?(e.r>=0?'+':'')+e.r.toFixed(2)+'R':Number.isFinite(Number(e.rr))&&e.rr!==null?'RR 1:'+Number(e.rr).toFixed(2):'—')}<button class="btn" data-action="history-delete" data-id="${esc(e.id)}">🗑 Hapus</button></div>`).join('')||'<div class="empty-state">Belum ada histori setup.</div>');
+    html('historyList',data.map(e=>`<div class="ws-card"><div class="ws-card-title">${esc(e.symbol)} · ${esc(e.side)} · ${esc(e.outcome||'tersimpan')}</div>${row('Entry / SL / TP',price(e.entry)+' / '+price(e.sl)+' / '+(Number.isFinite(Number(e.tp))&&e.tp!==null?price(e.tp):e.engine==='turtle-v1'?'exit 20 hari':'trailing'))}${row('Hasil',Number.isFinite(e.r)?(e.r>=0?'+':'')+e.r.toFixed(2)+'R':Number.isFinite(Number(e.rr))&&e.rr!==null?'RR 1:'+Number(e.rr).toFixed(2):'—')}<button class="btn" data-action="history-delete" data-id="${esc(e.id)}">🗑 Hapus</button></div>`).join('')||'<div class="empty-state">Belum ada histori setup.</div>');
     html('shadowSummary','');
   }
   const ago=ms=>{const m=Math.max(0,Math.round(ms/60000));return m<60?m+' mnt':m<1440?Math.floor(m/60)+' jam '+(m%60)+' mnt':Math.floor(m/1440)+' hari';};
   // Format harga kartu Decision sama dengan engine lama: 2/4/6 desimal menurut besaran harga.
   const fp=v=>{const n=Number(v);return !Number.isFinite(n)?'-':n>=100?n.toFixed(2):n>=1?n.toFixed(4):n.toFixed(6);};
   const usd=v=>'$'+num(Math.abs(v));
-  // Tampilan kartu Decision dipertahankan dari engine lama (permintaan pemilik); isinya dari engine skor tren.
+  // Tampilan kartu Decision dipertahankan dari engine lama (permintaan pemilik); isinya dari engine breakout 55/20.
   function decisionCard(r){
     const t=MalomoMarket.getTickers().find(x=>x.symbol===r.symbol),px=t?Number(t.lastPrice):NaN,long=r.side==='long';
     const d=MalomoLive.data(r.symbol),risk=r.risk>0?r.risk:Math.abs(r.entry-r.sl);
     const R=px>0&&risk>0?(long?px-r.entry:r.entry-px)/risk:0,profit=px>0?(px-r.entry)*(long?1:-1):0;
     const hasTp=Number.isFinite(r.tp),start=Number.isFinite(r.initialSl)?r.initialSl:r.sl;
-    // Posisi tren tanpa TP: bilah progres dari stop awal ke harga terbaik (puncak/harga sekarang).
+    // Posisi tanpa TP: bilah progres dari stop awal ke harga terbaik (puncak/harga sekarang).
     const end=hasTp?r.tp:long?Math.max(r.peak??r.entry,px>0?px:r.entry,r.entry+0.5*risk):Math.min(r.peak??r.entry,px>0?px:r.entry,r.entry-0.5*risk);
     const span=end-(hasTp?r.sl:start);
     const frac=v=>Math.max(0,Math.min(1,(v-(hasTp?r.sl:start))/span))*100;
@@ -153,25 +160,29 @@
     const ob=d.imb!==undefined
       ?`<div class="val">Bid ${Math.round((1+d.imb)*50)}% · Ask ${Math.round((1-d.imb)*50)}%</div><div class="sub">${d.imb>0.1?'bid dominan':d.imb<-0.1?'ask dominan':'seimbang'} · 20 level · spread ${d.bid>0&&d.ask>0?((d.ask-d.bid)/d.bid*100).toFixed(3)+'%':'-'}</div>`
       :'<div class="val">menyambung…</div><div class="sub">menunggu snapshot orderbook</div>';
-    const st=MalomoLive.structure(r.symbol);
+    const st=MalomoLive.structure(r.symbol),turtle=r.engine==='turtle-v1';
     let trendCell='<div class="val">memuat…</div>';
-    if(st&&Number.isFinite(st.forecast)){
+    if(turtle){
+      // Level exit 20 hari terkini; peringatan bila harga sekarang sudah melewatinya (keluar bila close 1D di sana).
+      const lvl=st?(long?st.exitLong:st.exitShort):r.exitLevel;
+      if(Number.isFinite(lvl)){const warn=px>0&&(long?px<lvl:px>lvl);trendCell=`<div class="val ${warn?'dec-warn':''}">${fp(lvl)}</div><div class="sub">close 1D ${long?'di bawah':'di atas'} level ini → keluar${warn?'<br>⚠ harga sudah melewati level exit':''}</div>`;}
+    }else if(st&&Number.isFinite(st.forecast)){
       const warn=long?st.forecast<0:st.forecast>0;
       trendCell=`<div class="val ${warn?'dec-warn':''}">${score(st.forecast)}</div><div class="sub">1D · saat sinyal ${score(r.forecastAtSignal)}${warn?'<br>⚠ skor berbalik arah posisi':''}</div>`;
     }
     const rr=hasTp?Math.abs(r.tp-r.entry)/risk:null;
     return `<div class="dec-card ${esc(r.side)}" data-action="detail" data-symbol="${esc(r.symbol)}">
-      <div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span class="dec-sym">${esc(r.symbol.replace(/USDT$/,''))}</span><span class="badge-pill ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'}</span>
-        <div class="dec-meta">${r.engine==='trend-v1'?'Tren Carver · skor saat sinyal '+score(r.forecastAtSignal)+' · stop awal '+fp(start):'Malomo · zona 4H · entry 1H'} · masuk ${esc(fmtTime(r.runningAt))} · berjalan ${ago(Date.now()-(r.runningAt||r.createdAt))}${r.frozen?' · pemantauan dibekukan':''}</div></div>
+      <div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span class="dec-sym">${esc(r.symbol.replace(/USDT$/,''))}</span><span class="badge-pill ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'}</span>${stageOf(r)?'<span class="badge-pill score-mid">'+esc(stageOf(r))+'</span>':''}
+        <div class="dec-meta">${turtle?'Breakout 55/20 · SL 2 × ATR20 '+fp(start):r.engine==='trend-v1'?'Tren Carver · skor saat sinyal '+score(r.forecastAtSignal)+' · stop awal '+fp(start):'Malomo · zona 4H · entry 1H'}${stageOf(r)==='PAPER'?' · PAPER'+(turtle?' — '+esc(Trend.VALIDATION.note):''):''} · masuk ${esc(fmtTime(r.runningAt))} · berjalan ${ago(Date.now()-(r.runningAt||r.createdAt))}${r.frozen?' · pemantauan dibekukan':''}</div></div>
       <div class="dec-price"><span class="px">${px>0?fp(px):'-'}</span><span class="rr ${R>=0?'chg-pos':'chg-neg'}">${R>=0?'+':''}${R.toFixed(2)}R</span></div>
       <div class="dec-prog"><div class="fill" style="width:${px>0?frac(px):0}%"></div><div class="mark" style="left:${frac(r.entry)}%" title="Entry"></div>${px>0?`<div class="now" style="left:${frac(px)}%"></div>`:''}</div>
-      <div class="dec-lv"><div><span>${hasTp?'SL':'TRAILING STOP'}</span>${fp(r.sl)}</div><div><span>ENTRY</span>${fp(r.entry)}</div>${hasTp?`<div><span>TP</span>${fp(r.tp)}</div><div><span>RR</span>1:${rr.toFixed(2)}</div>`:`<div><span>${long?'PUNCAK':'TERENDAH'}</span>${fp(r.peak??r.entry)}</div><div><span>STOP AWAL</span>${fp(start)}</div>`}</div>
-      <div class="dec-data"><div class="dec-cell"><div class="lbl">OPEN INTEREST</div>${oi}</div><div class="dec-cell"><div class="lbl">CVD (TAKER)</div>${cvd}</div><div class="dec-cell"><div class="lbl">ORDERBOOK</div>${ob}</div><div class="dec-cell"><div class="lbl">SKOR TREN 1D</div>${trendCell}</div></div>
+      <div class="dec-lv"><div><span>${hasTp||turtle?'SL':'TRAILING STOP'}</span>${fp(r.sl)}</div><div><span>ENTRY</span>${fp(r.entry)}</div>${hasTp?`<div><span>TP</span>${fp(r.tp)}</div><div><span>RR</span>1:${rr.toFixed(2)}</div>`:turtle?`<div><span>RISIKO</span>${Trend.RULES.riskPct}%</div><div><span>TP</span>tanpa TP</div>`:`<div><span>${long?'PUNCAK':'TERENDAH'}</span>${fp(r.peak??r.entry)}</div><div><span>STOP AWAL</span>${fp(start)}</div>`}</div>
+      <div class="dec-data"><div class="dec-cell"><div class="lbl">OPEN INTEREST</div>${oi}</div><div class="dec-cell"><div class="lbl">CVD (TAKER)</div>${cvd}</div><div class="dec-cell"><div class="lbl">ORDERBOOK</div>${ob}</div><div class="dec-cell"><div class="lbl">${turtle?'EXIT 20 HARI':'SKOR TREN 1D'}</div>${trendCell}</div></div>
     </div>`;
   }
   function decision(){
     const records=MalomoStore.read('tracks'),running=records.filter(x=>x.status==='running').sort((a,b)=>(b.runningAt||0)-(a.runningAt||0)),armed=records.filter(x=>x.status==='armed');
-    html('decisionList',running.map(decisionCard).join('')||'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Tren</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
+    html('decisionList',running.length?(running.some(r=>stageOf(r)==='PAPER')?paperNote():'')+running.map(decisionCard).join(''):'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Breakout</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
     text('decisionArmedNote',armed.length?armed.length+' setup dari scan sedang dipantau, menunggu harga menyentuh Entry.':'');$('decisionArmedNote').style.display=armed.length?'block':'none';
     text('decisionCount',running.length);$('decisionCount').style.display=running.length?'inline-flex':'none';
   }

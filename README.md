@@ -1,6 +1,6 @@
-# ICT Screening — Skor Tren Carver
+# ICT Screening — Breakout 55/20
 
-Screener Binance USDⓈ-M Futures perpetual USDT berbasis **skor tren gaya Rob Carver** (EWMAC + breakout pada candle 1D). Spesifikasi aktif: [docs/PRD_TREND_CARVER.md](docs/PRD_TREND_CARVER.md). Engine sebelumnya (Malomo, ICT struktur) diganti pada 7 Okt 2026; dokumennya disimpan sebagai arsip (`docs/PRD_MALOMO_FINAL.md`, addendum, keputusan, dan laporan riset).
+Pemberi sinyal Binance USDⓈ-M Futures perpetual USDT dengan **breakout 55/20** pada candle 1D (turtle-v1). Spesifikasi aktif: [docs/PRD_TURTLE_V1.md](docs/PRD_TURTLE_V1.md). Tahap validasi: **PAPER** (uji akhir 2019–2021: +1,39R per trade, tetapi drawdown 24% > batas 20%). Engine sebelumnya (Malomo, lalu skor tren Carver) disimpan sebagai arsip di `docs/`.
 
 UI memakai CSS, layout, navigasi, panel, jurnal, watchlist, kalkulator, dan PWA yang ada. Tampilan kartu Decision dan hasil scan dua kolom LONG/SHORT dipertahankan sesuai permintaan pemilik.
 
@@ -8,23 +8,23 @@ UI memakai CSS, layout, navigasi, panel, jurnal, watchlist, kalkulator, dan PWA 
 
 | Modul | Tanggung jawab |
 | --- | --- |
-| `engine/trend.js` | Fungsi murni: skor tren (EWMAC 8/32–64/256 + breakout 20–160, ±20), sinyal di \|skor\| ≥ 10, rencana (entry, stop awal 0,5 × volatilitas tahunan), trailing stop, ranking universe |
-| `app/market.js` | Binance REST/WS, kontrak aktif USDT perpetual, antrean/backoff, cache candle sampai candle berikutnya close, scan Top 250 → skor tren |
-| `app/tracker.js` | Pemantauan rencana (ARMED → RUNNING → keluar di stop) untuk ditinjau sebelum eksekusi manual; tidak mengirim order |
+| `engine/trend.js` | Fungsi murni: breakout 55 hari (sinyal), SL 2 × ATR20, exit 20 hari, ukuran posisi 0,5%, drawdown jurnal, universe Top 100 volume 30 hari |
+| `app/market.js` | Binance REST/WS, kontrak aktif USDT perpetual, antrean/backoff, cache candle sampai candle berikutnya close, scan 250 pair → Top 100 volume 30 hari → breakout |
+| `app/tracker.js` | Pemantauan rencana (ARMED → RUNNING → keluar di SL atau exit 20 hari) untuk ditinjau sebelum eksekusi manual; tidak mengirim order |
 | `app/storage.js` | Data pengguna dan state pemantauan; jurnal/watchlist pengguna tetap terbaca |
 | `app/marketdata.js` | Data pasar pelengkap per pair untuk tampilan: OI, rasio long/short, taker, orderbook, CVD 1D/7H, ADX 1D, volume, funding. Tidak masuk penilaian engine |
-| `app/live.js` | Data real-time posisi RUNNING di Decision: OI, CVD, orderbook, skor tren 1D terkini |
+| `app/live.js` | Data real-time posisi RUNNING di Decision: OI, CVD, orderbook, level exit 20 hari terkini |
 | `app/ui.js` | Render memakai komponen tampilan yang ada |
 | `app/main.js` | Navigasi, scan otomatis, pemantauan, **jurnal otomatis**, kalkulator, alert harga |
 
 ## Alur
 
 1. Scan otomatis sejak aplikasi dibuka (jeda 60 detik setelah scan selesai, selama tab aktif); tombol Refresh memaksa scan baru. Hasil terakhir disimpan dan langsung tampil.
-2. Top 250 menurut volume → skor tren dari 400 candle 1D. Candle 1D di-cache sampai candle berikutnya close dan hasil hitung skor disimpan, jadi scan ulang tidak mengunduh dan tidak menghitung ulang (diukur dari VPS 7 Okt 2026: scan pertama 51 dtk / 250 request, scan ulang 0 dtk / 0 request).
-3. |skor| ≥ 10 → rencana ARMED di harga saat itu. Satu pair satu rencana aktif.
+2. 250 pair volume 24 jam terbesar → 400 candle 1D → Top 100 menurut volume 30 hari. Candle 1D di-cache sampai candle berikutnya close, jadi scan ulang tidak mengunduh ulang.
+3. Close 1D di atas high 55 hari → LONG, di bawah low 55 hari → SHORT → rencana ARMED di harga saat itu, SL = entry ∓ 2 × ATR20. Satu pair satu rencana aktif, maks 5 per arah (prioritas volume 30 hari), sinyal baru berhenti bila drawdown jurnal ≥ 20%.
 4. **Harga menyentuh entry → RUNNING → otomatis tercatat di Jurnal** (status `open`).
-5. Trailing stop dinaikkan dari close 1D (tidak pernah dilonggarkan). Saat stop tersentuh, posisi selesai dan **entri jurnal yang sama diperbarui** (exit, win/loss dari R, catatan).
-6. Pair yang selesai menunggu skor keluar dari ambang lalu menembusnya lagi sebelum boleh masuk ulang.
+5. Keluar saat SL tersentuh atau saat close 1D menembus low (LONG) / high (SHORT) 20 hari. **Entri jurnal yang sama diperbarui** (exit, win/loss dari R, catatan).
+6. Rekaman lama engine trend-v1 yang masih RUNNING tetap selesai lewat trailing stop-nya.
 
 ## Keputusan teknis operasional
 
@@ -36,17 +36,17 @@ UI memakai CSS, layout, navigasi, panel, jurnal, watchlist, kalkulator, dan PWA 
 
 ## Data pengguna
 
-Jurnal (`pp_trade_journal`), watchlist (`pp_watchlist`), dan pengaturan Telegram tetap memakai key yang ada. State aplikasi memakai namespace `malomo_*` (termasuk `malomo_trend_resets` untuk aturan masuk ulang). Ekspor tidak menyertakan token Telegram.
+Jurnal (`pp_trade_journal`), watchlist (`pp_watchlist`), dan pengaturan Telegram tetap memakai key yang ada. State aplikasi memakai namespace `malomo_*` (`malomo_trend_resets` dari engine trend-v1 tidak dipakai lagi). Ekspor tidak menyertakan token Telegram.
 
 ## Menjalankan dan menguji
 
 Tidak ada build produksi. Jalankan server statis, misalnya `python3 -m http.server 8000`, lalu buka `http://localhost:8000`.
 
 ```sh
-npm test                 # self-test pemeriksa, pemeriksaan statis, engine tren, transport & storage
+npm test                 # self-test pemeriksa, pemeriksaan statis, engine breakout, transport & storage
 npm install
 npx playwright install chromium
 npm run test:browser     # desktop, mobile, alur jurnal otomatis, PWA offline
 ```
 
-`scripts/test-trend.js` memastikan skor di aplikasi identik dengan implementasi riset yang diuji (`research/trend-score-2026-10-07/tf.js`). Tes browser memakai respons Binance terkendali tanpa mengirim order atau notifikasi. CI menjalankan semua pemeriksaan dan memastikan versi cache PWA naik ketika modul aplikasi berubah. GitHub Pages memakai branch `main`.
+`scripts/test-trend.js` memastikan engine aplikasi menghasilkan trade yang sama persis dengan simulasi riset (`research/turtle-v1-2026-10-07/turtle-portfolio.js`). Tes browser memakai respons Binance terkendali tanpa mengirim order atau notifikasi. CI menjalankan semua pemeriksaan dan memastikan versi cache PWA naik ketika modul aplikasi berubah. GitHub Pages memakai branch `main`.

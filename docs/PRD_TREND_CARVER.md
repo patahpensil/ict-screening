@@ -1,6 +1,7 @@
 # PRD ICT Screening — Skor Tren Carver (trend-v1)
 
-Status: **AKTIF** sejak 7 Oktober 2026, menggantikan engine Malomo (PRD_MALOMO_FINAL.md dan addendumnya kini arsip).
+Status: **ARSIP** — diganti mesin breakout 55/20 ([`PRD_TURTLE_V1.md`](PRD_TURTLE_V1.md)) pada 8 Okt 2026. Sebelumnya aktif sejak 7 Oktober 2026, menggantikan engine Malomo.
+Tahap validasi: **PAPER** (cache v96) — aturan ini gagal backtest (`UJI_AB_REPO_2026-10-07.md` (branch `docs/uji-ab-repo`, belum di-merge)); sinyal tampil dan tercatat di jurnal sebagai bukti, berlabel "belum lulus uji — jangan dieksekusi". Lihat [`KEPUTUSAN_2026-10-07_PEMBERI_SINYAL.md`](KEPUTUSAN_2026-10-07_PEMBERI_SINYAL.md).
 Keputusan pemilik: "Langsung aplikasikan di ICT Screening, timpa semua yang ada di dalam aplikasi itu." Tampilan UI/UX Decision dan tampilan dua kolom LONG/SHORT dipertahankan sesuai permintaan pemilik sebelumnya.
 Dasar: [`UJI_SKOR_TREN_2026-10-07.md`](UJI_SKOR_TREN_2026-10-07.md). Konsep dari Rob Carver: pysystemtrade, buku *Leveraged Trading* (starter system), podcast *The Algorithmic Advantage* ep. 033.
 
