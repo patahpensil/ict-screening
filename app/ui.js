@@ -61,9 +61,12 @@
   }
   // note: progres pembaruan yang sedang berjalan; hasil lama tetap tampil sampai hasil baru selesai.
   const score=v=>Number.isFinite(v)?(v>0?'+':'')+v.toFixed(1):'—';
+  // Tahap validasi sinyal. Rekaman trend-v1 lama (sebelum label ini) juga PAPER.
+  const stageOf=r=>r&&(r.stage||(r.engine==='trend-v1'?'PAPER':''));
+  const paperNote=()=>'<div class="sop-note" style="border-left:3px solid var(--amber);margin-bottom:8px;">⚠ <b>PAPER</b> — aturan tren ini gagal backtest (rata-rata −0,41R per trade, Okt 2024 – Mar 2026). Sinyal tetap tampil dan dicatat di Jurnal sebagai bukti, tetapi <b>'+esc(Trend.VALIDATION.note)+'</b>.</div>';
   function scanStatus(result,note){
     const c=result.candidates,longs=c.filter(x=>x.evaluation.side==='long').length,shorts=c.filter(x=>x.evaluation.side==='short').length,errors=result.errors.length;
-    text('heroModeStatus',`✓ Tren Carver: ${c.length} pair dinilai · ${longs} sinyal LONG · ${shorts} sinyal SHORT · hasil ${new Date(result.at).toLocaleTimeString('id-ID')}${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}${note?' · '+note:''}`);
+    text('heroModeStatus',`✓ Tren Carver (PAPER — ${Trend.VALIDATION.note}): ${c.length} pair dinilai · ${longs} sinyal LONG · ${shorts} sinyal SHORT · hasil ${new Date(result.at).toLocaleTimeString('id-ID')}${errors?' · '+errors+' pair gagal dimuat (hasil parsial)':''}${note?' · '+note:''}`);
   }
   const SHOW_PER_SIDE=40;
   function scan(result,note){
@@ -74,15 +77,15 @@
     const row=r=>{
       const m=r.evaluation,d=bySymbol.get(r.symbol);if(!d)return '';
       const strong=!!m.side,long=m.forecast>0;
-      const badge=`<span class="badge-pill scan-status ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'} · skor ${score(m.forecast)} · ${strong?'SINYAL (|skor| ≥ '+Trend.RULES.entry+')':'pantau, belum mencapai ambang'}${Number.isFinite(m.volDailyPct)?' · volatilitas harian '+m.volDailyPct.toFixed(1)+'%':''}</span>`;
+      const badge=`<span class="badge-pill scan-status ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'} · skor ${score(m.forecast)} · ${strong?'SINYAL PAPER (|skor| ≥ '+Trend.RULES.entry+')':'pantau, belum mencapai ambang'}${Number.isFinite(m.volDailyPct)?' · volatilitas harian '+m.volDailyPct.toFixed(1)+'%':''}</span>`;
       return scanCard(d,badge,marketChips(r.symbol,r.metrics,d));
     };
     // Kolom LONG: skor positif tertinggi; kolom SHORT: skor negatif terendah. Sisi SHORT tidak andal di uji (lihat docs).
     const longs=result.candidates.filter(r=>r.evaluation.forecast>0).sort((a,b)=>b.evaluation.forecast-a.evaluation.forecast).slice(0,SHOW_PER_SIDE);
     const shorts=result.candidates.filter(r=>r.evaluation.forecast<0).sort((a,b)=>a.evaluation.forecast-b.evaluation.forecast).slice(0,SHOW_PER_SIDE);
     const col=(title,cls,list,note)=>`<section class="scan-col"><div class="scan-col-head ${cls}">${title} · ${list.filter(r=>r.evaluation.side).length} sinyal${note?'<span style="display:block;font-weight:600;letter-spacing:0;margin-top:3px;">'+note+'</span>':''}</div><div class="coin-list">${list.map(row).join('')||'<div class="empty-state">Tidak ada pair.</div>'}</div></section>`;
-    html('modeResultsList',result.candidates.length?`<div class="scan-split">${col('LONG','long',longs,'')}${col('SHORT','short',shorts,'⚠ sisi SHORT tidak andal di uji (rugi saat pasar naik)')}</div>`:'<div class="empty-state">Belum ada pair dengan data 1D yang cukup.</div>');
-    html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()}</div><div>Entry ${price(p.entry)} · stop awal ${price(p.sl)} (trailing)</div><div class="badge-pill ${r.evaluation.side==='long'?'score-hi':'score-lo'}">Skor tren ${score(r.evaluation.forecast)}</div></div>`;}).join('')||'<div class="empty-state">Belum ada sinyal tren (|skor| ≥ 10).</div>');
+    html('modeResultsList',result.candidates.length?paperNote()+`<div class="scan-split">${col('LONG','long',longs,'')}${col('SHORT','short',shorts,'⚠ sisi SHORT tidak andal di uji (rugi saat pasar naik)')}</div>`:'<div class="empty-state">Belum ada pair dengan data 1D yang cukup.</div>');
+    html('topSignalGrid',ready.slice(0,20).map(r=>{const p=r.evaluation.plan;return `<div class="signal-card" data-action="detail" data-symbol="${esc(r.symbol)}"><div class="ws-card-title">${esc(r.symbol)} · ${r.evaluation.side.toUpperCase()} · PAPER</div><div>Entry ${price(p.entry)} · stop awal ${price(p.sl)} (trailing)</div><div class="badge-pill ${r.evaluation.side==='long'?'score-hi':'score-lo'}">Skor tren ${score(r.evaluation.forecast)}</div></div>`;}).join('')||'<div class="empty-state">Belum ada sinyal tren (|skor| ≥ 10).</div>');
   }
   function detail(symbol,m,tf='1d'){
     selected={symbol,evaluation:m,tf};
@@ -93,13 +96,13 @@
     const p=m.plan,side=m.side,title=side?side.toUpperCase()+' · SKOR '+score(m.forecast):'PANTAU · SKOR '+score(m.forecast);
     const rules=(m.rules||[]).map(r=>row(esc(r.name),score(r.value))).join('');
     const gapPct=Number.isFinite(m.gap)&&m.last?100*m.gap/m.last:null;
-    const analysis=`<div class="trend-banner ${side==='long'?'score-hi':side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(title)}</div><div class="tb-sub">${esc(m.status)}</div></div>`
+    const analysis=`<div class="trend-banner ${side==='long'?'score-hi':side==='short'?'score-lo':'score-mid'}"><div class="tb-title">${esc(title)}</div><div class="tb-sub">${esc(m.status)}${side?' · PAPER — '+esc(Trend.VALIDATION.note):''}</div></div>`
       +card('SKOR TREN CARVER · 1D',rules+row('<b>Gabungan</b>','<b>'+score(m.forecast)+'</b> (batas ±'+Trend.RULES.cap+', sinyal di ±'+Trend.RULES.entry+')')+'<div class="sop-note">Skor = rata-rata 8 aturan Carver (EWMAC dan breakout) pada candle 1D yang sudah close. Positif = tren naik, negatif = tren turun.</div>')
       +card('RISIKO & TRAILING STOP',row('Volatilitas harian',Number.isFinite(m.volDailyPct)?m.volDailyPct.toFixed(2)+'%':'—')+row('Jarak trailing stop',gapPct!=null?gapPct.toFixed(1)+'% ('+price(m.gap)+') · 0,5 × volatilitas tahunan':'—')+'<div class="sop-note">Stop mengikuti close 1D terbaik sejak entry dan tidak pernah dilonggarkan. Tidak ada TP tetap: tren dibiarkan berjalan.</div>');
-    const validation=card('SYARAT SINYAL',row('Skor gabungan',score(m.forecast))+row('Ambang sinyal','|skor| ≥ '+Trend.RULES.entry)+row('Status',side?'✓ '+side.toUpperCase():'○ belum mencapai ambang')+(side==='short'?row('Catatan','⚠ sisi SHORT tidak andal di uji'):''));
+    const validation=card('SYARAT SINYAL',row('Skor gabungan',score(m.forecast))+row('Ambang sinyal','|skor| ≥ '+Trend.RULES.entry)+row('Status',side?'✓ '+side.toUpperCase():'○ belum mencapai ambang')+row('Tahap validasi','PAPER — '+esc(Trend.VALIDATION.note))+(side==='short'?row('Catatan','⚠ sisi SHORT tidak andal di uji'):''));
     const decision=card('KEPUTUSAN',`<div class="decision-btns"><div class="decision-btn buy ${m.decision==='LONG'?'active':''}"><div class="db-label">LONG</div></div><div class="decision-btn wait ${m.decision==='SKIP'?'active':''}"><div class="db-label">SKIP</div></div><div class="decision-btn sell ${m.decision==='SHORT'?'active':''}"><div class="db-label">SHORT</div></div></div><div class="sop-note">${esc(m.status)}.</div>`);
     const marketCard=card('DATA PASAR · PELENGKAP',marketChips(symbol,MalomoMarketData.metrics(m),t)+'<div class="sop-note">Hanya tampilan; tidak memengaruhi skor tren.</div>');
-    const trading=p?`<div class="entry-card ${side}"><div class="entry-card-head">${side.toUpperCase()} · RENCANA TREN</div>${row('Entry (harga saat sinyal)',price(p.entry))}${row('Stop awal (trailing)',price(p.sl))}${row('Jarak stop',gapPct!=null?gapPct.toFixed(1)+'%':'—')}${row('Target','Tanpa TP — keluar di trailing stop')}<div class="entry-caveat">Begitu harga menyentuh entry, posisi masuk Decision dan otomatis tercatat di Jurnal.</div><button class="btn btn-primary" data-action="save-plan">📌 Simpan ke Histori Setup</button><button class="btn" data-action="use-plan">🧮 Pakai di Kalkulator</button></div>`:card('RENCANA','<div class="empty-state">'+esc(m.status)+' — rencana dibuat saat |skor| ≥ '+Trend.RULES.entry+'.</div>');
+    const trading=p?`<div class="entry-card ${side}"><div class="entry-card-head">${side.toUpperCase()} · RENCANA TREN · PAPER</div>${paperNote()}${row('Entry (harga saat sinyal)',price(p.entry))}${row('Stop awal (trailing)',price(p.sl))}${row('Jarak stop',gapPct!=null?gapPct.toFixed(1)+'%':'—')}${row('Target','Tanpa TP — keluar di trailing stop')}<div class="entry-caveat">Begitu harga menyentuh entry, posisi masuk Decision dan otomatis tercatat di Jurnal.</div><button class="btn btn-primary" data-action="save-plan">📌 Simpan ke Histori Setup</button><button class="btn" data-action="use-plan">🧮 Pakai di Kalkulator</button></div>`:card('RENCANA','<div class="empty-state">'+esc(m.status)+' — rencana dibuat saat |skor| ≥ '+Trend.RULES.entry+'.</div>');
     html('wsAnalysisBody',analysis);html('wsValidationBody',validation);html('wsDecisionBody',decision);html('wsTradingSetupBody',trading);html('modalBody',analysis+marketCard+validation+decision+trading);
   }
   function journal(){
@@ -161,8 +164,8 @@
     }
     const rr=hasTp?Math.abs(r.tp-r.entry)/risk:null;
     return `<div class="dec-card ${esc(r.side)}" data-action="detail" data-symbol="${esc(r.symbol)}">
-      <div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span class="dec-sym">${esc(r.symbol.replace(/USDT$/,''))}</span><span class="badge-pill ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'}</span>
-        <div class="dec-meta">${r.engine==='trend-v1'?'Tren Carver · skor saat sinyal '+score(r.forecastAtSignal)+' · stop awal '+fp(start):'Malomo · zona 4H · entry 1H'} · masuk ${esc(fmtTime(r.runningAt))} · berjalan ${ago(Date.now()-(r.runningAt||r.createdAt))}${r.frozen?' · pemantauan dibekukan':''}</div></div>
+      <div class="dec-head"><span class="run-tag"><span class="run-dot"></span>RUNNING</span><span class="dec-sym">${esc(r.symbol.replace(/USDT$/,''))}</span><span class="badge-pill ${long?'score-hi':'score-lo'}">${long?'LONG':'SHORT'}</span>${stageOf(r)?'<span class="badge-pill score-mid">'+esc(stageOf(r))+'</span>':''}
+        <div class="dec-meta">${r.engine==='trend-v1'?'Tren Carver · skor saat sinyal '+score(r.forecastAtSignal)+' · stop awal '+fp(start):'Malomo · zona 4H · entry 1H'}${stageOf(r)==='PAPER'?' · PAPER — '+esc(Trend.VALIDATION.note):''} · masuk ${esc(fmtTime(r.runningAt))} · berjalan ${ago(Date.now()-(r.runningAt||r.createdAt))}${r.frozen?' · pemantauan dibekukan':''}</div></div>
       <div class="dec-price"><span class="px">${px>0?fp(px):'-'}</span><span class="rr ${R>=0?'chg-pos':'chg-neg'}">${R>=0?'+':''}${R.toFixed(2)}R</span></div>
       <div class="dec-prog"><div class="fill" style="width:${px>0?frac(px):0}%"></div><div class="mark" style="left:${frac(r.entry)}%" title="Entry"></div>${px>0?`<div class="now" style="left:${frac(px)}%"></div>`:''}</div>
       <div class="dec-lv"><div><span>${hasTp?'SL':'TRAILING STOP'}</span>${fp(r.sl)}</div><div><span>ENTRY</span>${fp(r.entry)}</div>${hasTp?`<div><span>TP</span>${fp(r.tp)}</div><div><span>RR</span>1:${rr.toFixed(2)}</div>`:`<div><span>${long?'PUNCAK':'TERENDAH'}</span>${fp(r.peak??r.entry)}</div><div><span>STOP AWAL</span>${fp(start)}</div>`}</div>
@@ -171,7 +174,7 @@
   }
   function decision(){
     const records=MalomoStore.read('tracks'),running=records.filter(x=>x.status==='running').sort((a,b)=>(b.runningAt||0)-(a.runningAt||0)),armed=records.filter(x=>x.status==='armed');
-    html('decisionList',running.map(decisionCard).join('')||'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Tren</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
+    html('decisionList',running.length?paperNote()+running.map(decisionCard).join(''):'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Tren</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
     text('decisionArmedNote',armed.length?armed.length+' setup dari scan sedang dipantau, menunggu harga menyentuh Entry.':'');$('decisionArmedNote').style.display=armed.length?'block':'none';
     text('decisionCount',running.length);$('decisionCount').style.display=running.length?'inline-flex':'none';
   }

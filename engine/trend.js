@@ -15,6 +15,10 @@
     daysPerYear:365,   // crypto diperdagangkan setiap hari
     minCandles:300,
   });
+  // Tahap validasi (kerangka 6 tahap: backtest → out-of-sample → Monte Carlo → paper → live kecil → monitor).
+  // Aturan live trend-v1 gagal backtest (docs/UJI_AB_REPO_2026-10-07.md di branch docs/uji-ab-repo), jadi sinyalnya PAPER: tampil dan
+  // tercatat di jurnal sebagai bukti, bukan untuk dieksekusi. Keputusan pemilik 7 Okt 2026.
+  const VALIDATION=Object.freeze({stage:'PAPER',note:'belum lulus uji — jangan dieksekusi'});
   function closed(candles,now){
     return (candles||[]).filter(c=>[c.open,c.high,c.low,c.close].every(Number.isFinite)&&c.close>0
       &&c.high>=Math.max(c.open,c.close)&&c.low<=Math.min(c.open,c.close)&&(!Number.isFinite(c.ct)||c.ct<=now));
@@ -55,7 +59,7 @@
     let plan=null;
     if(side&&gap){
       const long=side==='long',sl=long?entry-gap:entry+gap;
-      if(long?sl>0:true)plan={entry,sl,initialSl:sl,gap,risk:gap,tp:null,rr:null,trailing:true,forecastAtSignal:forecast,signalAt:c[i].ct};
+      if(long?sl>0:true)plan={entry,sl,initialSl:sl,gap,risk:gap,tp:null,rr:null,trailing:true,forecastAtSignal:forecast,signalAt:c[i].ct,stage:VALIDATION.stage};
     }
     const status=forecast==null?'skor belum tersedia':side?(plan?'sinyal '+side.toUpperCase()+' · skor '+(forecast>0?'+':'')+forecast.toFixed(1):'sinyal tanpa rencana valid'):'pantau · skor '+(forecast>0?'+':'')+forecast.toFixed(1)+' (ambang ±'+RULES.entry+')';
     return {engine:'trend-v1',candles:c,last,forecast,rules,side,plan,gap,pvolDaily:s.pvol[i],
@@ -73,5 +77,5 @@
     return record;
   }
   function rankUniverse(tickers){return tickers.filter(t=>Number.isFinite(t.quoteVolume)).slice().sort((a,b)=>b.quoteVolume-a.quoteVolume||a.symbol.localeCompare(b.symbol)).slice(0,RULES.universe);}
-  return Object.freeze({RULES,closed,series,sideOf,stopGap,evaluate,trail,rankUniverse});
+  return Object.freeze({RULES,VALIDATION,closed,series,sideOf,stopGap,evaluate,trail,rankUniverse});
 });

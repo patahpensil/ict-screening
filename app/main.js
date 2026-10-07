@@ -50,14 +50,16 @@
     if(changed){S.write('priceAlerts',alerts);saveTracks(tracks);transitions.forEach(([r,b])=>transition(r,b));U.priceAlerts();U.decision();}
   }
   const fmtScore=v=>Number.isFinite(v)?(v>0?'+':'')+v.toFixed(1):'—';
-  function setupLabel(r){return r.engine==='trend-v1'?'Tren Carver · skor '+fmtScore(r.forecastAtSignal):'Malomo · close 1H';}
+  // Label tahap validasi ikut tersimpan di jurnal supaya bukti PAPER bisa dipisah dari sinyal yang kelak lulus uji.
+  const stageOf=r=>r.stage||(r.engine==='trend-v1'?'PAPER':'');
+  function setupLabel(r){return (r.engine==='trend-v1'?'Tren Carver · skor '+fmtScore(r.forecastAtSignal):'Malomo · close 1H')+(stageOf(r)?' · '+stageOf(r):'');}
   // Jurnal otomatis: setiap pair yang harganya menyentuh entry dicatat saat itu juga (status open),
   // lalu entri yang sama diperbarui saat posisi selesai. Data ini menjadi bukti kinerja aplikasi ke depan.
   function journalOpen(r){
     const journal=S.read('journal');if(journal.some(x=>x.trackId===r.id))return;
     journal.unshift({id:id(),trackId:r.id,auto:true,symbol:r.symbol,direction:r.side,date:new Date(r.runningAt||Date.now()).toISOString().slice(0,10),
       status:'open',entry:r.entry,exit:'',sl:r.sl,tp1:Number.isFinite(r.tp)?r.tp:'',tp2:'',tp3:'',pnlUsd:'',pnlPct:'',setup:setupLabel(r),emotion:'',
-      notes:'Dicatat otomatis saat harga menyentuh entry ('+new Date(r.runningAt||Date.now()).toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA). Stop awal '+U.price(r.initialSl??r.sl)+(r.trailing?' (trailing 0,5 × volatilitas tahunan).':'.')+' Harga level plan; belum termasuk fee/slippage/funding.'});
+      notes:(stageOf(r)==='PAPER'?'PAPER (aturan belum lulus uji). ':'')+'Dicatat otomatis saat harga menyentuh entry ('+new Date(r.runningAt||Date.now()).toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA). Stop awal '+U.price(r.initialSl??r.sl)+(r.trailing?' (trailing 0,5 × volatilitas tahunan).':'.')+' Harga level plan; belum termasuk fee/slippage/funding.'});
     S.write('journal',journal);U.journal();
   }
   function recordClose(r){
