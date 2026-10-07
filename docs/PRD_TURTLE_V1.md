@@ -44,6 +44,8 @@ Kriteria (dikunci sebelum dijalankan): trade dari 1 Nov 2019 sampai 31 Des 2021;
 | Drawdown Monte Carlo p95 | ≤ 20% | 8% | ✓ |
 
 **Kesimpulan: belum lulus** — satu kriteria (drawdown harian) terlewati. Total +136R ≈ +68% pada risiko 0,5%. SHORT rugi (−0,22R) di periode pasar naik ini; untung datang dari LONG. Aturan **tidak diubah** sesudah melihat hasil ini. Label PAPER dipertahankan sampai pemilik memutuskan.
+
+**Keputusan pemilik (8 Okt 2026): tetap PAPER dulu, kumpulkan bukti di Jurnal.** Sinyal tetap tampil dan setiap entry yang tersentuh tercatat otomatis di Jurnal berlabel PAPER; hasil jurnal ini menjadi data forward (data baru) untuk keputusan berikutnya.
 Data: `research/turtle-v1-2026-10-07/hasil-turtle-awal-2019-11-01-risk0.005.json` dan `uji-akhir-2019-2021.log`.
 
 ## 4. Penerapan di aplikasi
