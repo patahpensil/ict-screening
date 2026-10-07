@@ -1,0 +1,72 @@
+{
+ "adx>=20": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "adx<20": [
+  "noise",
+  "noise",
+  "merugikan"
+ ],
+ "regime!=contraction": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "regime=contraction": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "er!=choppy": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "ema1d searah": [
+  "noise",
+  "berguna",
+  "noise"
+ ],
+ "ema1d berlawanan": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "lokasi sesuai": [
+  "merugikan",
+  "noise",
+  "noise"
+ ],
+ "rvolSweep>=1.1": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "rvolSweep<1.1": [
+  "noise",
+  "berguna",
+  "noise"
+ ],
+ "cvdSweep searah": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "cvdSweep berlawanan": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "rangeAtr>=1": [
+  "noise",
+  "noise",
+  "noise"
+ ],
+ "rangeAtr<1": [
+  "noise",
+  "noise",
+  "noise"
+ ]
+}

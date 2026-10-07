@@ -1,0 +1,38 @@
+[
+ {
+  "id": "1d|mss|tp-3|bias-searah",
+  "rtf": "1d",
+  "entry": "mss",
+  "target": 3,
+  "bias": "searah",
+  "slBuffer": 0.1,
+  "filters": [
+   "cvdSweep searah",
+   "adx>=20"
+  ]
+ },
+ {
+  "id": "1d|mss|tp-3|bias-semua",
+  "rtf": "1d",
+  "entry": "mss",
+  "target": 3,
+  "bias": "semua",
+  "slBuffer": 0.1,
+  "filters": [
+   "ema1d searah",
+   "rvolSweep<1.1"
+  ]
+ },
+ {
+  "id": "1d|mss|tp-2|bias-searah",
+  "rtf": "1d",
+  "entry": "mss",
+  "target": 2,
+  "bias": "searah",
+  "slBuffer": 0.1,
+  "filters": [
+   "rangeAtr<1",
+   "regime!=contraction"
+  ]
+ }
+]
