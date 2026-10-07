@@ -1,4 +1,4 @@
-const CACHE_NAME = "ict-screening-v99";
+const CACHE_NAME = "ict-screening-v100";
 const SHELL_FILES = [
   "./index.html",
   "./engine/trend.js",

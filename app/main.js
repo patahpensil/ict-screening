@@ -128,7 +128,7 @@
   // Tombol Scan: tampilkan hasil terakhir seketika; scan baru hanya dimulai bila tidak ada yang sedang berjalan
   // dan hasil terakhir sudah lewat jeda. Menutup panel tidak membatalkan scan.
   function openScan(){
-    U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Breakout 55/20 · Top 100');
+    U.panel('modeResultsSection');U.$('heroModeStatus').classList.add('show');U.text('modeResultsTitle','Breakout Swing 55/20 · Top 100');
     if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);else U.text('heroModeStatus',scanning?scanProgress:'Memulai scan…');
     if(!scanning&&Date.now()-lastScanAt>=SCAN_GAP)scan();
   }

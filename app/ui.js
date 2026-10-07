@@ -182,7 +182,7 @@
   }
   function decision(){
     const records=MalomoStore.read('tracks'),running=records.filter(x=>x.status==='running').sort((a,b)=>(b.runningAt||0)-(a.runningAt||0)),armed=records.filter(x=>x.status==='armed');
-    html('decisionList',running.length?(running.some(r=>stageOf(r)==='PAPER')?paperNote():'')+running.map(decisionCard).join(''):'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Breakout</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
+    html('decisionList',running.length?(running.some(r=>stageOf(r)==='PAPER')?paperNote():'')+running.map(decisionCard).join(''):'<div class="empty-state">Belum ada pair yang menyentuh Entry. Jalankan <b>Scan Breakout Swing</b> di Home — hasilnya otomatis dipantau di sini selama app terbuka.</div>');
     text('decisionArmedNote',armed.length?armed.length+' setup dari scan sedang dipantau, menunggu harga menyentuh Entry.':'');$('decisionArmedNote').style.display=armed.length?'block':'none';
     text('decisionCount',running.length);$('decisionCount').style.display=running.length?'inline-flex':'none';
   }
