@@ -77,6 +77,16 @@
     else journal.unshift(Object.assign({id:id(),trackId:r.id,auto:true,symbol:r.symbol,direction:r.side,date:new Date(r.runningAt||r.closedAt).toISOString().slice(0,10),entry:r.entry,tp1:Number.isFinite(r.tp)?r.tp:'',setup:setupLabel(r),notes:'Dicatat otomatis.'+note},fields));
     S.write('journal',journal);U.journal();
   }
+  // Mesin Carver (trend-v1) dihentikan 8 Okt 2026 (keputusan pemilik): rencananya yang masih ARMED/RUNNING dibuang dari
+  // Decision. Tidak dihitung sebagai hasil: tidak masuk histori dan entri jurnalnya diberi status "dihentikan".
+  function retireLegacy(){
+    const tracks=S.read('tracks'),old=tracks.filter(r=>r.engine==='trend-v1'&&r.status!=='closed');
+    if(!old.length)return;
+    const ids=new Set(old.map(r=>r.id)),journal=S.read('journal'),at=new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})+' WITA';
+    for(const e of journal)if(ids.has(e.trackId)&&['open','floating'].includes(e.status)){e.status='cancelled';e.notes=(e.notes||'')+' · Dihentikan '+at+': mesin Carver diganti breakout 55/20; tidak dihitung sebagai hasil.';}
+    S.write('journal',journal);saveTracks(tracks.filter(r=>!ids.has(r.id)));
+    log('🧹 '+old.length+' posisi lama mesin Carver dibuang dari Decision (tidak dihitung sebagai hasil).');
+  }
   async function catchUp(){
     if(polling)return;polling=true;
     try{
@@ -245,6 +255,7 @@
     window.addEventListener('popstate',()=>{U.panels();U.workspace('wsHome');});
     setInterval(()=>U.text('topbarClock',new Date().toLocaleString('id-ID',{timeZone:'Asia/Makassar'})),1000);U.text('sidebarEngineStatus','Breakout 55/20 · turtle-v1');
     M.subscribe(data=>{prices(data);if(Date.now()-renderAt>2000){renderAt=Date.now();U.market();U.decision();}});
+    retireLegacy();
     U.journal();U.history();U.decision();U.alerts();U.priceAlerts();refresh().then(()=>{if(root.lastMalomoScan)U.scan(root.lastMalomoScan,scanning?scanProgress:null);if(!scanning&&!document.hidden)scan();});M.connect();setInterval(refresh,45000);
     // Decision: data tampilan real-time untuk posisi RUNNING (OI ±15 dtk, CVD & orderbook WebSocket, struktur 4H ±30 dtk).
     MalomoLive.sync(S.read('tracks'));
